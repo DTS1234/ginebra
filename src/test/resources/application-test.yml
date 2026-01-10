@@ -1,0 +1,5 @@
+ginebra:
+  jwt:
+    secret: test-secret-key-minimum-32-characters-for-testing-purposes
+    expiration-hours: 1
+    issuer: ginebra-test

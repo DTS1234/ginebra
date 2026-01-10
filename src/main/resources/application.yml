@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: ginebra-online
+
+ginebra:
+  jwt:
+    secret: ${JWT_SECRET:change-this-in-production-use-long-random-string-minimum-256-bits}
+    expiration-hours: 24
+    issuer: ginebra-online
