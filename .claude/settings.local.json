@@ -4,7 +4,9 @@
       "Bash(test:*)",
       "Bash(./gradlew test:*)",
       "Bash(./gradlew:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(dir /s \"C:\\Users\\User\\IdeaProjects\\ginebra\\src\" /b *.kt)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxN2RkNjE1Ni1hMTUwLTQ2MjQtODY3Yy01YjA4MmViOTFlY2QiLCJwbGF5ZXJJZCI6IjE3ZGQ2MTU2LWExNTAtNDYyNC04NjdjLTViMDgyZWI5MWVjZCIsImRpc3BsYXlOYW1lIjoiVGVzdFBsYXllciIsImFub255bW91cyI6dHJ1ZSwiaXNzIjoiZ2luZWJyYS1vbmxpbmUiLCJpYXQiOjE3NjgwNjE2NDYsImV4cCI6MTc2ODE0ODA0Nn0.6m1Yci7Wt50Fct4MuroF5n22En2BcUOSpsuMUUf5ojiYcQUI4NvyiJBTQTZwF_q5mT-aq7RFOXXTbMkmc1byvA\":*)"
     ],
     "deny": [],
     "ask": []

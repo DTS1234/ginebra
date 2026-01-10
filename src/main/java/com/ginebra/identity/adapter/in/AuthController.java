@@ -1,6 +1,9 @@
 package com.ginebra.identity.adapter.in;
 
+import com.ginebra.identity.application.InvalidTokenException;
 import com.ginebra.identity.port.in.CreateAnonymousUseCase;
+import com.ginebra.identity.port.in.GetCurrentPlayerUseCase;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +15,14 @@ import java.util.Optional;
 public class AuthController {
 
     private final CreateAnonymousUseCase createAnonymousUseCase;
+    private final GetCurrentPlayerUseCase getCurrentPlayerUseCase;
 
-    public AuthController(CreateAnonymousUseCase createAnonymousUseCase) {
+    public AuthController(
+        CreateAnonymousUseCase createAnonymousUseCase,
+        GetCurrentPlayerUseCase getCurrentPlayerUseCase
+    ) {
         this.createAnonymousUseCase = Objects.requireNonNull(createAnonymousUseCase, "createAnonymousUseCase must not be null");
+        this.getCurrentPlayerUseCase = Objects.requireNonNull(getCurrentPlayerUseCase, "getCurrentPlayerUseCase must not be null");
     }
 
     @PostMapping("/anonymous")
@@ -36,6 +44,32 @@ public class AuthController {
         return ResponseEntity.ok(dto);
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<GetCurrentPlayerResponseDto> getCurrentPlayer(
+        @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new InvalidTokenException("Missing or invalid Authorization header");
+        }
+
+        final var token = authHeader.substring(7);
+        final var response = getCurrentPlayerUseCase.getCurrentPlayer(token);
+
+        final var dto = new GetCurrentPlayerResponseDto(
+            response.playerId(),
+            response.displayName(),
+            response.anonymous()
+        );
+
+        return ResponseEntity.ok(dto);
+    }
+
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ErrorResponseDto> handleInvalidToken(InvalidTokenException ex) {
+        final var error = new ErrorResponseDto("INVALID_TOKEN", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
     record CreateAnonymousRequestDto(String displayName) {}
 
     record CreateAnonymousResponseDto(
@@ -43,4 +77,12 @@ public class AuthController {
         String playerId,
         String displayName
     ) {}
+
+    record GetCurrentPlayerResponseDto(
+        String playerId,
+        String displayName,
+        boolean anonymous
+    ) {}
+
+    record ErrorResponseDto(String code, String message) {}
 }
