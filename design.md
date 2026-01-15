@@ -562,10 +562,10 @@ Each phase is independently deployable and testable.
 ### Phase 1: Identity Foundation
 **Scope**: Anonymous player creation, JWT integration
 **Deliverables**:
-- POST /api/auth/anonymous endpoint
-- GET /api/auth/me endpoint
-- JWT validation filter
-- In-memory token store (for anonymous session tracking)
+- step 1 POST /api/auth/anonymous endpoint
+- step 2 GET /api/auth/me endpoint
+- step 3 JWT validation filter
+- step 4 In-memory token store (for anonymous session tracking)
   **Tests**:
 - Unit: Token generation, parsing
 - Integration: Full auth flow
@@ -576,10 +576,13 @@ Each phase is independently deployable and testable.
 ### Phase 2: Lobby - Room Management
 **Scope**: Room CRUD, player join/leave
 **Deliverables**:
-- Room domain model
-- All /api/rooms/* endpoints
-- In-memory room repository
-- Room lifecycle (WAITING → STARTING)
+- step 1 Room domain model
+- step 2 /room POST
+- step 3 /room GET
+- step 4 /room/{id}/join POST
+- step 5 /room/{id}/leave POST
+- use In-memory room repository
+- use Room lifecycle (WAITING → STARTING)
   **Tests**:
 - Unit: Room join logic, player limits
 - Integration: Full room lifecycle
