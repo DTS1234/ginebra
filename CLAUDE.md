@@ -8,3 +8,7 @@ see ./design.md
 
 # Conventions
 see ./code-guide.md
+
+# Progress
+
+see ./PROGRESS.md to check what has been done already.

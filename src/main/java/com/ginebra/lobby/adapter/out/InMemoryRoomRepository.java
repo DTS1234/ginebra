@@ -32,6 +32,12 @@ public class InMemoryRoomRepository implements RoomRepository {
         return List.copyOf(rooms.values());
     }
 
+    @Override
+    public void delete(RoomId id) {
+        Objects.requireNonNull(id, "id must not be null");
+        rooms.remove(id);
+    }
+
     // Test helper methods
     public void clear() {
         rooms.clear();
