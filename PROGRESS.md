@@ -32,16 +32,17 @@ This document tracks what has been implemented.
 ---
 
 ## Phase 3: Game Engine - Core Domain
-**Status: NOT STARTED**
+**Status: IN PROGRESS**
 
 | Step | Description | Status |
 |------|-------------|--------|
-| - | Card, Deck, Game, Round, Basa entities | Pending |
-| - | CardRankingService (all 4 trump scenarios) | Pending |
-| - | MoveValidator | Pending |
-| - | BasaResolver | Pending |
-| - | TeamResolver | Pending |
-| - | Game state machine | Pending |
+| 1 | Card, Suit, Rank (value objects) | Done |
+| 2 | Deck | Pending |
+| 3 | CardRankingService (all 4 trump scenarios) | Pending |
+| 4 | Basa, PlayedCard | Pending |
+| 5 | Round | Pending |
+| 6 | Game (aggregate root) | Pending |
+| 7 | MoveValidator, BasaResolver, TeamResolver | Pending |
 
 ---
 
