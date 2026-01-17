@@ -37,8 +37,8 @@ This document tracks what has been implemented.
 | Step | Description | Status |
 |------|-------------|--------|
 | 1 | Card, Suit, Rank (value objects) | Done |
-| 2 | Deck | Pending |
-| 3 | CardRankingService (all 4 trump scenarios) | Pending |
+| 2 | Deck | Done |
+| 3 | CardRankingService (all 4 trump scenarios) | Done |
 | 4 | Basa, PlayedCard | Pending |
 | 5 | Round | Pending |
 | 6 | Game (aggregate root) | Pending |
