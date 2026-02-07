@@ -40,7 +40,7 @@ This document tracks what has been implemented.
 | 2 | Deck | Done |
 | 3 | CardRankingService (all 4 trump scenarios) | Done |
 | 4 | Basa, PlayedCard | Done |
-| 5 | Round | Pending |
+| 5 | Round | Done |
 | 6 | Game (aggregate root) | Pending |
 | 7 | MoveValidator, BasaResolver, TeamResolver | Pending |
 
