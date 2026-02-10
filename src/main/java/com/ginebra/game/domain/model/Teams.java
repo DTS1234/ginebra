@@ -72,6 +72,12 @@ public record Teams(
             throw new IllegalArgumentException("kingPlayer must be in allPlayers");
         }
 
+        if (playerWhoGoes.equals(kingPlayer)) {
+            throw new IllegalArgumentException(
+                "teamOfTwo must have " + TEAM_OF_TWO_SIZE + " players, got: 1"
+            );
+        }
+
         final var teamOfTwo = Set.of(playerWhoGoes, kingPlayer);
         final var teamOfThree = allPlayers.stream()
             .filter(p -> !teamOfTwo.contains(p))

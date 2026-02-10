@@ -32,7 +32,7 @@ This document tracks what has been implemented.
 ---
 
 ## Phase 3: Game Engine - Core Domain
-**Status: IN PROGRESS**
+**Status: COMPLETE**
 
 | Step | Description | Status |
 |------|-------------|--------|
@@ -41,8 +41,8 @@ This document tracks what has been implemented.
 | 3 | CardRankingService (all 4 trump scenarios) | Done |
 | 4 | Basa, PlayedCard | Done |
 | 5 | Round | Done |
-| 6 | Game (aggregate root) | Pending |
-| 7 | MoveValidator, BasaResolver, TeamResolver | Pending |
+| 6 | Game (aggregate root) | Done |
+| 7 | MoveValidator, BasaResolver, TeamResolver | Done |
 
 ---
 
