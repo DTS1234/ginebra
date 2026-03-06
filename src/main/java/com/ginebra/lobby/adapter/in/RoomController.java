@@ -87,7 +87,9 @@ public class RoomController {
             return ResponseEntity.ok(new JoinRoomResponseDto(
                 success.roomId(),
                 players,
-                success.status()
+                success.status(),
+                success.gameId(),
+                success.websocketUrl()
             ));
         } else if (result instanceof JoinRoomUseCase.JoinRoomResult.RoomNotFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -154,7 +156,9 @@ public class RoomController {
     record JoinRoomResponseDto(
         String roomId,
         List<PlayerDto> players,
-        String status
+        String status,
+        String gameId,
+        String websocketUrl
     ) {}
 
     record ErrorResponseDto(String code, String message) {}

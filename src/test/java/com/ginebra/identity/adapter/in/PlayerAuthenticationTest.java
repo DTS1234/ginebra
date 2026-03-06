@@ -43,7 +43,7 @@ class PlayerAuthenticationTest {
     }
 
     @Test
-    void shouldReturnDisplayNameAsName() {
+    void shouldReturnPlayerIdAsName() {
         // Arrange
         final var playerId = new PlayerId(UUID.randomUUID());
         final var playerIdentity = new PlayerIdentity(playerId, "TestPlayer", true);
@@ -54,7 +54,7 @@ class PlayerAuthenticationTest {
         final var name = authentication.getName();
 
         // Assert
-        assertThat(name).isEqualTo("TestPlayer");
+        assertThat(name).isEqualTo(playerId.value().toString());
     }
 
     @Test

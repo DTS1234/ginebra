@@ -20,13 +20,16 @@ public interface JoinRoomUseCase {
         record Success(
             String roomId,
             List<PlayerDto> players,
-            String status
+            String status,
+            String gameId,
+            String websocketUrl
         ) implements JoinRoomResult {
             public Success {
                 Objects.requireNonNull(roomId, "roomId must not be null");
                 Objects.requireNonNull(players, "players must not be null");
                 Objects.requireNonNull(status, "status must not be null");
                 players = List.copyOf(players);
+                // gameId and websocketUrl are nullable (only set when game starts)
             }
         }
 

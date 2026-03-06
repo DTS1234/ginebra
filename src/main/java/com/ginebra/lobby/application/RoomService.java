@@ -9,6 +9,7 @@ import com.ginebra.lobby.port.in.CreateRoomUseCase;
 import com.ginebra.lobby.port.in.JoinRoomUseCase;
 import com.ginebra.lobby.port.in.LeaveRoomUseCase;
 import com.ginebra.lobby.port.in.ListRoomsUseCase;
+import com.ginebra.lobby.port.out.GameStarter;
 import com.ginebra.lobby.port.out.RoomRepository;
 import org.springframework.stereotype.Service;
 
@@ -21,13 +22,16 @@ import java.util.stream.Collectors;
 public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase {
 
     private final RoomRepository roomRepository;
+    private final GameStarter gameStarter;
     private final Clock clock;
 
     public RoomService(
         RoomRepository roomRepository,
+        GameStarter gameStarter,
         Clock clock
     ) {
         this.roomRepository = Objects.requireNonNull(roomRepository, "roomRepository must not be null");
+        this.gameStarter = Objects.requireNonNull(gameStarter, "gameStarter must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -115,8 +119,17 @@ public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoo
             roomRepository.save(room);
             return buildSuccessResponse(room);
         } else if (addResult instanceof AddPlayerResult.RoomFull_GameShouldStart) {
+            final var playerIds = room.players().stream()
+                .map(com.ginebra.lobby.domain.RoomPlayer::playerId)
+                .toList();
+            final var gameResult = gameStarter.startGame(playerIds);
+
+            if (gameResult instanceof GameStarter.GameStartResult.Success success) {
+                room.convertToGame(success.gameId());
+                roomRepository.save(room);
+                return buildSuccessResponseWithGame(room, success.gameId());
+            }
             roomRepository.save(room);
-            // TODO: Trigger game creation in future phase
             return buildSuccessResponse(room);
         } else if (addResult instanceof AddPlayerResult.RoomFull) {
             return new JoinRoomResult.RoomFull();
@@ -130,6 +143,10 @@ public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoo
     }
 
     private JoinRoomResult.Success buildSuccessResponse(Room room) {
+        return buildSuccessResponseWithGame(room, null);
+    }
+
+    private JoinRoomResult.Success buildSuccessResponseWithGame(Room room, com.ginebra.lobby.domain.GameId gameId) {
         final var players = room.players().stream()
             .map(p -> new JoinRoomUseCase.PlayerDto(
                 p.playerId().value().toString(),
@@ -137,10 +154,15 @@ public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoo
             ))
             .toList();
 
+        final var gameIdStr = gameId != null ? gameId.value().toString() : null;
+        final var websocketUrl = gameId != null ? "/ws/game" : null;
+
         return new JoinRoomResult.Success(
             room.id().value().toString(),
             players,
-            room.status().name()
+            room.status().name(),
+            gameIdStr,
+            websocketUrl
         );
     }
 

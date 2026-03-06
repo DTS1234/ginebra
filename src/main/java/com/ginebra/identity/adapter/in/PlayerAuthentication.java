@@ -75,6 +75,6 @@ public final class PlayerAuthentication implements Authentication {
 
     @Override
     public String getName() {
-        return playerIdentity.displayName();
+        return playerIdentity.playerId().value().toString();
     }
 }

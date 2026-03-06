@@ -54,8 +54,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/rooms/**").authenticated()
                 .requestMatchers("/api/games/**").authenticated()
 
-                // Future WebSocket endpoints (Phase 4)
-                .requestMatchers("/ws/**").authenticated()
+                // WebSocket endpoints - HTTP upgrade is permitted, auth enforced at STOMP level
+                .requestMatchers("/ws/**").permitAll()
 
                 // All other requests require authentication by default
                 .anyRequest().authenticated()
