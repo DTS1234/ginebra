@@ -8,6 +8,7 @@ import com.ginebra.game.domain.service.MoveValidator;
 import com.ginebra.game.domain.service.TeamResolver;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
+import com.ginebra.game.port.in.SoledadUseCase;
 import com.ginebra.game.port.in.StartGameUseCase;
 import com.ginebra.game.port.out.GameEventPublisher;
 import com.ginebra.game.port.out.GameRepository;
@@ -26,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Thread safety: synchronizes on per-game locks to ensure atomic read-modify-write cycles.
  */
 @Service
-public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase {
+public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase {
 
     private final GameRepository gameRepository;
     private final GameEventPublisher eventPublisher;
@@ -65,9 +66,94 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 return new StartGameResult.GameAlreadyExists();
             }
 
-            final var game = Game.start(gameId, command.players(), random);
+            final var game = Game.start(gameId, command.players(), random, clock.instant());
             gameRepository.save(game);
             return new StartGameResult.Success(gameId);
+        }
+    }
+
+    @Override
+    public PassSoledadResult passSoledad(PassSoledadCommand command) {
+        final var gameId = command.gameId();
+        final var playerId = command.playerId();
+        final var lock = gameLocks.computeIfAbsent(gameId, k -> new Object());
+
+        synchronized (lock) {
+            final var gameOpt = gameRepository.findById(gameId);
+            if (gameOpt.isEmpty()) {
+                return new PassSoledadResult.GameNotFound();
+            }
+
+            final var game = gameOpt.get();
+            final var round = game.currentRound().orElse(null);
+            if (round == null) {
+                return new PassSoledadResult.InvalidGameState("No current round");
+            }
+
+            if (!round.isWaitingForSoledad()) {
+                return new PassSoledadResult.WindowClosed();
+            }
+
+            if (round.soledadPasses().contains(playerId)) {
+                return new PassSoledadResult.AlreadyPassed();
+            }
+
+            var updatedGame = game.passSoledad(playerId);
+            final var updatedRound = updatedGame.currentRound().orElseThrow();
+
+            // Compute remaining players who haven't passed
+            final var remaining = updatedRound.playerOrder().stream()
+                .filter(p -> !updatedRound.soledadPasses().contains(p))
+                .toList();
+
+            eventPublisher.publishToGame(gameId, new GameEvent.SoledadPassed(playerId, remaining));
+
+            // If all passed, transition to WAITING_FOR_TRUMP
+            if (updatedRound.isWaitingForTrump()) {
+                eventPublisher.publishToGame(gameId, new GameEvent.SoledadWindowClosed(
+                    false,
+                    updatedRound.playerWhoGoes()
+                ));
+            }
+
+            gameRepository.save(updatedGame);
+            return new PassSoledadResult.Success();
+        }
+    }
+
+    @Override
+    public DeclareSoledadResult declareSoledad(DeclareSoledadCommand command) {
+        final var gameId = command.gameId();
+        final var playerId = command.playerId();
+        final var lock = gameLocks.computeIfAbsent(gameId, k -> new Object());
+
+        synchronized (lock) {
+            final var gameOpt = gameRepository.findById(gameId);
+            if (gameOpt.isEmpty()) {
+                return new DeclareSoledadResult.GameNotFound();
+            }
+
+            final var game = gameOpt.get();
+            final var round = game.currentRound().orElse(null);
+            if (round == null) {
+                return new DeclareSoledadResult.InvalidGameState("No current round");
+            }
+
+            if (!round.isWaitingForSoledad()) {
+                return new DeclareSoledadResult.WindowClosed();
+            }
+
+            var updatedGame = game.declareSoledad(playerId);
+            final var updatedRound = updatedGame.currentRound().orElseThrow();
+
+            eventPublisher.publishToGame(gameId, new GameEvent.SoledadDeclared(playerId));
+            eventPublisher.publishToGame(gameId, new GameEvent.SoledadWindowClosed(
+                true,
+                updatedRound.playerWhoGoes()
+            ));
+
+            gameRepository.save(updatedGame);
+            return new DeclareSoledadResult.Success();
         }
     }
 
@@ -147,6 +233,9 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 return new PlayCardResult.InvalidCard(invalid.code(), invalid.message());
             }
 
+            // Capture pre-round balances before playing card (for coin delta calculation)
+            final var preRoundBalances = game.coinBalances();
+
             // Play the card
             game = game.playCard(playerId, card, clock.instant());
 
@@ -195,12 +284,14 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 // Check if round ended
                 if (afterBasa.isComplete()) {
                     final var result = afterBasa.result().orElseThrow();
-                    final var coinChanges = computeCoinChanges(game);
+
+                    // Compute coin deltas: newBalance - preRoundBalance
+                    final var coinDeltas = computeCoinDeltas(preRoundBalances, game.coinBalances());
 
                     eventPublisher.publishToGame(gameId, new GameEvent.RoundEnded(
                         afterBasa.roundNumber(),
                         result,
-                        coinChanges,
+                        coinDeltas,
                         game.coinBalances()
                     ));
 
@@ -212,7 +303,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                         ));
                     } else {
                         // Start next round automatically
-                        game = game.startNextRound(random);
+                        game = game.startNextRound(random, clock.instant());
                     }
                 }
             }
@@ -229,13 +320,15 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
         return gameRepository.findById(gameId);
     }
 
-    private Map<PlayerId, Integer> computeCoinChanges(Game gameAfterBasa) {
-        final var previousBalances = gameAfterBasa.coinBalances();
-        // The coin changes are the difference between the game's current balances
-        // and what they would be without the changes. Since Game.completeBasa already
-        // applies coins, we need to compute the deltas.
-        // For now, we emit the final balances in the event. The actual per-player
-        // changes can be derived by the client.
-        return previousBalances;
+    private Map<PlayerId, Integer> computeCoinDeltas(
+        Map<PlayerId, Integer> preRoundBalances,
+        Map<PlayerId, Integer> postRoundBalances
+    ) {
+        final var deltas = new HashMap<PlayerId, Integer>();
+        for (final var entry : postRoundBalances.entrySet()) {
+            final var pre = preRoundBalances.getOrDefault(entry.getKey(), 0);
+            deltas.put(entry.getKey(), entry.getValue() - pre);
+        }
+        return Map.copyOf(deltas);
     }
 }

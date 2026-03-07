@@ -52,6 +52,18 @@ public sealed interface GameEvent {
         Map<PlayerId, Integer> finalBalances
     ) implements GameEvent {}
 
+    record SoledadPassed(
+        PlayerId playerId,
+        List<PlayerId> remainingPlayers
+    ) implements GameEvent {}
+
+    record SoledadDeclared(PlayerId byPlayer) implements GameEvent {}
+
+    record SoledadWindowClosed(
+        boolean declared,
+        PlayerId awaitingTrumpFrom
+    ) implements GameEvent {}
+
     record PlayerConnected(PlayerId playerId) implements GameEvent {}
 
     record PlayerDisconnected(PlayerId playerId) implements GameEvent {}

@@ -6,6 +6,7 @@ import com.ginebra.lobby.domain.GameId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 
@@ -60,7 +61,12 @@ class InMemoryGameRepositoryTest {
         final var game = createTestGame();
         repository.save(game);
 
-        final var updatedGame = game.selectTrump(com.ginebra.game.domain.model.Suit.COPAS);
+        // Pass all soledad before selecting trump
+        var gameAfterSoledad = game;
+        for (final var player : game.currentRound().orElseThrow().playerOrder()) {
+            gameAfterSoledad = gameAfterSoledad.passSoledad(player);
+        }
+        final var updatedGame = gameAfterSoledad.selectTrump(com.ginebra.game.domain.model.Suit.COPAS);
         repository.save(updatedGame);
 
         // Assert
@@ -87,6 +93,6 @@ class InMemoryGameRepositoryTest {
             PlayerId.generate(), PlayerId.generate(), PlayerId.generate(),
             PlayerId.generate(), PlayerId.generate()
         );
-        return Game.start(GameId.generate(), players, new Random(42));
+        return Game.start(GameId.generate(), players, new Random(42), Instant.now());
     }
 }

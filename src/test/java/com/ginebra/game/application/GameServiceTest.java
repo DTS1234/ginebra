@@ -75,7 +75,7 @@ class GameServiceTest {
             assertThat(game.players()).hasSize(5);
             assertThat(game.isInProgress()).isTrue();
             assertThat(game.currentRound()).isPresent();
-            assertThat(game.currentRound().get().isWaitingForTrump()).isTrue();
+            assertThat(game.currentRound().get().isWaitingForSoledad()).isTrue();
         }
 
         @Test
@@ -104,6 +104,7 @@ class GameServiceTest {
             final var gameId = GameId.generate();
             final var players = generatePlayers();
             gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+            passAllSoledadViaService(gameId);
 
             final var game = gameRepository.findById(gameId).orElseThrow();
             final var playerWhoGoes = game.currentRound().orElseThrow().playerWhoGoes();
@@ -130,6 +131,7 @@ class GameServiceTest {
             final var gameId = GameId.generate();
             final var players = generatePlayers();
             gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+            passAllSoledadViaService(gameId);
 
             final var game = gameRepository.findById(gameId).orElseThrow();
             final var playerWhoGoes = game.currentRound().orElseThrow().playerWhoGoes();
@@ -237,10 +239,22 @@ class GameServiceTest {
 
     // === Helpers ===
 
+    private void passAllSoledadViaService(GameId gameId) {
+        final var game = gameRepository.findById(gameId).orElseThrow();
+        final var players = game.currentRound().orElseThrow().playerOrder();
+        for (final var player : players) {
+            gameService.passSoledad(
+                new com.ginebra.game.port.in.SoledadUseCase.PassSoledadCommand(gameId, player)
+            );
+        }
+    }
+
     private GameId startGameAndSelectTrump(Suit trump) {
         final var gameId = GameId.generate();
         final var players = generatePlayers();
         gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+
+        passAllSoledadViaService(gameId);
 
         final var game = gameRepository.findById(gameId).orElseThrow();
         final var playerWhoGoes = game.currentRound().orElseThrow().playerWhoGoes();

@@ -10,6 +10,7 @@ import com.ginebra.game.domain.model.Rank;
 import com.ginebra.game.domain.model.Suit;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
+import com.ginebra.game.port.in.SoledadUseCase;
 import com.ginebra.identity.adapter.in.PlayerAuthentication;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
@@ -28,17 +29,20 @@ public class GameWebSocketController {
 
     private final PlayCardUseCase playCardUseCase;
     private final SelectTrumpUseCase selectTrumpUseCase;
+    private final SoledadUseCase soledadUseCase;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameStateMapper gameStateMapper;
 
     public GameWebSocketController(
         PlayCardUseCase playCardUseCase,
         SelectTrumpUseCase selectTrumpUseCase,
+        SoledadUseCase soledadUseCase,
         SimpMessagingTemplate messagingTemplate,
         GameStateMapper gameStateMapper
     ) {
         this.playCardUseCase = Objects.requireNonNull(playCardUseCase);
         this.selectTrumpUseCase = Objects.requireNonNull(selectTrumpUseCase);
+        this.soledadUseCase = Objects.requireNonNull(soledadUseCase);
         this.messagingTemplate = Objects.requireNonNull(messagingTemplate);
         this.gameStateMapper = Objects.requireNonNull(gameStateMapper);
     }
@@ -87,6 +91,50 @@ public class GameWebSocketController {
         } else if (result instanceof SelectTrumpUseCase.SelectTrumpResult.InvalidGameState invalid) {
             sendError(playerId, "INVALID_GAME_STATE", invalid.message());
         } else if (result instanceof SelectTrumpUseCase.SelectTrumpResult.GameNotFound) {
+            sendError(playerId, "GAME_NOT_FOUND", "Game not found");
+        }
+    }
+
+    @MessageMapping("/game/{gameId}/soledad-pass")
+    public void soledadPass(
+        @DestinationVariable String gameId,
+        Principal principal
+    ) {
+        final var playerId = extractPlayerId(principal);
+        final var parsedGameId = new GameId(UUID.fromString(gameId));
+
+        final var result = soledadUseCase.passSoledad(
+            new SoledadUseCase.PassSoledadCommand(parsedGameId, playerId)
+        );
+
+        if (result instanceof SoledadUseCase.PassSoledadResult.AlreadyPassed) {
+            sendError(playerId, "ALREADY_PASSED", "You already passed soledad");
+        } else if (result instanceof SoledadUseCase.PassSoledadResult.WindowClosed) {
+            sendError(playerId, "WINDOW_CLOSED", "Soledad window is closed");
+        } else if (result instanceof SoledadUseCase.PassSoledadResult.InvalidGameState invalid) {
+            sendError(playerId, "INVALID_GAME_STATE", invalid.message());
+        } else if (result instanceof SoledadUseCase.PassSoledadResult.GameNotFound) {
+            sendError(playerId, "GAME_NOT_FOUND", "Game not found");
+        }
+    }
+
+    @MessageMapping("/game/{gameId}/declare-soledad")
+    public void declareSoledad(
+        @DestinationVariable String gameId,
+        Principal principal
+    ) {
+        final var playerId = extractPlayerId(principal);
+        final var parsedGameId = new GameId(UUID.fromString(gameId));
+
+        final var result = soledadUseCase.declareSoledad(
+            new SoledadUseCase.DeclareSoledadCommand(parsedGameId, playerId)
+        );
+
+        if (result instanceof SoledadUseCase.DeclareSoledadResult.WindowClosed) {
+            sendError(playerId, "WINDOW_CLOSED", "Soledad window is closed");
+        } else if (result instanceof SoledadUseCase.DeclareSoledadResult.InvalidGameState invalid) {
+            sendError(playerId, "INVALID_GAME_STATE", invalid.message());
+        } else if (result instanceof SoledadUseCase.DeclareSoledadResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
     }

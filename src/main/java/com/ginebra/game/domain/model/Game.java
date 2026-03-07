@@ -3,9 +3,9 @@ package com.ginebra.game.domain.model;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Aggregate root for the Ginebra card game.
@@ -22,6 +22,7 @@ public final class Game {
     public static final int DRAW_COINS = 1;
     public static final int DUENDE_BONUS = 1;
     public static final int ESTUCHE_BONUS = 2;
+    public static final Duration SOLEDAD_TIMEOUT = Duration.ofMinutes(2);
 
     private final GameId gameId;
     private final List<PlayerId> players;
@@ -70,18 +71,19 @@ public final class Game {
     // === Factory Method ===
 
     /**
-     * Creates a new game, deals cards, and starts the first round.
-     * The player holding the Espadilla (Ace of Espadas) starts.
+     * Creates a new game, deals cards, and starts the first round in WAITING_FOR_SOLEDAD.
      *
      * @param gameId the game identifier
      * @param players the 5 players in clockwise order
      * @param random the random source for deck shuffling
+     * @param now the current instant for computing soledad deadline
      * @return a new Game in IN_PROGRESS status with the first round started
      */
-    public static Game start(GameId gameId, List<PlayerId> players, Random random) {
+    public static Game start(GameId gameId, List<PlayerId> players, Random random, Instant now) {
         Objects.requireNonNull(gameId, "gameId must not be null");
         Objects.requireNonNull(players, "players must not be null");
         Objects.requireNonNull(random, "random must not be null");
+        Objects.requireNonNull(now, "now must not be null");
 
         if (players.size() != PLAYER_COUNT) {
             throw new IllegalArgumentException(
@@ -104,7 +106,8 @@ public final class Game {
         final var espadillaIndex = Deck.findEspadillaHolder(dealt);
         final var playerWhoGoes = players.get(espadillaIndex);
 
-        final var round = Round.start(1, playerWhoGoes, players, hands);
+        final var soledadDeadline = now.plus(SOLEDAD_TIMEOUT);
+        final var round = Round.start(1, playerWhoGoes, players, hands, soledadDeadline);
 
         return new Game(
             gameId,
@@ -172,6 +175,28 @@ public final class Game {
     }
 
     // === Mutation Methods (return new instances) ===
+
+    /**
+     * Records a player passing Soledad in the current round.
+     */
+    public Game passSoledad(PlayerId playerId) {
+        requireInProgress();
+        requireCurrentRound();
+
+        final var updatedRound = currentRound.withSoledadPass(playerId);
+        return withCurrentRound(updatedRound);
+    }
+
+    /**
+     * Records a player declaring Soledad in the current round.
+     */
+    public Game declareSoledad(PlayerId playerId) {
+        requireInProgress();
+        requireCurrentRound();
+
+        final var updatedRound = currentRound.withSoledadDeclared(playerId);
+        return withCurrentRound(updatedRound);
+    }
 
     /**
      * Selects the trump suit for the current round.
@@ -249,13 +274,14 @@ public final class Game {
 
     /**
      * Starts the next round after the current one has completed.
-     * Moves the completed round to history, deals new cards, and determines the next starter.
      *
      * @param random the random source for deck shuffling
+     * @param now the current instant for computing soledad deadline
      * @return new Game with a fresh round started
      */
-    public Game startNextRound(Random random) {
+    public Game startNextRound(Random random, Instant now) {
         Objects.requireNonNull(random, "random must not be null");
+        Objects.requireNonNull(now, "now must not be null");
         requireInProgress();
         requireCurrentRound();
 
@@ -270,7 +296,8 @@ public final class Game {
         final var nextStarter = getPlayerToRight(currentRound.playerWhoGoes());
 
         final var hands = dealCards(players, random);
-        final var nextRound = Round.start(nextRoundNumber, nextStarter, players, hands);
+        final var soledadDeadline = now.plus(SOLEDAD_TIMEOUT);
+        final var nextRound = Round.start(nextRoundNumber, nextStarter, players, hands, soledadDeadline);
 
         return new Game(
             gameId,
@@ -315,7 +342,11 @@ public final class Game {
         return players.get(rightIndex);
     }
 
-    private Map<PlayerId, Integer> calculateCoinChanges(
+    /**
+     * Calculates coin changes (deltas) for a completed round.
+     * Returns a map of playerId -> delta (positive for winners, negative for losers).
+     */
+    Map<PlayerId, Integer> calculateCoinChanges(
         Round completedRound,
         Map<PlayerId, List<Card>> dealSnapshot
     ) {
@@ -377,7 +408,7 @@ public final class Game {
             && hand.stream().anyMatch(c -> c.isManilla(trumpSuit));
     }
 
-    private static Map<PlayerId, Integer> applyCoins(
+    static Map<PlayerId, Integer> applyCoins(
         Map<PlayerId, Integer> currentBalances,
         Map<PlayerId, Integer> changes
     ) {

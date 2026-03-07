@@ -33,7 +33,10 @@ public record GameStatePayload(
         String currentTurn,
         Map<String, Integer> basasWon,
         BasaPayload currentBasa,
-        TeamsPayload teams
+        TeamsPayload teams,
+        List<String> soledadPasses,
+        String soledadPlayer,
+        String soledadDeadline
     ) {}
 
     public record BasaPayload(

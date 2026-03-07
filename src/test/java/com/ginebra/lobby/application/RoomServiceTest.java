@@ -4,7 +4,9 @@ import com.ginebra.identity.adapter.in.PlayerAuthentication;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.identity.domain.PlayerIdentity;
 import com.ginebra.lobby.adapter.out.InMemoryRoomRepository;
+import com.ginebra.lobby.domain.GameId;
 import com.ginebra.lobby.port.in.CreateRoomUseCase;
+import com.ginebra.lobby.port.out.GameStarter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,11 +26,14 @@ class RoomServiceTest {
     private Clock clock;
     private PlayerIdentity testPlayer;
 
+    private static final GameStarter NO_OP_GAME_STARTER =
+        players -> new GameStarter.GameStartResult.Success(GameId.generate());
+
     @BeforeEach
     void setUp() {
         roomRepository = new InMemoryRoomRepository();
         clock = Clock.fixed(Instant.parse("2026-01-15T10:00:00Z"), ZoneOffset.UTC);
-        roomService = new RoomService(roomRepository, clock);
+        roomService = new RoomService(roomRepository, NO_OP_GAME_STARTER, clock);
 
         // Set up SecurityContext with authenticated player
         testPlayer = new PlayerIdentity(

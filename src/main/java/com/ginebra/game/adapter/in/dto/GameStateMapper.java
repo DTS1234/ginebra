@@ -46,7 +46,22 @@ public class GameStateMapper {
     public ServerMessage toServerMessage(GameEvent event) {
         Objects.requireNonNull(event, "event must not be null");
 
-        if (event instanceof GameEvent.TrumpSelected ts) {
+        if (event instanceof GameEvent.SoledadPassed sp) {
+            final var payload = new HashMap<String, Object>();
+            payload.put("playerId", sp.playerId().value().toString());
+            payload.put("remainingPlayers", sp.remainingPlayers().stream()
+                .map(p -> p.value().toString()).toList());
+            return new ServerMessage("SOLEDAD_PASSED", payload);
+        } else if (event instanceof GameEvent.SoledadDeclared sd) {
+            return new ServerMessage("SOLEDAD_DECLARED", Map.of(
+                "byPlayer", sd.byPlayer().value().toString()
+            ));
+        } else if (event instanceof GameEvent.SoledadWindowClosed swc) {
+            return new ServerMessage("SOLEDAD_WINDOW_CLOSED", Map.of(
+                "declared", swc.declared(),
+                "awaitingTrumpFrom", swc.awaitingTrumpFrom().value().toString()
+            ));
+        } else if (event instanceof GameEvent.TrumpSelected ts) {
             final var payload = new HashMap<String, Object>();
             payload.put("suit", ts.suit().name());
             payload.put("byPlayer", ts.byPlayer().value().toString());
@@ -81,6 +96,8 @@ public class GameStateMapper {
             return new ServerMessage("ROUND_ENDED", Map.of(
                 "roundNumber", re.roundNumber(),
                 "result", re.result() instanceof RoundResult.Win ? "WIN" : "DRAW",
+                "coinChanges", re.coinChanges().entrySet().stream()
+                    .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue)),
                 "coinBalances", re.newBalances().entrySet().stream()
                     .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue))
             ));
@@ -126,6 +143,18 @@ public class GameStateMapper {
             .map(this::toTeamsPayload)
             .orElse(null);
 
+        final var soledadPasses = round.soledadPasses().stream()
+            .map(p -> p.value().toString())
+            .toList();
+
+        final var soledadPlayer = round.soledadPlayer()
+            .map(p -> p.value().toString())
+            .orElse(null);
+
+        final var soledadDeadline = round.soledadDeadline()
+            .map(Object::toString)
+            .orElse(null);
+
         return new GameStatePayload.RoundPayload(
             round.roundNumber(),
             round.status().name(),
@@ -135,7 +164,10 @@ public class GameStateMapper {
             round.currentPlayer().map(p -> p.value().toString()).orElse(null),
             basasWon,
             basaPayload,
-            teamsPayload
+            teamsPayload,
+            soledadPasses,
+            soledadPlayer,
+            soledadDeadline
         );
     }
 

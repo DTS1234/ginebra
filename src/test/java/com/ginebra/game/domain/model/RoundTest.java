@@ -36,11 +36,18 @@ class RoundTest {
     }
 
     private Round createRound(List<PlayerId> players) {
-        return Round.start(1, players.get(0), players, dealHands(players));
+        return Round.start(1, players.get(0), players, dealHands(players), Instant.now());
+    }
+
+    private Round passAllSoledad(Round round) {
+        for (final var player : round.playerOrder()) {
+            round = round.withSoledadPass(player);
+        }
+        return round;
     }
 
     private Round createRoundInProgress(List<PlayerId> players) {
-        return createRound(players).withTrump(Suit.COPAS);
+        return passAllSoledad(createRound(players)).withTrump(Suit.COPAS);
     }
 
     private PlayedCard playedCard(PlayerId player, Card card) {
@@ -76,10 +83,10 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            final var round = Round.start(1, players.get(0), players, hands);
+            final var round = Round.start(1, players.get(0), players, hands, Instant.now());
 
-            assertThat(round.status()).isEqualTo(RoundStatus.WAITING_FOR_TRUMP);
-            assertThat(round.isWaitingForTrump()).isTrue();
+            assertThat(round.status()).isEqualTo(RoundStatus.WAITING_FOR_SOLEDAD);
+            assertThat(round.isWaitingForSoledad()).isTrue();
         }
 
         @Test
@@ -87,7 +94,7 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            final var round = Round.start(3, players.get(0), players, hands);
+            final var round = Round.start(3, players.get(0), players, hands, Instant.now());
 
             assertThat(round.roundNumber()).isEqualTo(3);
         }
@@ -97,7 +104,7 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            final var round = Round.start(1, players.get(2), players, hands);
+            final var round = Round.start(1, players.get(2), players, hands, Instant.now());
 
             assertThat(round.playerWhoGoes()).isEqualTo(players.get(2));
         }
@@ -107,7 +114,7 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            final var round = Round.start(1, players.get(0), players, hands);
+            final var round = Round.start(1, players.get(0), players, hands, Instant.now());
 
             assertThat(round.playerOrder()).containsExactlyElementsOf(players);
         }
@@ -171,7 +178,7 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            assertThatThrownBy(() -> Round.start(0, players.get(0), players, hands))
+            assertThatThrownBy(() -> Round.start(0, players.get(0), players, hands, Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("roundNumber must be >= 1");
         }
@@ -181,7 +188,7 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            assertThatThrownBy(() -> Round.start(-1, players.get(0), players, hands))
+            assertThatThrownBy(() -> Round.start(-1, players.get(0), players, hands, Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("roundNumber must be >= 1");
         }
@@ -192,7 +199,7 @@ class RoundTest {
             final var fivePlayers = createPlayers();
             final var hands = dealHands(fivePlayers);
 
-            assertThatThrownBy(() -> Round.start(1, players.get(0), players, hands))
+            assertThatThrownBy(() -> Round.start(1, players.get(0), players, hands, Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("playerOrder must have 5 players");
         }
@@ -203,7 +210,7 @@ class RoundTest {
             final var outsider = PlayerId.generate();
             final var hands = dealHands(players);
 
-            assertThatThrownBy(() -> Round.start(1, outsider, players, hands))
+            assertThatThrownBy(() -> Round.start(1, outsider, players, hands, Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("playerWhoGoes must be in playerOrder");
         }
@@ -221,7 +228,7 @@ class RoundTest {
                 hands.put(players.get(i), dealt.get(i));
             }
 
-            assertThatThrownBy(() -> Round.start(1, players.get(0), players, hands))
+            assertThatThrownBy(() -> Round.start(1, players.get(0), players, hands, Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Each hand must have 8 cards");
         }
@@ -238,7 +245,7 @@ class RoundTest {
                 hands.put(player, dealt.get(0));
             }
 
-            assertThatThrownBy(() -> Round.start(1, players.get(0), players, hands))
+            assertThatThrownBy(() -> Round.start(1, players.get(0), players, hands, Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Duplicate cards found");
         }
@@ -248,7 +255,7 @@ class RoundTest {
             final var players = createPlayers();
             final var hands = dealHands(players);
 
-            assertThatThrownBy(() -> Round.start(1, null, players, hands))
+            assertThatThrownBy(() -> Round.start(1, null, players, hands, Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("playerWhoGoes must not be null");
         }
@@ -258,7 +265,7 @@ class RoundTest {
             final var hands = dealHands(createPlayers());
             final var somePlayer = hands.keySet().iterator().next();
 
-            assertThatThrownBy(() -> Round.start(1, somePlayer, null, hands))
+            assertThatThrownBy(() -> Round.start(1, somePlayer, null, hands, Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("playerOrder must not be null");
         }
@@ -267,7 +274,7 @@ class RoundTest {
         void shouldRejectNullHands() {
             final var players = createPlayers();
 
-            assertThatThrownBy(() -> Round.start(1, players.get(0), players, null))
+            assertThatThrownBy(() -> Round.start(1, players.get(0), players, null, Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("hands must not be null");
         }
@@ -324,7 +331,7 @@ class RoundTest {
             final var players = createPlayers();
             // Create a round where player at index 3 starts
             final var hands = dealHands(players);
-            var round = Round.start(1, players.get(3), players, hands).withTrump(Suit.COPAS);
+            var round = passAllSoledad(Round.start(1, players.get(3), players, hands, Instant.now())).withTrump(Suit.COPAS);
 
             // Player 3 starts, then 4, then wraps to 0
             assertThat(round.currentPlayer()).contains(players.get(3));
@@ -400,7 +407,7 @@ class RoundTest {
         void getHandShouldReturnCorrectHand() {
             final var players = createPlayers();
             final var hands = dealHands(players);
-            final var round = Round.start(1, players.get(0), players, hands);
+            final var round = Round.start(1, players.get(0), players, hands, Instant.now());
 
             for (final var player : players) {
                 assertThat(round.getHand(player)).containsExactlyElementsOf(hands.get(player));
@@ -423,7 +430,7 @@ class RoundTest {
             final var players = createPlayers();
 
             final var waitingRound = createRound(players);
-            assertThat(waitingRound.isWaitingForTrump()).isTrue();
+            assertThat(waitingRound.isWaitingForSoledad()).isTrue();
             assertThat(waitingRound.isInProgress()).isFalse();
             assertThat(waitingRound.isComplete()).isFalse();
 
@@ -454,7 +461,7 @@ class RoundTest {
         @Test
         void shouldSetTrumpSuit() {
             final var players = createPlayers();
-            final var round = createRound(players);
+            final var round = passAllSoledad(createRound(players));
 
             final var withTrump = round.withTrump(Suit.OROS);
 
@@ -464,7 +471,7 @@ class RoundTest {
         @Test
         void shouldTransitionToInProgress() {
             final var players = createPlayers();
-            final var round = createRound(players);
+            final var round = passAllSoledad(createRound(players));
 
             final var withTrump = round.withTrump(Suit.COPAS);
 
@@ -475,7 +482,7 @@ class RoundTest {
         @Test
         void shouldCreateFirstBasa() {
             final var players = createPlayers();
-            final var round = createRound(players);
+            final var round = passAllSoledad(createRound(players));
 
             final var withTrump = round.withTrump(Suit.ESPADAS);
 
@@ -488,7 +495,7 @@ class RoundTest {
         @Test
         void shouldRejectNullTrump() {
             final var players = createPlayers();
-            final var round = createRound(players);
+            final var round = passAllSoledad(createRound(players));
 
             assertThatThrownBy(() -> round.withTrump(null))
                 .isInstanceOf(NullPointerException.class)
@@ -498,7 +505,7 @@ class RoundTest {
         @Test
         void shouldRejectTrumpWhenAlreadySelected() {
             final var players = createPlayers();
-            final var round = createRound(players).withTrump(Suit.COPAS);
+            final var round = passAllSoledad(createRound(players)).withTrump(Suit.COPAS);
 
             assertThatThrownBy(() -> round.withTrump(Suit.OROS))
                 .isInstanceOf(IllegalStateException.class)
@@ -875,7 +882,7 @@ class RoundTest {
         @Test
         void withTrumpShouldReturnNewInstance() {
             final var players = createPlayers();
-            final var original = createRound(players);
+            final var original = passAllSoledad(createRound(players));
 
             final var withTrump = original.withTrump(Suit.COPAS);
 
@@ -967,7 +974,9 @@ class RoundTest {
             final var players = createPlayers();
             var round = createRound(players);
 
-            // Step 1: Select trump
+            // Step 1: Pass soledad, then select trump
+            assertThat(round.isWaitingForSoledad()).isTrue();
+            round = passAllSoledad(round);
             assertThat(round.isWaitingForTrump()).isTrue();
             round = round.withTrump(Suit.COPAS);
             assertThat(round.isInProgress()).isTrue();
@@ -1007,7 +1016,7 @@ class RoundTest {
         @Test
         void shouldHandleDrawAfterEightBasas() {
             final var players = createPlayers();
-            var round = createRound(players);
+            var round = passAllSoledad(createRound(players));
 
             round = round.withTrump(Suit.OROS);
 

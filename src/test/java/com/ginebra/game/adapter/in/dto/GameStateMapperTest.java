@@ -9,6 +9,7 @@ import com.ginebra.lobby.domain.GameId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 
@@ -30,7 +31,7 @@ class GameStateMapperTest {
             PlayerId.generate(), PlayerId.generate(), PlayerId.generate(),
             PlayerId.generate(), PlayerId.generate()
         );
-        final var game = Game.start(GameId.generate(), players, new Random(42));
+        final var game = Game.start(GameId.generate(), players, new Random(42), Instant.now());
         final var targetPlayer = players.get(0);
 
         // Act
@@ -42,7 +43,7 @@ class GameStateMapperTest {
         assertThat(payload.players()).hasSize(5);
         assertThat(payload.coinBalances()).hasSize(5);
         assertThat(payload.currentRound()).isNotNull();
-        assertThat(payload.currentRound().status()).isEqualTo("WAITING_FOR_TRUMP");
+        assertThat(payload.currentRound().status()).isEqualTo("WAITING_FOR_SOLEDAD");
     }
 
     @Test
@@ -52,7 +53,7 @@ class GameStateMapperTest {
             PlayerId.generate(), PlayerId.generate(), PlayerId.generate(),
             PlayerId.generate(), PlayerId.generate()
         );
-        final var game = Game.start(GameId.generate(), players, new Random(42));
+        final var game = Game.start(GameId.generate(), players, new Random(42), Instant.now());
 
         // Act - get state for player 0 and player 1
         final var stateForP0 = mapper.toGameState(game, players.get(0));
@@ -74,7 +75,7 @@ class GameStateMapperTest {
             PlayerId.generate(), PlayerId.generate(), PlayerId.generate(),
             PlayerId.generate(), PlayerId.generate()
         );
-        final var game = Game.start(GameId.generate(), players, new Random(42));
+        final var game = Game.start(GameId.generate(), players, new Random(42), Instant.now());
 
         // Act
         final var payload = mapper.toGameState(game, players.get(0));
@@ -146,8 +147,12 @@ class GameStateMapperTest {
             PlayerId.generate(), PlayerId.generate(), PlayerId.generate(),
             PlayerId.generate(), PlayerId.generate()
         );
-        final var game = Game.start(GameId.generate(), players, new Random(42));
+        var game = Game.start(GameId.generate(), players, new Random(42), Instant.now());
         final var playerWhoGoes = game.currentRound().orElseThrow().playerWhoGoes();
+        // Pass all soledad before selecting trump
+        for (final var player : game.currentRound().orElseThrow().playerOrder()) {
+            game = game.passSoledad(player);
+        }
         final var gameAfterTrump = game.selectTrump(Suit.OROS);
 
         // Act

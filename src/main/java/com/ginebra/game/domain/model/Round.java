@@ -30,6 +30,9 @@ public final class Round {
     private final Teams teams;
     private final RoundStatus status;
     private final RoundResult result;
+    private final Set<PlayerId> soledadPasses;
+    private final PlayerId soledadPlayer;
+    private final Instant soledadDeadline;
 
     private Round(
         int roundNumber,
@@ -41,7 +44,10 @@ public final class Round {
         Map<PlayerId, List<Card>> hands,
         Teams teams,
         RoundStatus status,
-        RoundResult result
+        RoundResult result,
+        Set<PlayerId> soledadPasses,
+        PlayerId soledadPlayer,
+        Instant soledadDeadline
     ) {
         if (roundNumber < 1) {
             throw new IllegalArgumentException("roundNumber must be >= 1, got: " + roundNumber);
@@ -51,6 +57,7 @@ public final class Round {
         Objects.requireNonNull(completedBasas, "completedBasas must not be null");
         Objects.requireNonNull(hands, "hands must not be null");
         Objects.requireNonNull(status, "status must not be null");
+        Objects.requireNonNull(soledadPasses, "soledadPasses must not be null");
 
         if (playerOrder.size() != PLAYER_COUNT) {
             throw new IllegalArgumentException(
@@ -84,26 +91,32 @@ public final class Round {
         this.teams = teams;
         this.status = status;
         this.result = result;
+        this.soledadPasses = Set.copyOf(soledadPasses);
+        this.soledadPlayer = soledadPlayer;
+        this.soledadDeadline = soledadDeadline;
     }
 
     // === Factory Methods ===
 
     /**
-     * Creates a new round ready for trump selection.
+     * Creates a new round in the WAITING_FOR_SOLEDAD state.
      *
      * @param roundNumber the round number (1-based)
      * @param playerWhoGoes the player who will select trump and start first basa
      * @param playerOrder the 5 players in clockwise order
      * @param hands the cards dealt to each player (8 each)
-     * @return a new Round in WAITING_FOR_TRUMP status
+     * @param soledadDeadline deadline for soledad declarations
+     * @return a new Round in WAITING_FOR_SOLEDAD status
      */
     public static Round start(
         int roundNumber,
         PlayerId playerWhoGoes,
         List<PlayerId> playerOrder,
-        Map<PlayerId, List<Card>> hands
+        Map<PlayerId, List<Card>> hands,
+        Instant soledadDeadline
     ) {
         Objects.requireNonNull(hands, "hands must not be null");
+        Objects.requireNonNull(soledadDeadline, "soledadDeadline must not be null");
 
         // Validate each hand has correct card count
         for (final var entry : hands.entrySet()) {
@@ -140,8 +153,11 @@ public final class Round {
             null,
             hands,
             null,
-            RoundStatus.WAITING_FOR_TRUMP,
-            null
+            RoundStatus.WAITING_FOR_SOLEDAD,
+            null,
+            Set.of(),
+            null,
+            soledadDeadline
         );
     }
 
@@ -192,6 +208,10 @@ public final class Round {
         return Optional.ofNullable(result);
     }
 
+    public boolean isWaitingForSoledad() {
+        return status == RoundStatus.WAITING_FOR_SOLEDAD;
+    }
+
     public boolean isWaitingForTrump() {
         return status == RoundStatus.WAITING_FOR_TRUMP;
     }
@@ -202,6 +222,18 @@ public final class Round {
 
     public boolean isComplete() {
         return status == RoundStatus.COMPLETE;
+    }
+
+    public Set<PlayerId> soledadPasses() {
+        return soledadPasses;
+    }
+
+    public Optional<PlayerId> soledadPlayer() {
+        return Optional.ofNullable(soledadPlayer);
+    }
+
+    public Optional<Instant> soledadDeadline() {
+        return Optional.ofNullable(soledadDeadline);
     }
 
     public int getBasaCount() {
@@ -265,6 +297,80 @@ public final class Round {
     // === Mutation Methods (return new instances) ===
 
     /**
+     * Records a player passing on Soledad.
+     * If all 5 players pass, transitions to WAITING_FOR_TRUMP.
+     */
+    public Round withSoledadPass(PlayerId playerId) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+
+        if (status != RoundStatus.WAITING_FOR_SOLEDAD) {
+            throw new IllegalStateException("Not waiting for soledad: " + status);
+        }
+
+        if (soledadPasses.contains(playerId)) {
+            throw new IllegalStateException("Player already passed soledad: " + playerId);
+        }
+
+        if (!playerOrder.contains(playerId)) {
+            throw new IllegalArgumentException("Player not in round: " + playerId);
+        }
+
+        final var newPasses = new HashSet<>(soledadPasses);
+        newPasses.add(playerId);
+
+        final var allPassed = newPasses.size() == PLAYER_COUNT;
+        final var newStatus = allPassed ? RoundStatus.WAITING_FOR_TRUMP : RoundStatus.WAITING_FOR_SOLEDAD;
+
+        return new Round(
+            roundNumber,
+            trumpSuit,
+            playerWhoGoes,
+            playerOrder,
+            completedBasas,
+            currentBasa,
+            hands,
+            teams,
+            newStatus,
+            result,
+            newPasses,
+            soledadPlayer,
+            allPassed ? null : soledadDeadline
+        );
+    }
+
+    /**
+     * Records a player declaring Soledad.
+     * Transitions to WAITING_FOR_TRUMP; the declaring player will choose trump and play 1v4.
+     */
+    public Round withSoledadDeclared(PlayerId playerId) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+
+        if (status != RoundStatus.WAITING_FOR_SOLEDAD) {
+            throw new IllegalStateException("Not waiting for soledad: " + status);
+        }
+
+        if (!playerOrder.contains(playerId)) {
+            throw new IllegalArgumentException("Player not in round: " + playerId);
+        }
+
+        return new Round(
+            roundNumber,
+            trumpSuit,
+            playerId,
+            playerOrder,
+            completedBasas,
+            currentBasa,
+            hands,
+            teams,
+            RoundStatus.WAITING_FOR_TRUMP,
+            result,
+            soledadPasses,
+            playerId,
+            null
+        );
+    }
+
+    /**
      * Sets the trump suit and starts the first basa.
      *
      * @param trump the trump suit selected by playerWhoGoes
@@ -289,7 +395,10 @@ public final class Round {
             hands,
             teams,
             RoundStatus.IN_PROGRESS,
-            result
+            result,
+            soledadPasses,
+            soledadPlayer,
+            null
         );
     }
 
@@ -341,7 +450,10 @@ public final class Round {
             newHands,
             teams,
             status,
-            result
+            result,
+            soledadPasses,
+            soledadPlayer,
+            soledadDeadline
         );
     }
 
@@ -382,7 +494,10 @@ public final class Round {
                 hands,
                 teams,
                 RoundStatus.COMPLETE,
-                roundResult.get()
+                roundResult.get(),
+                soledadPasses,
+                soledadPlayer,
+                soledadDeadline
             );
         }
 
@@ -400,7 +515,10 @@ public final class Round {
             hands,
             teams,
             status,
-            result
+            result,
+            soledadPasses,
+            soledadPlayer,
+            soledadDeadline
         );
     }
 
@@ -431,7 +549,10 @@ public final class Round {
             hands,
             newTeams,
             status,
-            result
+            result,
+            soledadPasses,
+            soledadPlayer,
+            soledadDeadline
         );
     }
 

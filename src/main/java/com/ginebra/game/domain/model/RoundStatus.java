@@ -6,6 +6,11 @@ package com.ginebra.game.domain.model;
 public enum RoundStatus {
 
     /**
+     * Waiting for players to pass or declare Soledad.
+     */
+    WAITING_FOR_SOLEDAD,
+
+    /**
      * Waiting for the player who goes to select the trump suit.
      */
     WAITING_FOR_TRUMP,

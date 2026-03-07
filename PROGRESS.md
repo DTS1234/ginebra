@@ -47,17 +47,17 @@ This document tracks what has been implemented.
 ---
 
 ## Phase 4: WebSocket Integration
-**Status: NOT STARTED**
+**Status: COMPLETE**
 
-| Step | Description | Status        |
-|------|-------------|---------------|
-| - | WebSocket configuration with STOMP | DONE          |
-| - | /ws/game/{gameId} endpoint | DONE          |
-| - | Message types (client→server, server→client) | DONE          |
-| - | Connection tracking | DONE          |
-| - | Game event broadcasting | IN PROGRESSgh<br/> |
-| - | Room → Game transition trigger | Pending       |
-| - | : End-to-end integration test | Pending       |
+| Step | Description | Status |
+|------|-------------|--------|
+| - | WebSocket configuration with STOMP | Done |
+| - | /ws/game/{gameId} endpoint | Done |
+| - | Message types (client→server, server→client) | Done |
+| - | Connection tracking | Done |
+| - | Game event broadcasting | Done |
+| - | Room → Game transition trigger | Done |
+| - | End-to-end integration test | Done |
 
 
 ---

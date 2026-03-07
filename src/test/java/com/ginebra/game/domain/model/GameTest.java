@@ -28,11 +28,19 @@ class GameTest {
     }
 
     private Game createGame(List<PlayerId> players) {
-        return Game.start(GameId.generate(), players, new Random(TEST_SEED));
+        return Game.start(GameId.generate(), players, new Random(TEST_SEED), Instant.now());
+    }
+
+    private Game passAllSoledad(Game game) {
+        final var round = game.currentRound().orElseThrow();
+        for (final var player : round.playerOrder()) {
+            game = game.passSoledad(player);
+        }
+        return game;
     }
 
     private Game createGameWithTrump(List<PlayerId> players, Suit trump) {
-        return createGame(players).selectTrump(trump);
+        return passAllSoledad(createGame(players)).selectTrump(trump);
     }
 
     /**
@@ -67,7 +75,7 @@ class GameTest {
         PlayerId basaWinner,
         int basasToWin
     ) {
-        game = game.selectTrump(trump);
+        game = passAllSoledad(game).selectTrump(trump);
 
         final var teams = Teams.of(
             game.currentRound().orElseThrow().playerWhoGoes(),
@@ -148,14 +156,14 @@ class GameTest {
             final var players = createPlayers();
             final var game = createGame(players);
 
-            assertThat(game.currentRound().get().isWaitingForTrump()).isTrue();
+            assertThat(game.currentRound().get().isWaitingForSoledad()).isTrue();
         }
 
         @Test
         void shouldSetCorrectGameId() {
             final var gameId = GameId.generate();
             final var players = createPlayers();
-            final var game = Game.start(gameId, players, new Random(TEST_SEED));
+            final var game = Game.start(gameId, players, new Random(TEST_SEED), Instant.now());
 
             assertThat(game.gameId()).isEqualTo(gameId);
         }
@@ -180,14 +188,14 @@ class GameTest {
         void shouldRejectNullGameId() {
             final var players = createPlayers();
 
-            assertThatThrownBy(() -> Game.start(null, players, new Random(TEST_SEED)))
+            assertThatThrownBy(() -> Game.start(null, players, new Random(TEST_SEED), Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("gameId must not be null");
         }
 
         @Test
         void shouldRejectNullPlayers() {
-            assertThatThrownBy(() -> Game.start(GameId.generate(), null, new Random(TEST_SEED)))
+            assertThatThrownBy(() -> Game.start(GameId.generate(), null, new Random(TEST_SEED), Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("players must not be null");
         }
@@ -196,7 +204,7 @@ class GameTest {
         void shouldRejectNullRandom() {
             final var players = createPlayers();
 
-            assertThatThrownBy(() -> Game.start(GameId.generate(), players, null))
+            assertThatThrownBy(() -> Game.start(GameId.generate(), players, null, Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("random must not be null");
         }
@@ -205,7 +213,7 @@ class GameTest {
         void shouldRejectWrongPlayerCount() {
             final var players = List.of(PlayerId.generate(), PlayerId.generate(), PlayerId.generate());
 
-            assertThatThrownBy(() -> Game.start(GameId.generate(), players, new Random(TEST_SEED)))
+            assertThatThrownBy(() -> Game.start(GameId.generate(), players, new Random(TEST_SEED), Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Game requires exactly 5 players");
         }
@@ -215,7 +223,7 @@ class GameTest {
             final var player = PlayerId.generate();
             final var players = List.of(player, player, PlayerId.generate(), PlayerId.generate(), PlayerId.generate());
 
-            assertThatThrownBy(() -> Game.start(GameId.generate(), players, new Random(TEST_SEED)))
+            assertThatThrownBy(() -> Game.start(GameId.generate(), players, new Random(TEST_SEED), Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Duplicate players");
         }
@@ -223,8 +231,8 @@ class GameTest {
         @Test
         void shouldProduceDeterministicResultWithSameRandomSeed() {
             final var players = createPlayers();
-            final var game1 = Game.start(GameId.generate(), players, new Random(TEST_SEED));
-            final var game2 = Game.start(GameId.generate(), players, new Random(TEST_SEED));
+            final var game1 = Game.start(GameId.generate(), players, new Random(TEST_SEED), Instant.now());
+            final var game2 = Game.start(GameId.generate(), players, new Random(TEST_SEED), Instant.now());
 
             final var round1 = game1.currentRound().orElseThrow();
             final var round2 = game2.currentRound().orElseThrow();
@@ -242,7 +250,7 @@ class GameTest {
         @Test
         void shouldDelegateToCurrentRoundWithTrump() {
             final var players = createPlayers();
-            final var game = createGame(players).selectTrump(Suit.COPAS);
+            final var game = passAllSoledad(createGame(players)).selectTrump(Suit.COPAS);
 
             assertThat(game.currentRound().get().trumpSuit()).contains(Suit.COPAS);
         }
@@ -250,7 +258,7 @@ class GameTest {
         @Test
         void shouldTransitionRoundToInProgress() {
             final var players = createPlayers();
-            final var game = createGame(players).selectTrump(Suit.COPAS);
+            final var game = passAllSoledad(createGame(players)).selectTrump(Suit.COPAS);
 
             assertThat(game.currentRound().get().isInProgress()).isTrue();
         }
@@ -268,7 +276,7 @@ class GameTest {
         @Test
         void shouldRejectNullTrump() {
             final var players = createPlayers();
-            final var game = createGame(players);
+            final var game = passAllSoledad(createGame(players));
 
             assertThatThrownBy(() -> game.selectTrump(null))
                 .isInstanceOf(NullPointerException.class);
@@ -277,7 +285,7 @@ class GameTest {
         @Test
         void shouldReturnNewGameInstance() {
             final var players = createPlayers();
-            final var original = createGame(players);
+            final var original = passAllSoledad(createGame(players));
             final var updated = original.selectTrump(Suit.COPAS);
 
             assertThat(updated).isNotSameAs(original);
@@ -553,7 +561,7 @@ class GameTest {
             final var players = createPlayers();
             var game = completeOneRound(players);
 
-            game = game.startNextRound(new Random(123L));
+            game = game.startNextRound(new Random(123L), Instant.now());
 
             assertThat(game.currentRound().get().roundNumber()).isEqualTo(2);
         }
@@ -566,7 +574,7 @@ class GameTest {
             final var previousStarterIndex = players.indexOf(previousStarter);
             final var expectedNextStarter = players.get((previousStarterIndex + 1) % 5);
 
-            game = game.startNextRound(new Random(123L));
+            game = game.startNextRound(new Random(123L), Instant.now());
 
             assertThat(game.currentRound().get().playerWhoGoes()).isEqualTo(expectedNextStarter);
         }
@@ -576,7 +584,7 @@ class GameTest {
             final var players = createPlayers();
             var game = completeOneRound(players);
 
-            game = game.startNextRound(new Random(123L));
+            game = game.startNextRound(new Random(123L), Instant.now());
 
             final var round = game.currentRound().orElseThrow();
             for (final var player : players) {
@@ -590,7 +598,7 @@ class GameTest {
             var game = completeOneRound(players);
             assertThat(game.completedRounds()).isEmpty();
 
-            game = game.startNextRound(new Random(123L));
+            game = game.startNextRound(new Random(123L), Instant.now());
 
             assertThat(game.completedRounds()).hasSize(1);
             assertThat(game.completedRounds().get(0).roundNumber()).isEqualTo(1);
@@ -601,7 +609,7 @@ class GameTest {
             final var players = createPlayers();
             final var game = createGameWithTrump(players, Suit.COPAS);
 
-            assertThatThrownBy(() -> game.startNextRound(new Random(123L)))
+            assertThatThrownBy(() -> game.startNextRound(new Random(123L), Instant.now()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("current round is not complete");
         }
@@ -611,7 +619,7 @@ class GameTest {
             final var players = createPlayers();
             final var game = createEndedGame(players);
 
-            assertThatThrownBy(() -> game.startNextRound(new Random(123L)))
+            assertThatThrownBy(() -> game.startNextRound(new Random(123L), Instant.now()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Game is not in progress");
         }
@@ -621,7 +629,7 @@ class GameTest {
             final var players = createPlayers();
             final var game = completeOneRound(players);
 
-            assertThatThrownBy(() -> game.startNextRound(null))
+            assertThatThrownBy(() -> game.startNextRound(null, Instant.now()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("random must not be null");
         }
@@ -632,7 +640,7 @@ class GameTest {
             var game = completeOneRound(players);
             final var coinsBeforeNextRound = new HashMap<>(game.coinBalances());
 
-            game = game.startNextRound(new Random(123L));
+            game = game.startNextRound(new Random(123L), Instant.now());
 
             assertThat(game.coinBalances()).isEqualTo(coinsBeforeNextRound);
         }
@@ -764,7 +772,7 @@ class GameTest {
         void shouldReturnCorrectGameId() {
             final var gameId = GameId.generate();
             final var players = createPlayers();
-            final var game = Game.start(gameId, players, new Random(TEST_SEED));
+            final var game = Game.start(gameId, players, new Random(TEST_SEED), Instant.now());
 
             assertThat(game.gameId()).isEqualTo(gameId);
         }
@@ -845,7 +853,7 @@ class GameTest {
         @Test
         void selectTrumpShouldReturnNewInstance() {
             final var players = createPlayers();
-            final var original = createGame(players);
+            final var original = passAllSoledad(createGame(players));
             final var updated = original.selectTrump(Suit.COPAS);
 
             assertThat(updated).isNotSameAs(original);
@@ -865,7 +873,7 @@ class GameTest {
         void completedRoundsShouldBeUnmodifiable() {
             final var players = createPlayers();
             var game = completeOneRound(players);
-            game = game.startNextRound(new Random(123L));
+            game = game.startNextRound(new Random(123L), Instant.now());
 
             final var completedRounds = game.completedRounds();
             assertThatThrownBy(() -> completedRounds.add(null))
@@ -933,7 +941,7 @@ class GameTest {
             var game = createGame(players);
 
             // Round 1: play to completion with draw (no teams)
-            game = game.selectTrump(Suit.COPAS);
+            game = passAllSoledad(game).selectTrump(Suit.COPAS);
             for (var i = 0; i < 8; i++) {
                 game = playAndCompleteBasa(game, players.get(i % 5));
             }
@@ -944,13 +952,13 @@ class GameTest {
             final var expectedRound2Starter = players.get((round1StarterIndex + 1) % 5);
 
             // Start round 2
-            game = game.startNextRound(new Random(99L));
+            game = game.startNextRound(new Random(99L), Instant.now());
             assertThat(game.currentRound().get().roundNumber()).isEqualTo(2);
             assertThat(game.currentRound().get().playerWhoGoes()).isEqualTo(expectedRound2Starter);
             assertThat(game.completedRounds()).hasSize(1);
 
             // Round 2: play to completion with draw
-            game = game.selectTrump(Suit.OROS);
+            game = passAllSoledad(game).selectTrump(Suit.OROS);
             for (var i = 0; i < 8; i++) {
                 game = playAndCompleteBasa(game, players.get(i % 5));
             }
@@ -964,7 +972,7 @@ class GameTest {
             var game = createGame(players);
 
             // Round 1: draw (+1 each)
-            game = game.selectTrump(Suit.COPAS);
+            game = passAllSoledad(game).selectTrump(Suit.COPAS);
             for (var i = 0; i < 8; i++) {
                 game = playAndCompleteBasa(game, players.get(i % 5));
             }
@@ -974,8 +982,8 @@ class GameTest {
             }
 
             // Round 2: draw (+1 each again)
-            game = game.startNextRound(new Random(99L));
-            game = game.selectTrump(Suit.OROS);
+            game = game.startNextRound(new Random(99L), Instant.now());
+            game = passAllSoledad(game).selectTrump(Suit.OROS);
             for (var i = 0; i < 8; i++) {
                 game = playAndCompleteBasa(game, players.get(i % 5));
             }
@@ -991,7 +999,7 @@ class GameTest {
             var game = createGame(players);
 
             // Select trump
-            game = game.selectTrump(Suit.COPAS);
+            game = passAllSoledad(game).selectTrump(Suit.COPAS);
 
             // Set teams
             final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
@@ -1049,10 +1057,10 @@ class GameTest {
             }
 
             if (round > 0) {
-                game = game.startNextRound(new Random(seed++));
+                game = game.startNextRound(new Random(seed++), Instant.now());
             }
 
-            game = game.selectTrump(Suit.COPAS);
+            game = passAllSoledad(game).selectTrump(Suit.COPAS);
 
             final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
             final var teammate = players.stream()
