@@ -77,7 +77,7 @@ spec line was the error; spec, the design worked example, the domain and its tes
 aligned on winner-leads. Rotation to the right still applies **between rounds**
 (`Game.startNextRound`, spec 2.2), which is a separate rule and unchanged.
 
-Soledad is **not** part of this phase's "Done" — see Known Gaps below.
+Soledad is now complete — see "Rules & Known Gaps" below.
 
 ---
 
@@ -151,9 +151,9 @@ rather than restating them, so it shows what the engine actually does.
 The client mirrors `MoveValidator`'s follow-suit rule so it only offers legal cards; the
 server remains authoritative and still rejects anything illegal.
 
-Not attempted: the React + TypeScript + Vite stack in spec §3.2, reconnection UI,
-Soledad declaration beyond the button (the underlying rules are still incomplete - see
-Known Gaps), or any styling work beyond making the game readable.
+Not attempted: the React + TypeScript + Vite stack in spec §3.2, reconnection UI, a
+control for the *"es primer rei aida"* call, or any styling work beyond making the game
+readable. The page shows the posso, the round's mode and both sides.
 
 ---
 
@@ -186,29 +186,39 @@ migration tool or Testcontainers dependency.
 
 ---
 
-## Known Gaps
+## Rules & Known Gaps
 
-Items below are implemented partially or not at all despite living inside a phase
-marked COMPLETE. Each functional gap has acceptance tests already written and `@Disabled`;
-enable them as the behaviour lands.
+Section 1 records rules work that is now done. Everything after it is still implemented
+partially or not at all despite living inside a phase marked COMPLETE.
 
-### 1. Soledad is declared but never actually played (Phase 3/4)
+### 1. Rules reconciled against the primary source — DONE
 
-`soledadPlayer` is stored on `Round` and echoed into the state DTO, but it is read
-nowhere in the win or scoring logic. The declaration window works; everything after it
-falls back to ordinary 2-vs-3 rules.
+The photographed rules (Juan Monjo Soliveres, *«Es joc de ginebra»*) are transcribed and
+translated in `rules-source.md`; `rules-diff.md` tracks every difference against `spec.md`.
+The engine now implements the source's rules:
 
-| Gap | Spec | Acceptance test (disabled) |
-|-----|------|----------------------------|
-| `Round.withSoledadDeclared` overwrites `playerWhoGoes`, so the declarer also leads the first basa | 2.5 — the declarer chooses trump, the round still starts with the normal-rotation player | `SoledadRoundRulesTest.TurnOrder` (2), `SoledadGameServiceIntegrationTest.shouldStartPlayWithTheNormalRotationStarter` |
-| The first King still forms a 2-vs-3 partnership, giving the Soledad player a partner | 2.5 — Soledad is 1 vs 4 | `SoledadRoundRulesTest.shouldRejectTeamFormationInSoledadRound`, `SoledadGameServiceIntegrationTest.shouldNeverPublishTeamsRevealed` |
-| `Round.checkForRoundEnd` only understands teams, so a Soledad round never ends on the fifth basa | 2.5 — 5 basas alone wins, fewer and the other four win | `SoledadRoundRulesTest.RoundOutcome` (2) |
-| `Game.calculateCoinChanges` has no Soledad branch and pays the flat ±2 team rate | 2.6 — 3 coins with each of the other four, 12 in total | `SoledadRoundRulesTest.Scoring` (2), `SoledadGameServiceIntegrationTest.shouldSettleCoinsAtTheSoledadRate` |
-| Next-round rotation runs off the declarer instead of the normal starter | 2.2 | `SoledadGameServiceIntegrationTest.shouldRotateToTheSeatRightOfTheNormalStarterInTheNextRound` |
+- Settlement runs through the **posso**, not player-to-player transfers, as one base plus
+  +1 increments (`SettlementCalculator`)
+- **No draw**: the going side needs 5 basas, the opposing side blocks with 4
+- The first King decides the round's shape - **helped**, **posar-se el rei**, or the mà's
+  king forced out ending the hand - and a forced king costs its owner 1 (`RoundMode`,
+  `Round.withKingPlayed`). `TeamResolver` is gone; its job moved into the aggregate
+- **Primeres**, **todo**, and the **four-king deal** are implemented
+- A trump lead compels a trump unless a higher special card can be withheld
+  (`MoveValidator`); the Espadilla and Basto no longer bypass following a plain suit
 
-Related: when the player who "goes" plays the first King themselves, `TeamResolver`
-defers (spec 2.3 says they may stop the game — unimplemented). The fallback is not
-neutral: the *next* King played by someone else forms the teams instead.
+**Soledad (former Known Gap #1) is closed.** The declarer names trumps without becoming
+the mà, the round stays 1-vs-4, it ends on the fifth basa or the opponents' fourth, it
+settles at the Soledad rate, and rotation follows the normal starter. Every acceptance
+test that was `@Disabled` for this now runs and passes.
+
+Six readings the source leaves open are implemented one way and listed in `rules-diff.md`
+§3.3 - most notably that **todo is auto-detected rather than called**, because there is no
+timeout infrastructure to back a blocking decision window. Two findings (D-6, D-17) are
+deliberately not implemented pending confirmation from a player.
+
+Not wired to the client: the *"es primer rei aida"* call exists in the domain and the state
+payload but has no control or message.
 
 ### 2. No scheduled work exists (all phases)
 
@@ -254,16 +264,15 @@ or the pin relaxed.
 | Card order against all four spec 2.4 tables | `game/domain/service/SpecCardOrderTest` |
 | Soledad rules, domain level | `game/domain/model/SoledadRoundRulesTest` |
 | Soledad through the application service | `game/application/SoledadGameServiceIntegrationTest` |
+| The settlement ladder, row by row | `game/domain/service/SettlementCalculatorTest` |
+| The king rules and primeres/todo | `game/domain/model/KingRulesTest` |
+| Following rules, including the trump-lead obligation | `game/domain/service/MoveValidatorTest` |
 | Play client endpoints and public static assets | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
 | Single-room lookup | `lobby/application/GetRoomServiceTest` |
 | Shared test doubles and fixtures | `support/` — `TestDeal`, `LegalMoves`, `LobbyFixture`, `StompTestClient`, `RecordingGameEventPublisher` |
 
-Disabled tests are acceptance criteria for the Known Gaps above, not dead code. To see
-them fail against the current implementation:
-
-```
-sh gradlew test -Djunit.jupiter.conditions.deactivate='org.junit*DisabledCondition'
-```
+No tests are disabled: 763 run, all green. The acceptance tests that were `@Disabled` for
+the Soledad gap now pass and are enabled.
 
 ---
 

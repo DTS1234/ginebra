@@ -36,7 +36,7 @@ These were right and should be left alone.
 
 ## 2. Differences
 
-### D-1 — The settlement model is a pot, not player-to-player transfers · **critical**
+### D-1 — The settlement model is a pot, not player-to-player transfers · **critical** · ✅ resolved
 
 **Source.** §3: the ***posso*** is an equal ante from every player, placed in the middle of
 the table. All scoring language is *cobrar* (collect **from** it) and *pagar* (pay **into**
@@ -58,7 +58,7 @@ invent different ones.
 
 ---
 
-### D-2 — There is no draw · **high**
+### D-2 — There is no draw · **high** · ✅ resolved
 
 **Source.** The outcome is binary: the going side makes 5 basas or it does not. §5 prices
 the failure directly — *"Si es que van fan menys de cinc bases, 1"* (each opponent collects
@@ -77,7 +77,7 @@ is answered: it does not.
 
 ---
 
-### D-3 — The opposing side wins at **4** basas, not 5 · **high**
+### D-3 — The opposing side wins at **4** basas, not 5 · **high** · ✅ resolved
 
 **Source.** §4.1 — only the going side has a target of 5. The opponents' job is to prevent
 it: §4.7 *"Es contraris procuraran que això no ocórrega."*
@@ -92,7 +92,7 @@ where the spurious draw in D-2 comes from.
 
 ---
 
-### D-4 — The hand does not automatically stop at five basas · **medium**
+### D-4 — The hand does not automatically stop at five basas · **medium** · ✅ resolved
 
 **Source.** §4.8 *"«Fer todo» ho has de demanar quan tens cinc bases."* — todo is **called
 at five**, and play continues for all eight.
@@ -182,7 +182,7 @@ pins the case that prompted the decision.
 
 ---
 
-### D-8 — It is the ***dengue***, and it is always collected · **medium**
+### D-8 — It is the ***dengue***, and it is always collected · **medium** · ✅ resolved
 
 **Source.** §2 *"Es diu «dengue» […] quan té l'espadilla i el basto"*; §6 closes with
 ***"El dengue sempre es cobra."*** — the dengue is always collected, win or lose.
@@ -196,7 +196,7 @@ Spec §2.6's *"Estuche"* should likewise be ***estutxe***.
 
 ---
 
-### D-9 — Bonus values and stacking are wrong · **medium**
+### D-9 — Bonus values and stacking are wrong · **medium** · ✅ resolved
 
 **Source.** §5.1 — the published table is one **base** plus **+1 increments**:
 
@@ -220,7 +220,7 @@ combinator. And the dengue is not conditional on winning (D-8).
 
 ---
 
-### D-10 — *Fer primeres* is missing entirely · **medium**
+### D-10 — *Fer primeres* is missing entirely · **medium** · ✅ resolved
 
 **Source.** §4.7, and the glossary: winning the **first four basas in a row**, worth +1 to
 the going side, and something the opponents actively play to prevent.
@@ -230,7 +230,7 @@ all won by the same side.
 
 ---
 
-### D-11 — *Fer todo* is missing entirely · **medium**
+### D-11 — *Fer todo* is missing entirely · **medium** · ✅ resolved
 
 **Source.** §4.8 and the glossary: winning **all eight basas**, worth +1, and **it must be
 called when the caller has five**.
@@ -239,7 +239,7 @@ called when the caller has five**.
 
 ---
 
-### D-12 — Four kings in one hand ends it immediately · **medium**
+### D-12 — Four kings in one hand ends it immediately · **medium** · ✅ resolved
 
 **Source.** §4.8: *"Si a un li venen es quatre reis, cobra quatre, i s'acaba sa mà. Si en es
 mateix temps un altre jugador vullguera anar a soles, no podria. En aquest cas sols pot
@@ -254,7 +254,7 @@ Ordering matters: this must be checked at deal time, ahead of the soledad window
 
 ---
 
-### D-13 — *Posar-se el rei* — putting the king on yourself — is missing · **medium**
+### D-13 — *Posar-se el rei* — putting the king on yourself — is missing · **medium** · ✅ resolved
 
 **Source.** §4.7: *"Un jugador es pot posar ell mateixa el rei, si veu que pot fer ses 5
 bases."* Priced in §5 (`4` to win, `5` with primeres) and §6 (`4` to lose, `5` with
@@ -268,7 +268,7 @@ Ginebra has **two** solo modes, not one.
 
 ---
 
-### D-14 — "The player who goes plays the first king, and can stop the game" conflates two rules · **medium**
+### D-14 — "The player who goes plays the first king, and can stop the game" conflates two rules · **medium** · ✅ resolved
 
 **Spec.** §2.3: *"Special case: If the player who 'goes' plays the first King themselves,
 they can choose to stop the game."*
@@ -289,7 +289,7 @@ allows.
 
 ---
 
-### D-15 — *Caure el rei* — the forced king — is missing · **medium**
+### D-15 — *Caure el rei* — the forced king — is missing · **medium** · ✅ resolved
 
 **Source.** §4.3 *"Si et cau el rei, te l'has de jugar forçosament."*; glossary *"Caure el
 rei. Es diu quan t'has de jugar el rei forçós."*; §6 prices it at **1** paid.
@@ -302,7 +302,7 @@ notes this is common: *"Moltes voltes poses el rei sense voler perquè et cau."*
 
 ---
 
-### D-16 — The *"es primer rei aida"* call is missing · **low**
+### D-16 — The *"es primer rei aida"* call is missing · **low** · ⚠️ domain only
 
 **Source.** §4.3 and the glossary: the one who goes, holding a *rei pelat* (a bare king,
 §7) that may fall, may call **"es primer rei aida"** to have a king put on them as early as
@@ -324,7 +324,7 @@ the discard option when void.
 
 ---
 
-### D-18 — Soledad settles at 5, not 12 · **medium**
+### D-18 — Soledad settles at 5, not 12 · **medium** · ✅ resolved
 
 **Source.** §5 *"Si vas a soles i guanyes, 5"*; §6 *"Si vas a soles i perds, 5"*. Each
 opponent collects **1** when the lone player fails, **2** if they were held under four
@@ -337,7 +337,7 @@ Wrong figure, and wrong mechanism — see D-1. Note also that the source never u
 
 ---
 
-### D-19 — Soledad turn order: the source backs the spec · **info, [uncertain]**
+### D-19 — Soledad turn order: the source backs the spec · **info** · ✅ bug fixed
 
 **Source.** §4.1 says a lone player makes trumps *"encara que no siga mà"* — even if not
 *mà*; the glossary says the *mà* *"és es primer en jugar"*. Together: the lone player names
@@ -352,7 +352,7 @@ right behaviour.
 
 ---
 
-### D-20 — Cards are dealt four at a time · **low**
+### D-20 — Cards are dealt four at a time · **low** · ✅ recorded
 
 **Source.** §1: *"Ses cartes es repartixen de quatre en quatre."*
 
@@ -361,7 +361,7 @@ deal; worth recording so a future dealing animation gets it right.
 
 ---
 
-### D-21 — The ace of copes is the ***carabassa***, not the *rovell* · **low, documentation**
+### D-21 — The ace of copes is the ***carabassa***, not the *rovell* · **low** · ✅ resolved
 
 **Source.** §2 and glossary: **rovell** = ace of *oros*, **carabassa** = ace of *copes*.
 
@@ -370,7 +370,7 @@ three tables label the same card *"As de Copes (Rovell)"* — wrong in all three
 
 ---
 
-### D-22 — Four of spec §2.8's open questions are answered · **info**
+### D-22 — Four of spec §2.8's open questions are answered · **info** · ✅ recorded
 
 | Open question | Answer from the source |
 |---|---|
@@ -386,60 +386,62 @@ declaration relative to trump selection.
 
 ---
 
-## 3. Proposed fixes
+## 3. Status
 
-### 3.1 To `spec.md` — do these first
+### 3.1 Landed
 
-Ordered so that the model-level changes land before the details that depend on them.
+`spec.md` §2.1 to §2.7 and `design.md` §5 now describe the source's rules, and the engine
+implements them.
 
-1. **§2.6 — replace the coin model with the posso** (D-1). An equal ante per player into a
-   pot; settlements are collections from and payments into it, not transfers between
-   players; top-up and equal division by agreement. Drop the 20-coin starting balance from
-   §2.2.
-2. **§2.6 — delete the draw** (D-2), and strike the corresponding open question in §2.8.
-3. **§2.1 / §2.6 — restate the objective asymmetrically** (D-3): the going side needs 5
-   basas; the opposing side wins by holding them to 4 or fewer, which is decided the moment
-   the opponents take their 4th.
-4. **§2.6 — five basas is a decision point, not the end** (D-4): bank the win, or call
-   *todo* and play all eight.
-5. **§2.3 — add the trump-lead obligation** (D-5) as the unified rule plus its four cases.
-6. **§2.6 — replace the bonus section with the base-plus-increment table** (D-9), rename
-   *Duende* → *dengue* and *Estuche* → *estutxe*, and record that the dengue is collected
-   win or lose (D-8).
-7. **§2.6 — correct soledad to 5/5** and rename it *anar a soles* (D-18).
-8. **Add the missing rules**: *fer primeres* (D-10), *fer todo* (D-11), four kings (D-12),
-   *posar-se el rei* (D-13), *caure el rei* and its 1-coin penalty (D-15), *es primer rei
-   aida* (D-16).
-9. **§2.3 — replace the "can choose to stop the game" clause** with the two rules it
-   conflates (D-14).
-10. **§2.4 — fix the three tables that call the ace of copes the *rovell*** (D-21); add a
-    note that the non-trump ace position is unverified (D-6).
-11. **§2.2 — record that the deal is four at a time** (D-20).
-12. **§2.8 — close the four answered questions** (D-22).
-13. **Flag, do not yet change**: D-7 (espadilla/basto out of suit) and D-17 (leader changing
-    suit). Both alter move legality and both rest on inference.
-14. **Cite the source.** Point spec §2 at `rules-source.md`, and add it to `CLAUDE.md`'s
-    context list alongside `spec.md` and `design.md`.
+| Finding | Where it lives now |
+|---|---|
+| D-1 posso | `Game.posso`, `Game.settleCurrentRound`, `Settlement` — an equal ante at the start, topped up in equal parts when the pot cannot cover a payout |
+| D-2 no draw, D-3 blocked at four | `RoundResult` (`GoingSideWon`/`GoingSideFailed`/`FourKings`/`KingFell`), `Round.checkForRoundEnd`, `Round.BASAS_TO_BLOCK` |
+| D-4, D-11 todo | `Round.madeTodo`, and `checkForRoundEnd` playing on past five while todo is live |
+| D-5, D-7 following rules | `MoveValidator`, `Card.isTrump`, `Card.followsSuit` |
+| D-8, D-9, D-18 settlement ladder | `SettlementCalculator` — base plus +1 increments, the dengue always collected |
+| D-10 primeres | `Round.madePrimeres` |
+| D-12 four kings | `Round.start` completing the round at the deal; `GameService` re-deals |
+| D-13, D-14, D-15 king rules | `Round.withKingPlayed`, `RoundMode`, `Game.resolveKing`; `TeamResolver` is gone |
+| D-19 soledad turn order | `Round.trumpChooser` vs `Round.playerWhoGoes`; `withSoledadDeclared` no longer overwrites the mà |
+| D-20, D-21, D-22 | documentation only, in `spec.md` |
 
-### 3.2 To the code — for a follow-up, after the spec settles
+Tests: `SettlementCalculatorTest` (19) prices the ladder row by row, `KingRulesTest` (19)
+covers the four modes and primeres/todo, `MoveValidatorTest` covers the following rules,
+and `GameServiceTest.KingDecidesTheSide` drives forcedness through the real validator.
+`SoledadRoundRulesTest` and `SoledadGameServiceIntegrationTest` are fully enabled - the
+Known Gap #1 acceptance tests all pass.
 
-Grouped by what has to move together. The disabled acceptance tests listed in
-`PROGRESS.md`'s Known Gaps stay valid; these are additional.
+### 3.2 Deliberately not done
 
-| # | Change | Files |
-|---|---|---|
-| C-1 | Replace balances with a posso: an ante at game start, `cobrar`/`pagar` against the pot, no bankruptcy end condition | `Game` (`INITIAL_COINS`, `WIN_COINS`, `LOSE_COINS`, `DRAW_COINS`, `applyCoins`, `isAnyPlayerBankrupt`), `GameStatePayload`, `GameStateMapper` |
-| C-2 | Delete `RoundResult.Draw`; end the round when the opponents reach 4 or the going side reaches 5 | `RoundResult`, `Round.checkForRoundEnd`, `Game.calculateCoinChanges` |
-| C-3 | Settlement as base + increments, replacing `max(estuche, duende)`; dengue paid win or lose | `Game.calculateBonus`, `Game.calculateCoinChanges` |
-| ~~C-4~~ | ~~Trump-lead obligation with rank-based exemption~~ — **done**, with D-7 | `MoveValidator`, `Card`, `static/app.js` |
-| C-5 | Detect *primeres*; add a *todo* declaration at five basas and detect the result | `Round`, `Game`, a new client→server message, `GameWebSocketController` |
-| C-6 | Four kings at deal time — collect 4, end the hand, pre-empt soledad | `Game.start` / `startNextRound`, `Round` |
-| C-7 | *Posar-se el rei* as a distinct outcome; distinguish a chosen king from a forced one, end the hand when the *mà*'s king is forced, and charge 1 for *caure el rei* | `TeamResolver`, `Round`, `Game` |
-| C-8 | *"Es primer rei aida"* declaration and its broadcast | `Round`, `GameWebSocketController`, `ServerMessage` |
-| C-9 | Soledad at 5/5 against the posso, on top of the existing Known Gap #1 work | `Game.calculateCoinChanges`, `Round` |
-| C-10 | Update the help panel's rules text and card-order display to match | `static/app.js`, `static/index.html` |
-| C-11 | Extend `SpecCardOrderTest` with the source's four trump lists, so the tables are pinned to the source and not only to the spec | `game/domain/service/SpecCardOrderTest` |
+| Finding | Why |
+|---|---|
+| D-6 non-trump ace | The source neither confirms nor contradicts the spec. No change until someone confirms. |
+| D-17 leader changing suit | Would reject moves that are legal today, on an inference from one ambiguous sentence. |
+| D-16 "es primer rei aida" | The domain records the call (`Round.withFirstKingCalled`) and the state payload carries it, but no client control or STOMP message is wired up yet. |
 
-**Deliberately not proposed:** D-6 and D-17 stay out of the code until someone confirms
-them. D-17 in particular would reject moves that are legal today. (D-7 was confirmed and is
-now implemented — see above.)
+### 3.3 Choices the source forced, which need a player's confirmation
+
+Each is implemented one way and flagged here so it can be corrected cheaply.
+
+1. **Todo is auto-detected, not called.** The source has the going side call it on reaching
+   five. Since it never says what a *missed* todo costs, calling it is free and a rational
+   player always would - so the engine plays on whenever the going side has swept every
+   basa, and awards the point if they take all eight. This avoids a blocking decision
+   window that nothing would time out (see `PROGRESS.md`: no scheduled work exists). If a
+   missed todo turns out to carry a penalty, the call has to become explicit.
+2. **A four-king deal always ends the hand.** §4.8 says so, but the 13-coin maximum implies
+   the holder may instead go alone and play it out. Only the plain reading is implemented.
+3. **The estutxe always scores the dengue too**, per the parenthetical in the source's own
+   row rather than the number printed before it.
+4. **A losing side's payment is raised by its own primeres and estutxe**, which is the only
+   reading that makes `"Si perden i tenen l'estutxe"` self-consistent.
+5. **The mà's forced king ends the hand with only the 1-coin penalty settled.** The source
+   says the hand ends but not how it is paid.
+6. **Losing defenders pay nothing.** The source lists no charge for them; the pot absorbs it.
+
+### 3.4 Still outstanding, unrelated to the source
+
+The gaps `PROGRESS.md` records that this work did not touch: no scheduled work of any kind
+(the 2-minute Soledad auto-pass, disconnect pause, room expiry), registered accounts, one
+active game per player, `RoomService` locking, and `SecureRandom` for the shuffle.

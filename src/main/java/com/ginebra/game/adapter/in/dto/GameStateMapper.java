@@ -39,6 +39,7 @@ public class GameStateMapper {
             game.status().name(),
             playerDtos,
             coinBalances,
+            game.posso(),
             roundPayload
         );
     }
@@ -86,21 +87,26 @@ public class GameStateMapper {
             payload.put("nextBasaNumber", bw.nextBasaNumber());
             payload.put("nextStarter", bw.nextStarter() != null ? bw.nextStarter().value().toString() : null);
             return new ServerMessage("BASA_WON", payload);
-        } else if (event instanceof GameEvent.TeamsRevealed tr) {
-            return new ServerMessage("TEAMS_REVEALED", Map.of(
-                "teamOfTwo", tr.teamOfTwo().stream().map(p -> p.value().toString()).toList(),
-                "teamOfThree", tr.teamOfThree().stream().map(p -> p.value().toString()).toList(),
-                "revealingCard", toCardDto(tr.revealingCard())
-            ));
+        } else if (event instanceof GameEvent.SideDecided sd) {
+            final var payload = new HashMap<String, Object>();
+            payload.put("mode", sd.mode().name());
+            payload.put("goingSide", sd.goingSide().stream().map(p -> p.value().toString()).toList());
+            payload.put("opposingSide", sd.opposingSide().stream().map(p -> p.value().toString()).toList());
+            payload.put("byPlayer", sd.byPlayer().value().toString());
+            payload.put("king", toCardDto(sd.king()));
+            payload.put("forced", sd.forced());
+            return new ServerMessage("SIDE_DECIDED", payload);
         } else if (event instanceof GameEvent.RoundEnded re) {
-            return new ServerMessage("ROUND_ENDED", Map.of(
-                "roundNumber", re.roundNumber(),
-                "result", re.result() instanceof RoundResult.Win ? "WIN" : "DRAW",
-                "coinChanges", re.coinChanges().entrySet().stream()
-                    .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue)),
-                "coinBalances", re.newBalances().entrySet().stream()
-                    .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue))
-            ));
+            final var payload = new HashMap<String, Object>();
+            payload.put("roundNumber", re.roundNumber());
+            payload.put("result", resultName(re.result()));
+            payload.put("winners", re.result().winners().stream().map(p -> p.value().toString()).toList());
+            payload.put("coinChanges", re.coinChanges().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue)));
+            payload.put("coinBalances", re.newBalances().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue)));
+            payload.put("posso", re.posso());
+            return new ServerMessage("ROUND_ENDED", payload);
         } else if (event instanceof GameEvent.GameEnded ge) {
             return new ServerMessage("GAME_ENDED", Map.of(
                 "reason", ge.reason(),
@@ -160,11 +166,16 @@ public class GameStateMapper {
             round.status().name(),
             round.trumpSuit().map(Suit::name).orElse(null),
             round.playerWhoGoes().value().toString(),
+            round.trumpChooser().value().toString(),
             hand,
             round.currentPlayer().map(p -> p.value().toString()).orElse(null),
             basasWon,
             basaPayload,
             teamsPayload,
+            round.mode().map(Enum::name).orElse(null),
+            round.goingSide().stream().map(p -> p.value().toString()).toList(),
+            round.opposingSide().stream().map(p -> p.value().toString()).toList(),
+            round.firstKingCalled(),
             soledadPasses,
             soledadPlayer,
             soledadDeadline
@@ -184,6 +195,19 @@ public class GameStateMapper {
             basa.startingPlayer().value().toString(),
             cardsPlayed
         );
+    }
+
+    private static String resultName(RoundResult result) {
+        if (result instanceof RoundResult.GoingSideWon) {
+            return "GOING_SIDE_WON";
+        }
+        if (result instanceof RoundResult.GoingSideFailed) {
+            return "GOING_SIDE_FAILED";
+        }
+        if (result instanceof RoundResult.FourKings) {
+            return "FOUR_KINGS";
+        }
+        return "KING_FELL";
     }
 
     private GameStatePayload.TeamsPayload toTeamsPayload(Teams teams) {

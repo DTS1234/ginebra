@@ -188,6 +188,16 @@ function isSpecial(card) {
     return card.rank === 'AS' && (card.suit === 'ESPADAS' || card.suit === 'BASTOS');
 }
 
+
+/** How the going side came about, for the sides panel. */
+const MODE_LABEL = {
+    HELPED: 'a king was put — two against three',
+    SELF_KING: 'put their own king — one against four',
+    SOLEDAD: 'went alone — one against four',
+    FOUR_KINGS: 'four kings dealt — hand over',
+    KING_FELL: 'the king fell — hand over'
+};
+
 // === Application state ===
 
 const state = {
@@ -201,7 +211,8 @@ const state = {
     trump: null,
     basa: [],           // { playerId, card } played so far in the current basa
     seats: new Map(),   // playerId -> seat label
-    coins: {}
+    coins: {},
+    posso: null         // what is in the middle of the table
 };
 
 const el = (id) => document.getElementById(id);
@@ -389,6 +400,7 @@ function onGameState(message) {
     }
     const payload = message.payload;
     state.coins = payload.coinBalances || {};
+    state.posso = payload.posso ?? null;
     payload.players.forEach((player) => {
         if (!state.seats.has(player.id)) {
             state.seats.set(player.id, 'seat ' + player.seatPosition);
@@ -473,18 +485,26 @@ function onServerMessage(message) {
             state.round = Object.assign({}, state.round, { basasWon: payload.basasWon });
             break;
 
-        case 'TEAMS_REVEALED':
-            log('Teams revealed by ' + cardName(payload.revealingCard) + ': [' +
-                payload.teamOfTwo.map(seatOf).join(', ') + '] vs [' +
-                payload.teamOfThree.map(seatOf).join(', ') + ']', 'good');
+        case 'SIDE_DECIDED':
+            log(seatOf(payload.byPlayer) + ' played ' + cardName(payload.king)
+                + (payload.forced ? ' (forced — pays 1)' : '')
+                + ': ' + (MODE_LABEL[payload.mode] || payload.mode)
+                + ' — [' + payload.goingSide.map(seatOf).join(', ') + '] vs ['
+                + payload.opposingSide.map(seatOf).join(', ') + ']', 'good');
             state.round = Object.assign({}, state.round, {
-                teams: { teamOfTwo: payload.teamOfTwo, teamOfThree: payload.teamOfThree }
+                mode: payload.mode,
+                goingSide: payload.goingSide,
+                opposingSide: payload.opposingSide
             });
             break;
 
         case 'ROUND_ENDED':
-            log('Round ' + payload.roundNumber + ' ended: ' + payload.result, 'good');
+            log('Round ' + payload.roundNumber + ' ended: '
+                + payload.result.replace(/_/g, ' ').toLowerCase()
+                + (payload.winners.length ? ' — ' + payload.winners.map(seatOf).join(', ') : '')
+                + ' · posso ' + payload.posso, 'good');
             state.coins = payload.coinBalances;
+            state.posso = payload.posso;
             state.basa = [];
             // The next round is dealt server-side; ask for the new hand.
             setTimeout(refreshState, 250);
@@ -533,7 +553,7 @@ function render() {
 
     const myTurn = state.currentTurn === state.me.playerId;
     const iPickTrump = round.status === 'WAITING_FOR_TRUMP'
-        && round.playerWhoGoes === state.me.playerId;
+        && round.trumpChooser === state.me.playerId;
 
     el('phase').textContent = round.status.replace(/_/g, ' ').toLowerCase();
     el('trump').textContent = state.trump
@@ -541,6 +561,7 @@ function render() {
         : 'not chosen';
     el('round-number').textContent = round.roundNumber;
     el('coins').textContent = state.coins[state.me.playerId] ?? '-';
+    el('posso').textContent = state.posso ?? '-';
     el('turn').textContent = state.currentTurn ? seatOf(state.currentTurn) : '-';
     el('turn').className = myTurn ? 'highlight' : '';
 
@@ -725,22 +746,25 @@ function helpColumn(suit, trump) {
 
 function renderTeams(round) {
     const panel = el('teams-panel');
-    const teams = round.teams;
-    if (!teams) {
+    const going = round.goingSide || [];
+    if (!round.mode || going.length === 0) {
         panel.classList.add('hidden');
         return;
     }
     panel.classList.remove('hidden');
 
-    fillTeam(el('team-two'), teams.teamOfTwo, round);
-    fillTeam(el('team-three'), teams.teamOfThree, round);
+    const opposing = round.opposingSide || [];
+    el('teams-label').textContent = MODE_LABEL[round.mode] || round.mode;
+    fillTeam(el('team-two'), going, round);
+    fillTeam(el('team-three'), opposing, round);
 
     const basasWon = round.basasWon || {};
     const total = (side) => side.reduce((sum, id) => sum + (basasWon[id] || 0), 0);
-    const mine = teams.teamOfTwo.includes(state.me.playerId) ? 'the team of two' : 'the team of three';
+    const mine = going.includes(state.me.playerId) ? 'the side that goes' : 'the opposing side';
     el('teams-score').textContent =
-        'Basas: two ' + total(teams.teamOfTwo) + ' - ' + total(teams.teamOfThree) + ' three'
-        + ' · you are on ' + mine + ' · first to five together wins the round';
+        'Basas: goes ' + total(going) + ' - ' + total(opposing) + ' against'
+        + ' · you are on ' + mine
+        + ' · the side that goes needs 5, the other side blocks with 4';
 }
 
 function fillTeam(list, memberIds, round) {

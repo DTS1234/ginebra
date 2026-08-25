@@ -34,17 +34,25 @@ public sealed interface GameEvent {
         PlayerId nextStarter
     ) implements GameEvent {}
 
-    record TeamsRevealed(
-        Set<PlayerId> teamOfTwo,
-        Set<PlayerId> teamOfThree,
-        Card revealingCard
+    /**
+     * The king that decided the shape of the round has been played: who goes with whom, or
+     * alone, and whether the king was forced out of its owner.
+     */
+    record SideDecided(
+        RoundMode mode,
+        Set<PlayerId> goingSide,
+        Set<PlayerId> opposingSide,
+        PlayerId byPlayer,
+        Card king,
+        boolean forced
     ) implements GameEvent {}
 
     record RoundEnded(
         int roundNumber,
         RoundResult result,
         Map<PlayerId, Integer> coinChanges,
-        Map<PlayerId, Integer> newBalances
+        Map<PlayerId, Integer> newBalances,
+        int posso
     ) implements GameEvent {}
 
     record GameEnded(

@@ -1,5 +1,6 @@
 package com.ginebra.game.domain.model;
 
+import com.ginebra.game.domain.service.SettlementCalculator;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
 
@@ -9,26 +10,35 @@ import java.util.*;
 
 /**
  * Aggregate root for the Ginebra card game.
- * Manages rounds, coin balances, and the overall game lifecycle.
+ * Manages rounds, the posso, coin balances and the overall game lifecycle.
+ *
+ * Money does not move between players. Every player antes an equal stake into the
+ * <b>posso</b> in the middle of the table, and each round is settled by collecting from it
+ * or paying into it (rules-source.md §3). The two sides of a settlement do not balance:
+ * the pot absorbs the difference, and is topped up in equal parts when it runs dry.
  *
  * This class is immutable - mutation methods return new instances.
  */
 public final class Game {
 
     public static final int PLAYER_COUNT = 5;
+
+    /** What each player brings to the table. */
     public static final int INITIAL_COINS = 20;
-    public static final int WIN_COINS = 2;
-    public static final int LOSE_COINS = -2;
-    public static final int DRAW_COINS = 1;
-    public static final int DUENDE_BONUS = 1;
-    public static final int ESTUCHE_BONUS = 2;
+
+    /** Each player's equal contribution to the posso, taken at the start and on a top-up. */
+    public static final int ANTE = 5;
+
     public static final Duration SOLEDAD_TIMEOUT = Duration.ofMinutes(2);
+
+    private static final SettlementCalculator SETTLEMENT = new SettlementCalculator();
 
     private final GameId gameId;
     private final List<PlayerId> players;
     private final List<Round> completedRounds;
     private final Round currentRound;
     private final Map<PlayerId, Integer> coinBalances;
+    private final int posso;
     private final GameStatus status;
     private final Map<PlayerId, List<Card>> currentDealSnapshot;
 
@@ -38,6 +48,7 @@ public final class Game {
         List<Round> completedRounds,
         Round currentRound,
         Map<PlayerId, Integer> coinBalances,
+        int posso,
         GameStatus status,
         Map<PlayerId, List<Card>> currentDealSnapshot
     ) {
@@ -59,11 +70,16 @@ public final class Game {
             );
         }
 
+        if (posso < 0) {
+            throw new IllegalArgumentException("posso must not be negative, got: " + posso);
+        }
+
         this.gameId = gameId;
         this.players = List.copyOf(players);
         this.completedRounds = List.copyOf(completedRounds);
         this.currentRound = currentRound;
         this.coinBalances = Map.copyOf(coinBalances);
+        this.posso = posso;
         this.status = status;
         this.currentDealSnapshot = currentDealSnapshot != null ? deepCopyHands(currentDealSnapshot) : null;
     }
@@ -71,7 +87,7 @@ public final class Game {
     // === Factory Method ===
 
     /**
-     * Creates a new game, deals cards, and starts the first round in WAITING_FOR_SOLEDAD.
+     * Creates a new game, forms the posso, deals cards, and starts the first round.
      *
      * @param gameId the game identifier
      * @param players the 5 players in clockwise order
@@ -98,7 +114,7 @@ public final class Game {
 
         final var initialCoins = new HashMap<PlayerId, Integer>();
         for (final var player : players) {
-            initialCoins.put(player, INITIAL_COINS);
+            initialCoins.put(player, INITIAL_COINS - ANTE);
         }
 
         final var hands = dealCards(players, random);
@@ -109,15 +125,19 @@ public final class Game {
         final var soledadDeadline = now.plus(SOLEDAD_TIMEOUT);
         final var round = Round.start(1, playerWhoGoes, players, hands, soledadDeadline);
 
-        return new Game(
+        final var game = new Game(
             gameId,
             players,
             List.of(),
             round,
             initialCoins,
+            ANTE * PLAYER_COUNT,
             GameStatus.IN_PROGRESS,
             hands
         );
+
+        // A deal of four kings ends the round before anyone plays.
+        return round.isComplete() ? game.settleCurrentRound() : game;
     }
 
     // === Query Methods ===
@@ -140,6 +160,11 @@ public final class Game {
 
     public Map<PlayerId, Integer> coinBalances() {
         return coinBalances;
+    }
+
+    /** What is currently in the middle of the table. */
+    public int posso() {
+        return posso;
     }
 
     public GameStatus status() {
@@ -183,8 +208,7 @@ public final class Game {
         requireInProgress();
         requireCurrentRound();
 
-        final var updatedRound = currentRound.withSoledadPass(playerId);
-        return withCurrentRound(updatedRound);
+        return withCurrentRound(currentRound.withSoledadPass(playerId));
     }
 
     /**
@@ -194,8 +218,17 @@ public final class Game {
         requireInProgress();
         requireCurrentRound();
 
-        final var updatedRound = currentRound.withSoledadDeclared(playerId);
-        return withCurrentRound(updatedRound);
+        return withCurrentRound(currentRound.withSoledadDeclared(playerId));
+    }
+
+    /**
+     * Records the one who goes calling "es primer rei aida".
+     */
+    public Game callFirstKing() {
+        requireInProgress();
+        requireCurrentRound();
+
+        return withCurrentRound(currentRound.withFirstKingCalled());
     }
 
     /**
@@ -205,8 +238,7 @@ public final class Game {
         requireInProgress();
         requireCurrentRound();
 
-        final var updatedRound = currentRound.withTrump(trump);
-        return withCurrentRound(updatedRound);
+        return withCurrentRound(currentRound.withTrump(trump));
     }
 
     /**
@@ -216,60 +248,52 @@ public final class Game {
         requireInProgress();
         requireCurrentRound();
 
-        final var updatedRound = currentRound.withCardPlayed(playerId, card, playedAt);
-        return withCurrentRound(updatedRound);
+        return withCurrentRound(currentRound.withCardPlayed(playerId, card, playedAt));
     }
 
     /**
-     * Completes the current basa with the determined winner.
-     * If this causes the round to end, calculates coin changes and checks for bankruptcy.
+     * Records the king that decides the round's shape, settling immediately if it ended the
+     * hand - which it does when the mà's own king was forced out.
+     *
+     * @param playerId the player who played the king
+     * @param forced whether they had no legal alternative
+     */
+    public Game resolveKing(PlayerId playerId, boolean forced) {
+        requireInProgress();
+        requireCurrentRound();
+
+        final var updatedRound = currentRound.withKingPlayed(playerId, forced);
+        final var updated = withCurrentRound(updatedRound);
+
+        return updatedRound.isComplete() ? updated.settleCurrentRound() : updated;
+    }
+
+    /**
+     * Completes the current basa with the determined winner, settling the round if that
+     * decided it.
      */
     public Game completeBasa(PlayerId winnerId) {
         requireInProgress();
         requireCurrentRound();
 
         final var updatedRound = currentRound.completeBasa(winnerId);
+        final var updated = withCurrentRound(updatedRound);
 
-        if (!updatedRound.isComplete()) {
-            return withCurrentRound(updatedRound);
-        }
-
-        // Round is complete — calculate coins
-        final var coinChanges = calculateCoinChanges(updatedRound, currentDealSnapshot);
-        final var newBalances = applyCoins(coinBalances, coinChanges);
-
-        if (isAnyPlayerBankrupt(newBalances)) {
-            return new Game(
-                gameId,
-                players,
-                completedRounds,
-                updatedRound,
-                newBalances,
-                GameStatus.ENDED,
-                currentDealSnapshot
-            );
-        }
-
-        return new Game(
-            gameId,
-            players,
-            completedRounds,
-            updatedRound,
-            newBalances,
-            GameStatus.IN_PROGRESS,
-            currentDealSnapshot
-        );
+        return updatedRound.isComplete() ? updated.settleCurrentRound() : updated;
     }
 
     /**
      * Sets the teams for the current round when the first King is played.
+     *
+     * @deprecated use {@link #resolveKing(PlayerId, boolean)}, which also handles the two
+     *             solo cases and the forced king.
      */
+    @Deprecated
     public Game setTeams(Teams teams) {
         requireInProgress();
         requireCurrentRound();
 
-        final var updatedRound = currentRound.withTeams(teams);
-        return withCurrentRound(updatedRound);
+        return withCurrentRound(currentRound.withTeams(teams));
     }
 
     /**
@@ -299,14 +323,77 @@ public final class Game {
         final var soledadDeadline = now.plus(SOLEDAD_TIMEOUT);
         final var nextRound = Round.start(nextRoundNumber, nextStarter, players, hands, soledadDeadline);
 
-        return new Game(
+        final var game = new Game(
             gameId,
             players,
             newCompletedRounds,
             nextRound,
             coinBalances,
+            posso,
             GameStatus.IN_PROGRESS,
             hands
+        );
+
+        return nextRound.isComplete() ? game.settleCurrentRound() : game;
+    }
+
+    // === Settlement ===
+
+    /**
+     * Prices the completed current round and moves the coins between the players and the
+     * posso, topping the posso up in equal parts if it cannot cover the payout.
+     *
+     * The game ends when a player can no longer cover what they owe or what they are asked
+     * to stake.
+     */
+    private Game settleCurrentRound() {
+        final var settlement = SETTLEMENT.settle(currentRound, currentDealSnapshot);
+
+        var balances = new HashMap<>(coinBalances);
+        var pot = posso;
+
+        // "Si el posso s'acaba... es torna a renovar o a afegir... a parts iguals."
+        while (pot < settlement.totalCollected()) {
+            if (players.stream().anyMatch(p -> balances.get(p) < ANTE)) {
+                return ended(balances, pot);
+            }
+            for (final var player : players) {
+                balances.merge(player, -ANTE, Integer::sum);
+            }
+            pot += ANTE * PLAYER_COUNT;
+        }
+
+        for (final var entry : settlement.playerDeltas().entrySet()) {
+            balances.merge(entry.getKey(), entry.getValue(), Integer::sum);
+        }
+        pot += settlement.possoDelta();
+
+        if (balances.values().stream().anyMatch(coins -> coins < 0)) {
+            return ended(balances, pot);
+        }
+
+        return new Game(
+            gameId, players, completedRounds, currentRound,
+            balances, pot, GameStatus.IN_PROGRESS, currentDealSnapshot
+        );
+    }
+
+    /**
+     * What one round moved, for reporting. Recomputed rather than stored, so it always
+     * matches the settlement that was applied.
+     */
+    public Settlement settlementOf(Round completedRound, Map<PlayerId, List<Card>> dealSnapshot) {
+        return SETTLEMENT.settle(completedRound, dealSnapshot);
+    }
+
+    public Map<PlayerId, List<Card>> currentDealSnapshot() {
+        return currentDealSnapshot;
+    }
+
+    private Game ended(Map<PlayerId, Integer> balances, int pot) {
+        return new Game(
+            gameId, players, completedRounds, currentRound,
+            balances, Math.max(pot, 0), GameStatus.ENDED, currentDealSnapshot
         );
     }
 
@@ -331,6 +418,7 @@ public final class Game {
             completedRounds,
             updatedRound,
             coinBalances,
+            posso,
             status,
             currentDealSnapshot
         );
@@ -340,88 +428,6 @@ public final class Game {
         final var index = players.indexOf(player);
         final var rightIndex = (index + 1) % PLAYER_COUNT;
         return players.get(rightIndex);
-    }
-
-    /**
-     * Calculates coin changes (deltas) for a completed round.
-     * Returns a map of playerId -> delta (positive for winners, negative for losers).
-     */
-    Map<PlayerId, Integer> calculateCoinChanges(
-        Round completedRound,
-        Map<PlayerId, List<Card>> dealSnapshot
-    ) {
-        final var result = completedRound.result().orElseThrow(
-            () -> new IllegalStateException("Round has no result")
-        );
-        final var changes = new HashMap<PlayerId, Integer>();
-
-        if (result instanceof RoundResult.Draw) {
-            for (final var player : players) {
-                changes.put(player, DRAW_COINS);
-            }
-        } else if (result instanceof RoundResult.Win win) {
-            final var winners = win.winners();
-            final var trumpSuit = completedRound.trumpSuit().orElseThrow(
-                () -> new IllegalStateException("Completed round has no trump suit")
-            );
-            final var bonus = calculateBonus(winners, trumpSuit, dealSnapshot);
-
-            for (final var player : players) {
-                if (winners.contains(player)) {
-                    changes.put(player, WIN_COINS + bonus);
-                } else {
-                    changes.put(player, LOSE_COINS);
-                }
-            }
-        }
-
-        return Map.copyOf(changes);
-    }
-
-    private int calculateBonus(
-        Set<PlayerId> winners,
-        Suit trumpSuit,
-        Map<PlayerId, List<Card>> dealSnapshot
-    ) {
-        var maxBonus = 0;
-        for (final var winner : winners) {
-            final var hand = dealSnapshot.get(winner);
-            if (hand == null) {
-                continue;
-            }
-            if (hasEstuche(hand, trumpSuit)) {
-                maxBonus = Math.max(maxBonus, ESTUCHE_BONUS);
-            } else if (hasDuende(hand)) {
-                maxBonus = Math.max(maxBonus, DUENDE_BONUS);
-            }
-        }
-        return maxBonus;
-    }
-
-    private static boolean hasDuende(List<Card> hand) {
-        return hand.stream().anyMatch(Card::isEspadilla)
-            && hand.stream().anyMatch(Card::isBasto);
-    }
-
-    private static boolean hasEstuche(List<Card> hand, Suit trumpSuit) {
-        return hasDuende(hand)
-            && hand.stream().anyMatch(c -> c.isManilla(trumpSuit));
-    }
-
-    static Map<PlayerId, Integer> applyCoins(
-        Map<PlayerId, Integer> currentBalances,
-        Map<PlayerId, Integer> changes
-    ) {
-        final var newBalances = new HashMap<PlayerId, Integer>();
-        for (final var entry : currentBalances.entrySet()) {
-            final var change = changes.getOrDefault(entry.getKey(), 0);
-            newBalances.put(entry.getKey(), entry.getValue() + change);
-        }
-        return Map.copyOf(newBalances);
-    }
-
-    private static boolean isAnyPlayerBankrupt(Map<PlayerId, Integer> balances) {
-        return balances.values().stream().anyMatch(coins -> coins <= 0);
     }
 
     private static Map<PlayerId, List<Card>> dealCards(List<PlayerId> players, Random random) {

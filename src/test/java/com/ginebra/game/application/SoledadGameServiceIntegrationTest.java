@@ -2,12 +2,13 @@ package com.ginebra.game.application;
 
 import com.ginebra.game.adapter.out.InMemoryGameRepository;
 import com.ginebra.game.domain.event.GameEvent;
+import com.ginebra.game.domain.model.RoundMode;
 import com.ginebra.game.domain.model.Round;
 import com.ginebra.game.domain.model.Suit;
 import com.ginebra.game.domain.service.BasaResolver;
 import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidator;
-import com.ginebra.game.domain.service.TeamResolver;
+import com.ginebra.game.domain.service.SettlementCalculator;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
@@ -17,7 +18,6 @@ import com.ginebra.lobby.domain.GameId;
 import com.ginebra.support.LegalMoves;
 import com.ginebra.support.RecordingGameEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,6 @@ class SoledadGameServiceIntegrationTest {
         ZoneId.of("UTC")
     );
     private static final Suit TRUMP = Suit.COPAS;
-    private static final int SOLEDAD_STAKE_PER_OPPONENT = 3;
     private static final int MAX_CARDS_PER_ROUND = Round.TOTAL_CARDS;
 
     private InMemoryGameRepository gameRepository;
@@ -64,7 +63,6 @@ class SoledadGameServiceIntegrationTest {
             eventPublisher,
             new MoveValidator(cardRankingService),
             new BasaResolver(cardRankingService),
-            new TeamResolver(),
             FIXED_CLOCK,
             new Random(42)
         );
@@ -210,9 +208,6 @@ class SoledadGameServiceIntegrationTest {
         }
 
         @Test
-        @Disabled("GAP: the declarer replaces playerWhoGoes, so the Soledad player also leads "
-            + "the first basa. Spec 2.5: the round starts with the player whose turn it is "
-            + "by normal rotation.")
         void shouldStartPlayWithTheNormalRotationStarter() {
             // Arrange
             final var table = startGame();
@@ -237,9 +232,7 @@ class SoledadGameServiceIntegrationTest {
     class PlayingOut {
 
         @Test
-        @Disabled("GAP: the first King still reveals a 2-vs-3 partnership, which hands the "
-            + "Soledad player a partner. A Soledad round is one against four.")
-        void shouldNeverPublishTeamsRevealed() {
+        void shouldNeverHandTheSoledadPlayerAPartner() {
             // Arrange
             final var table = declareSoledadAndSelectTrump();
 
@@ -247,40 +240,40 @@ class SoledadGameServiceIntegrationTest {
             playUntilRoundEnds(table.gameId());
 
             // Assert
-            assertThat(eventPublisher.eventsOfType(GameEvent.TeamsRevealed.class)).isEmpty();
+            assertThat(eventPublisher.eventsOfType(GameEvent.SideDecided.class))
+                .allSatisfy(event -> assertThat(event.mode()).isEqualTo(RoundMode.SOLEDAD));
         }
 
         @Test
-        @Disabled("GAP: Game.calculateCoinChanges has no Soledad branch, so the round pays the "
-            + "flat team rate. Spec 2.6: 3 coins between the Soledad player and each of the "
-            + "other four, 12 in total.")
-        void shouldSettleCoinsAtTheSoledadRate() {
+        void shouldSettleCoinsAtTheSoledadRateAgainstThePosso() {
             // Arrange
             final var table = declareSoledadAndSelectTrump();
 
             // Act
             final var roundEnded = playUntilRoundEnds(table.gameId());
 
-            // Assert
+            // Assert: the declarer settles the Soledad base one way or the other. The
+            // dengue can add a coin on top, so the base is a floor, not an equality.
             final var changes = roundEnded.coinChanges();
-            final var declarerChange = changes.get(table.declarer());
-            assertThat(Math.abs(declarerChange))
-                .as("the Soledad player settles 3 coins with each of the other four")
-                .isEqualTo(SOLEDAD_STAKE_PER_OPPONENT * 4);
+            assertThat(Math.abs(changes.get(table.declarer())))
+                .as("anar a soles settles at 5, not at a flat team rate")
+                .isGreaterThanOrEqualTo(SettlementCalculator.BASE_SOLEDAD);
 
+            final var declarerWon = changes.get(table.declarer()) > 0;
             for (final var opponent : table.opponents()) {
-                assertThat(changes.get(opponent))
-                    .as("opponent %s settles the opposite side of the same stake", opponent)
-                    .isEqualTo(declarerChange > 0 ? -SOLEDAD_STAKE_PER_OPPONENT : SOLEDAD_STAKE_PER_OPPONENT);
+                if (declarerWon) {
+                    assertThat(changes.get(opponent))
+                        .as("a losing opponent pays nothing; the pot covers the win")
+                        .isLessThanOrEqualTo(SettlementCalculator.INCREMENT);
+                } else {
+                    assertThat(changes.get(opponent))
+                        .as("opponent %s collects from the posso", opponent)
+                        .isGreaterThanOrEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD);
+                }
             }
-            assertThat(changes.values().stream().mapToInt(Integer::intValue).sum())
-                .as("coins move between players, they are not created")
-                .isZero();
         }
 
         @Test
-        @Disabled("GAP: the next round rotates off the declarer because the declaration "
-            + "overwrote playerWhoGoes. Rotation must follow the normal starter.")
         void shouldRotateToTheSeatRightOfTheNormalStarterInTheNextRound() {
             // Arrange
             final var table = declareSoledadAndSelectTrump();

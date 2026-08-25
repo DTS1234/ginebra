@@ -756,7 +756,8 @@ class RoundTest {
             );
             round = round.withTeams(teams);
 
-            // Team of two wins 5 basas (alternating between player 0 and 1)
+            // The opposing side takes one first, so "todo" is dead and five settles it.
+            round = playAndCompleteBasa(round, players, players.get(2));
             for (var i = 0; i < 5; i++) {
                 round = playFullBasa(round, players);
                 final var winner = (i % 2 == 0) ? players.get(0) : players.get(1);
@@ -765,8 +766,8 @@ class RoundTest {
 
             assertThat(round.isComplete()).isTrue();
             assertThat(round.result()).isPresent();
-            assertThat(round.result().get()).isInstanceOf(RoundResult.Win.class);
-            final var win = (RoundResult.Win) round.result().get();
+            assertThat(round.result().get()).isInstanceOf(RoundResult.GoingSideWon.class);
+            final var win = (RoundResult.GoingSideWon) round.result().get();
             assertThat(win.winners()).containsExactlyInAnyOrder(players.get(0), players.get(1));
         }
 
@@ -774,7 +775,7 @@ class RoundTest {
          * A team's five basas are counted together, however they are split between its
          * members - 5-0, 4-1, 3-2 and so on all end the round.
          */
-        @ParameterizedTest(name = "team of two wins 5 basas split {0}-{1}")
+        @ParameterizedTest(name = "going side makes 5 basas split {0}-{1}")
         @CsvSource({"5,0", "4,1", "3,2", "2,3", "1,4", "0,5"})
         void shouldEndWhenATeamsBasasAddUpToFive(int wonByFirst, int wonBySecond) {
             // Arrange
@@ -782,7 +783,9 @@ class RoundTest {
             var round = createRoundInProgress(players);
             round = round.withTeams(Teams.of(players.get(0), players.get(1), new HashSet<>(players)));
 
-            // Act: award the split, first player's share then the second's
+            // Act: the opposing side takes the first basa - which kills "todo", so the
+            // going side's fifth settles it - then the split is awarded.
+            round = playAndCompleteBasa(round, players, players.get(2));
             for (var i = 0; i < wonByFirst; i++) {
                 round = playAndCompleteBasa(round, players, players.get(0));
             }
@@ -791,18 +794,20 @@ class RoundTest {
             }
 
             // Assert
-            assertThat(round.isComplete()).as("round ends on the team's fifth basa").isTrue();
-            assertThat(round.result()).contains(new RoundResult.Win(
-                Set.of(players.get(0), players.get(1))
+            assertThat(round.isComplete()).as("round ends on the going side's fifth basa").isTrue();
+            assertThat(round.result()).contains(new RoundResult.GoingSideWon(
+                Set.of(players.get(0), players.get(1)),
+                Set.of(players.get(2), players.get(3), players.get(4)),
+                5
             ));
             assertThat(round.completedBasas())
                 .as("no basa is played after the round is decided")
-                .hasSize(5);
+                .hasSize(6);
         }
 
-        @ParameterizedTest(name = "team of three wins 5 basas split {0}-{1}-{2}")
-        @CsvSource({"5,0,0", "3,1,1", "2,2,1", "1,1,3", "0,0,5"})
-        void shouldEndWhenTheTeamOfThreesBasasAddUpToFive(int first, int second, int third) {
+        @ParameterizedTest(name = "opposing side blocks with 4 basas split {0}-{1}-{2}")
+        @CsvSource({"4,0,0", "2,1,1", "1,2,1", "1,1,2", "0,0,4"})
+        void shouldEndWhenTheOpposingSidesBasasAddUpToFour(int first, int second, int third) {
             // Arrange
             final var players = createPlayers();
             var round = createRoundInProgress(players);
@@ -817,14 +822,18 @@ class RoundTest {
             }
 
             // Assert
-            assertThat(round.isComplete()).isTrue();
-            assertThat(round.result()).contains(new RoundResult.Win(
-                Set.of(players.get(2), players.get(3), players.get(4))
+            assertThat(round.isComplete())
+                .as("four basas already put five out of the going side's reach")
+                .isTrue();
+            assertThat(round.result()).contains(new RoundResult.GoingSideFailed(
+                Set.of(players.get(0), players.get(1)),
+                Set.of(players.get(2), players.get(3), players.get(4)),
+                0
             ));
         }
 
         @Test
-        void shouldEndWhenTeamOfThreeReachesFiveBasas() {
+        void shouldEndWhenTheOpposingSideReachesFourBasas() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
             final var teams = Teams.of(
@@ -834,8 +843,8 @@ class RoundTest {
             );
             round = round.withTeams(teams);
 
-            // Team of three wins 5 basas (player 2, 3, 4 rotate wins)
-            for (var i = 0; i < 5; i++) {
+            // The opposing side wins 4 basas (players 2, 3, 4 rotate)
+            for (var i = 0; i < 4; i++) {
                 round = playFullBasa(round, players);
                 final var winner = players.get(2 + (i % 3));
                 round = round.completeBasa(winner);
@@ -843,13 +852,14 @@ class RoundTest {
 
             assertThat(round.isComplete()).isTrue();
             assertThat(round.result()).isPresent();
-            assertThat(round.result().get()).isInstanceOf(RoundResult.Win.class);
-            final var win = (RoundResult.Win) round.result().get();
-            assertThat(win.winners()).containsExactlyInAnyOrder(players.get(2), players.get(3), players.get(4));
+            assertThat(round.result().get()).isInstanceOf(RoundResult.GoingSideFailed.class);
+            final var failed = (RoundResult.GoingSideFailed) round.result().get();
+            assertThat(failed.winners()).containsExactlyInAnyOrder(players.get(2), players.get(3), players.get(4));
+            assertThat(round.completedBasas()).hasSize(4);
         }
 
         @Test
-        void shouldDrawWhenAllEightBasasPlayedWithFourFourSplit() {
+        void shouldFailTheGoingSideOnAFourFourSplit() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
             final var teams = Teams.of(
@@ -859,20 +869,23 @@ class RoundTest {
             );
             round = round.withTeams(teams);
 
-            // 4 basas for team of two
+            // 4 basas for the going side
             for (var i = 0; i < 4; i++) {
                 round = playFullBasa(round, players);
                 round = round.completeBasa(players.get(0));
             }
-            // 4 basas for team of three
+            // 4 basas for the opposing side
             for (var i = 0; i < 4; i++) {
                 round = playFullBasa(round, players);
                 round = round.completeBasa(players.get(2));
             }
 
             assertThat(round.isComplete()).isTrue();
-            assertThat(round.result()).isPresent();
-            assertThat(round.result().get()).isInstanceOf(RoundResult.Draw.class);
+            assertThat(round.result()).contains(new RoundResult.GoingSideFailed(
+                Set.of(players.get(0), players.get(1)),
+                Set.of(players.get(2), players.get(3), players.get(4)),
+                4
+            ));
         }
 
         @Test
@@ -899,19 +912,21 @@ class RoundTest {
         }
 
         @Test
-        void shouldDrawAtMaxBasasWithoutTeams() {
+        void shouldRefuseToFinishWithNoSideEverFormed() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
 
-            // Without teams set, play all 8 basas
-            for (var i = 0; i < 8; i++) {
+            for (var i = 0; i < 7; i++) {
                 round = playFullBasa(round, players);
                 round = round.completeBasa(players.get(i % 5));
             }
+            final var atLastBasa = playFullBasa(round, players);
 
-            assertThat(round.isComplete()).isTrue();
-            assertThat(round.result()).isPresent();
-            assertThat(round.result().get()).isInstanceOf(RoundResult.Draw.class);
+            // A real deal always turns up a king, so this state is unreachable in play -
+            // reaching it means the king rules failed to fire.
+            assertThatThrownBy(() -> atLastBasa.completeBasa(players.get(0)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no side was ever formed");
         }
 
         @Test
@@ -1044,8 +1059,8 @@ class RoundTest {
             );
             round = round.withTeams(teams);
 
-            // Step 3: Play basas - team of two wins 5
-            for (var basaNum = 0; basaNum < 5; basaNum++) {
+            // Step 3: the going side takes every basa - "fer todo", so play runs to eight
+            for (var basaNum = 0; basaNum < 8; basaNum++) {
                 // Play a full basa
                 for (var cardNum = 0; cardNum < 5; cardNum++) {
                     final var currentPlayer = round.currentPlayer().orElseThrow();
@@ -1061,14 +1076,16 @@ class RoundTest {
             // Verify round is complete with team of two as winners
             assertThat(round.isComplete()).isTrue();
             assertThat(round.result()).isPresent();
-            final var result = (RoundResult.Win) round.result().get();
+            final var result = (RoundResult.GoingSideWon) round.result().get();
             assertThat(result.winners()).containsExactlyInAnyOrder(players.get(0), players.get(1));
-            assertThat(round.completedBasas()).hasSize(5);
+            assertThat(round.completedBasas()).hasSize(8);
+            assertThat(round.madeTodo()).isTrue();
+            assertThat(round.madePrimeres()).isTrue();
             assertThat(round.currentBasa()).isEmpty();
         }
 
         @Test
-        void shouldHandleDrawAfterEightBasas() {
+        void shouldFailTheGoingSideAfterEightBasas() {
             final var players = createPlayers();
             var round = passAllSoledad(createRound(players));
 
@@ -1096,7 +1113,7 @@ class RoundTest {
 
             assertThat(round.isComplete()).isTrue();
             assertThat(round.result()).isPresent();
-            assertThat(round.result().get()).isInstanceOf(RoundResult.Draw.class);
+            assertThat(round.result().get()).isInstanceOf(RoundResult.GoingSideFailed.class);
             assertThat(round.completedBasas()).hasSize(8);
         }
 
