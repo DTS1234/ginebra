@@ -57,10 +57,20 @@ and `RoomService` has no per-room locking, unlike `GameService`.
 | 6 | Game (aggregate root) | Done |
 | 7 | MoveValidator, BasaResolver, TeamResolver | Done |
 
-Card ranking was checked rank-by-rank against all four trump tables in spec 2.4,
+Card ranking is pinned to all four trump tables of spec 2.4 by `SpecCardOrderTest`,
 including the Manilla switch (7 for Copas/Oros, 2 for Espadas/Bastos).
 
-**Rule correction (2026-08-25):** the winner of a basa leads the next one. `spec.md` 2.3
+**Rule correction (2026-08-25), card order:** the low cards run in opposite directions
+depending on the suit, trump or not — **Copas and Oros** rank 2 > 3 > 4 > 5 > 6 > 7, while
+**Espadas and Bastos** rank 7 > 6 > 5 > 4 > 3 > 2. `CardRankingService` applied the
+Espadas/Bastos direction to every suit, so a non-trump Copas or Oros basa could be awarded
+to the wrong player. `spec.md`'s four tables had it right all along; its "Key Principles"
+summary line contradicted them and has been corrected. `SpecCardOrderTest` now transcribes
+all four tables and checks every column in both directions, so the two cannot drift again.
+The tables also listed the Manilla twice — at position 2 and again at the foot of the trump
+column — against the spec's own "Note on Manilla"; those four rows are gone.
+
+**Rule correction (2026-08-25), basa lead:** the winner of a basa leads the next one. `spec.md` 2.3
 previously said the opposite — "the player to the right of the previous starting player
 (NOT the basa winner)" — and `Round.getNextBasaStarter` implemented that faithfully. The
 spec line was the error; spec, the design worked example, the domain and its tests are now
@@ -241,6 +251,7 @@ or the pin relaxed.
 | Area | Where |
 |------|-------|
 | Five clients over a real WebSocket (Phase 4 exit criterion) | `game/adapter/in/FivePlayerGameE2ETest` |
+| Card order against all four spec 2.4 tables | `game/domain/service/SpecCardOrderTest` |
 | Soledad rules, domain level | `game/domain/model/SoledadRoundRulesTest` |
 | Soledad through the application service | `game/application/SoledadGameServiceIntegrationTest` |
 | Play client endpoints and public static assets | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |

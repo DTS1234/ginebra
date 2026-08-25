@@ -147,12 +147,14 @@ function cardName(card) {
  * Card order, mirroring CardRankingService.
  *
  * The three specials (Espadilla, Manilla, Basto) always take the top three places of the
- * trump column. Within the trump suit the low cards run 2 upwards; within a non-trump
- * suit they run 7 downwards. A suit whose Ace is a special card does not list that Ace.
+ * trump column. The low cards run 2 down to 7 in Copas and Oros and 7 down to 2 in
+ * Espadas and Bastos, whether or not the suit is trump. A suit whose Ace is a special
+ * card does not list that Ace.
  */
 const TRUMP_TAIL_COPAS_OROS = ['AS', 'REY', 'CABALLO', 'SOTA', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS'];
 const TRUMP_TAIL_ESPADAS_BASTOS = ['REY', 'CABALLO', 'SOTA', 'SIETE', 'SEIS', 'CINCO', 'CUATRO', 'TRES'];
-const NON_TRUMP_ORDER = ['REY', 'CABALLO', 'SOTA', 'AS', 'SIETE', 'SEIS', 'CINCO', 'CUATRO', 'TRES', 'DOS'];
+const NON_TRUMP_COPAS_OROS = ['REY', 'CABALLO', 'SOTA', 'AS', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE'];
+const NON_TRUMP_ESPADAS_BASTOS = ['REY', 'CABALLO', 'SOTA', 'SIETE', 'SEIS', 'CINCO', 'CUATRO', 'TRES', 'DOS'];
 
 /** The Manilla for a given trump: the 7 for Copas/Oros, the 2 for Espadas/Bastos. */
 function manillaRank(trump) {
@@ -175,9 +177,10 @@ function suitOrder(suit, trump) {
             ...tail.map((rank) => ({ card: { suit: suit, rank: rank }, note: null }))
         ];
     }
-    return NON_TRUMP_ORDER
-        .filter((rank) => !(rank === 'AS' && (suit === 'ESPADAS' || suit === 'BASTOS')))
-        .map((rank) => ({ card: { suit: suit, rank: rank }, note: null }));
+    const order = suit === 'COPAS' || suit === 'OROS'
+        ? NON_TRUMP_COPAS_OROS
+        : NON_TRUMP_ESPADAS_BASTOS;
+    return order.map((rank) => ({ card: { suit: suit, rank: rank }, note: null }));
 }
 
 /** Espadilla and Basto never count as their own suit when following. */

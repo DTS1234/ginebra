@@ -253,7 +253,8 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 - **Manilla** changes based on trump: 7 for Copas/Oros, 2 for Espadas/Bastos
 - **Basto** (Ace of Bastos) is ALWAYS the third highest card
 - Trump suit cards beat all non-trump cards
-- Within non-trump suits: King > Horse > Sota > Ace (if present) > 7 > 6 > 5 > 4 > 3 > 2
+- Within non-trump suits: King > Horse > Sota > Ace (if present) > the low cards
+- The low cards run in opposite directions by suit, trump or not: **Copas and Oros** rank 2 > 3 > 4 > 5 > 6 > 7, **Espadas and Bastos** rank 7 > 6 > 5 > 4 > 3 > 2
 
 **Note on Manilla**: When a card becomes the Manilla, it occupies position 2 in the ranking and doesn't appear again in its normal position.
 
@@ -275,7 +276,6 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 10 | **4 de Copes** | 7 d'Oros | | |
 | 11 | **5 de Copes** | | | |
 | 12 | **6 de Copes** | | | |
-| 13 | **7 de Copes** | | | |
 
 ---
 
@@ -295,7 +295,6 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 10 | 7 de Copes | **4 d'Oros** | | |
 | 11 | | **5 d'Oros** | | |
 | 12 | | **6 d'Oros** | | |
-| 13 | | **7 d'Oros** | | |
 
 ---
 
@@ -314,7 +313,6 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 9 | 6 de Copes | 6 d'Oros | **5 d'Espases** | 2 de Bastos |
 | 10 | 7 de Copes | 7 d'Oros | **4 d'Espases** | | |
 | 11 | | | **3 d'Espases** | | |
-| 12 | | | **2 d'Espases** | | |
 
 ---
 
@@ -333,7 +331,6 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 9 | 6 de Copes | 6 d'Oros | 2 d'Espases | **5 de Bastos** |
 | 10 | 7 de Copes | 7 d'Oros | | **4 de Bastos** |
 | 11 | | | | **3 de Bastos** |
-| 12 | | | | **2 de Bastos** |
 
 ---
 
