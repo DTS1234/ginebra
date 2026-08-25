@@ -49,6 +49,10 @@ public class SecurityConfig {
                 // Public endpoints - no authentication required
                 .requestMatchers(HttpMethod.POST, "/api/auth/anonymous").permitAll()
 
+                // Static play client - the page itself is public, every call it makes is not
+                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/app.js", "/style.css", "/favicon.svg", "/favicon.ico")
+                .permitAll()
+
                 // Protected endpoints - authentication required
                 .requestMatchers("/api/auth/me").authenticated()
                 .requestMatchers("/api/rooms/**").authenticated()
