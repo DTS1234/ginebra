@@ -1347,7 +1347,7 @@ Round state:
   basasWon = {P1: 1, P2: 0, P3: 0, P4: 0, P5: 0}
   
 Next basa:
-  Basa #2 starting player = P3 (to the right of P2, NOT the winner)
+  Basa #2 starting player = P1 (the winner of basa #1)
 ```
 
 **Broadcast: BASA_WON**
@@ -1368,7 +1368,7 @@ Next basa:
     "basasWon": { "p1": 1, "p2": 0, "p3": 0, "p4": 0, "p5": 0 },
     "nextBasa": {
       "basaNumber": 2,
-      "startingPlayer": "p3"
+      "startingPlayer": "p1"
     }
   }
 }
@@ -1392,8 +1392,8 @@ Next basa:
 │                                                         │
 │ Cards remaining in hands: 7 each                        │
 │                                                         │
-│ Next basa (#2) starts with: P3                         │
-│ (clockwise from previous starter P2, NOT winner P1)    │
+│ Next basa (#2) starts with: P1                         │
+│ (the winner of basa #1)                                │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -1411,7 +1411,7 @@ Next basa:
 | Can "fallar" if no led suit | P3 had no Bastos, played trump |
 | Can "refallar" to beat trump | P1 had no Bastos, beat P3's trump |
 | Not required to "kill" | P4 played 7♣ even though 6♣ was led |
-| Next basa starts with player to right of previous starter | Basa 2 starts with P3 (not winner P1) |
+| Next basa is led by the winner of the previous one | Basa 2 starts with P1, who won basa 1 |
 | Basto/Espadilla are "free" (don't count as their suit) | P5 had Basto but still had to play regular Bastos |
 
 ---

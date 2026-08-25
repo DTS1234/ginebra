@@ -283,15 +283,13 @@ public final class Round {
 
     /**
      * Returns the player who should start the next basa.
-     * The next basa starts with the player to the RIGHT of the previous basa's starter.
+     * The winner of a basa leads the next one; the first basa is led by the player who goes.
+     *
+     * Note: rotation to the right applies between rounds, not between basas - see
+     * {@link Game#startNextRound}.
      */
     public PlayerId getNextBasaStarter() {
-        if (completedBasas.isEmpty()) {
-            return playerWhoGoes;
-        }
-
-        final var lastBasa = completedBasas.get(completedBasas.size() - 1);
-        return getPlayerToRight(lastBasa.startingPlayer());
+        return getNextBasaStarter(completedBasas);
     }
 
     // === Mutation Methods (return new instances) ===
@@ -569,7 +567,9 @@ public final class Round {
             return playerWhoGoes;
         }
         final var lastBasa = basas.get(basas.size() - 1);
-        return getPlayerToRight(lastBasa.startingPlayer());
+        return lastBasa.winner().orElseThrow(
+            () -> new IllegalStateException("Completed basa has no winner: " + lastBasa.basaNumber())
+        );
     }
 
     private Map<PlayerId, List<Card>> removeCardFromHand(PlayerId playerId, Card card) {

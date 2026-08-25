@@ -354,14 +354,14 @@ class RoundTest {
         }
 
         @Test
-        void getNextBasaStarterShouldReturnPlayerToRightAfterFirstBasa() {
+        void getNextBasaStarterShouldReturnTheWinnerOfTheLastBasa() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
 
-            round = playAndCompleteBasa(round, players, players.get(0));
+            // players[3] takes the first basa, so players[3] leads the second
+            round = playAndCompleteBasa(round, players, players.get(3));
 
-            // Next basa starter should be player to the right of player[0], which is player[1]
-            assertThat(round.getNextBasaStarter()).isEqualTo(players.get(1));
+            assertThat(round.getNextBasaStarter()).isEqualTo(players.get(3));
         }
 
         @Test
@@ -624,17 +624,16 @@ class RoundTest {
         }
 
         @Test
-        void shouldStartNextBasaWithCorrectStarter() {
+        void shouldStartNextBasaWithTheWinnerOfThePreviousOne() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
             round = playFullBasa(round, players);
 
-            final var afterComplete = round.completeBasa(players.get(0));
+            // players[2] wins the first basa even though players[0] led it
+            final var afterComplete = round.completeBasa(players.get(2));
 
-            // Next basa should start with player to the right of the first basa's starter (players[0])
-            // That's players[1]
             assertThat(afterComplete.currentBasa()).isPresent();
-            assertThat(afterComplete.currentBasa().get().startingPlayer()).isEqualTo(players.get(1));
+            assertThat(afterComplete.currentBasa().get().startingPlayer()).isEqualTo(players.get(2));
             assertThat(afterComplete.currentBasa().get().basaNumber()).isEqualTo(2);
         }
 
@@ -1070,24 +1069,23 @@ class RoundTest {
         }
 
         @Test
-        void shouldAdvanceBasaStartersThroughRound() {
+        void shouldLetEachBasaWinnerLeadTheNextOne() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
 
-            // Basa 1 starts with players[0]
+            // Basa 1 is led by the player who goes
             assertThat(round.currentBasa().get().startingPlayer()).isEqualTo(players.get(0));
-            round = playAndCompleteBasa(round, players, players.get(0));
+            round = playAndCompleteBasa(round, players, players.get(3));
 
-            // Basa 2 starts with players[1] (right of players[0])
-            assertThat(round.currentBasa().get().startingPlayer()).isEqualTo(players.get(1));
-            round = playAndCompleteBasa(round, players, players.get(0));
-
-            // Basa 3 starts with players[2] (right of players[1])
-            assertThat(round.currentBasa().get().startingPlayer()).isEqualTo(players.get(2));
-            round = playAndCompleteBasa(round, players, players.get(0));
-
-            // Basa 4 starts with players[3] (right of players[2])
+            // Each following basa is led by whoever took the previous one
             assertThat(round.currentBasa().get().startingPlayer()).isEqualTo(players.get(3));
+            round = playAndCompleteBasa(round, players, players.get(1));
+
+            assertThat(round.currentBasa().get().startingPlayer()).isEqualTo(players.get(1));
+            round = playAndCompleteBasa(round, players, players.get(1));
+
+            // The same player keeps the lead while they keep winning
+            assertThat(round.currentBasa().get().startingPlayer()).isEqualTo(players.get(1));
         }
     }
 }
