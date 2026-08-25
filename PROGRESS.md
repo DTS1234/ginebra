@@ -2,7 +2,7 @@
 
 This document tracks what has been implemented.
 
-Last verified: 2026-08-25 — full suite green (`sh gradlew test`).
+Last verified: 2026-08-25 — 696 tests, 11 skipped, 0 failures (`sh gradlew test`).
 
 ---
 
@@ -31,8 +31,13 @@ anonymous identity cleanup after 24h of inactivity (design §8).
 | 3 | GET /api/rooms (list joinable rooms) | Done |
 | 4 | POST /api/rooms/{id}/join | Done |
 | 5 | POST /api/rooms/{id}/leave | Done |
+| - | GET /api/rooms/{id} (single room lookup) | Done |
 | - | In-memory room repository | Done |
 | - | Room lifecycle (WAITING → STARTING) | Done |
+
+`GET /api/rooms/{id}` was added for the play client: joining only returns a game id to the
+fifth player, so the other four had no way to learn that the room had become a game. It is
+restricted to members of the room.
 
 Outstanding: 30-minute room expiry (design §8), one-active-game-per-player (design §8),
 and `RoomService` has no per-room locking, unlike `GameService`.
@@ -83,6 +88,43 @@ Known weakness in this phase: `GameSubscriptionInterceptor` checks game membersh
 subscription — so returning early does not veto it. A non-member who knows a gameId can
 subscribe to `/topic/game/{id}` and follow the broadcast stream. Private hands are not
 exposed (they go over `/user/**`), so this is unauthorised spectating, not cheating.
+
+---
+
+## Play Client (not a design phase)
+**Status: MINIMAL, PLAYABLE**
+
+A single static page served by Spring at `/`, added so the game can be played by hand
+without a frontend project. No build step, no npm, no CDN: `app.js` speaks STOMP over a
+native WebSocket directly, because `/ws/game` is registered without SockJS.
+
+| Piece | Where |
+|-------|-------|
+| Page, styles, icon | `src/main/resources/static/` |
+| Endpoints it needs are pinned by tests | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
+
+Open one browser tab per player, `?name=Ada` to label a tab. One tab creates a room, the
+other four join from the list, and the game starts when the fifth is in. Verified by
+driving five real Chromium tabs through a full basa: deal, Soledad window, trump, five
+cards, basa resolution, and an out-of-turn rejection reaching only the offending tab.
+
+`SecurityConfig` now permits `GET /`, `/index.html`, `/app.js`, `/style.css` and the
+favicons. Everything else is unchanged - every API call the page makes still carries a JWT.
+
+Two things the client works around rather than fixes:
+
+- **No state-refresh message.** The server only pushes `GAME_STATE` on SUBSCRIBE, so after
+  a round ends (the next round is dealt server-side) the client re-subscribes to the game
+  topic to get its new hand. A `REQUEST_STATE` client message would be cleaner.
+- **No lobby push channel.** Players who joined before the room filled poll
+  `GET /api/rooms/{id}` once a second until it reports a game id.
+
+The client mirrors `MoveValidator`'s follow-suit rule so it only offers legal cards; the
+server remains authoritative and still rejects anything illegal.
+
+Not attempted: the React + TypeScript + Vite stack in spec §3.2, reconnection UI,
+Soledad declaration beyond the button (the underlying rules are still incomplete - see
+Known Gaps), or any styling work beyond making the game readable.
 
 ---
 
@@ -182,6 +224,8 @@ or the pin relaxed.
 | Five clients over a real WebSocket (Phase 4 exit criterion) | `game/adapter/in/FivePlayerGameE2ETest` |
 | Soledad rules, domain level | `game/domain/model/SoledadRoundRulesTest` |
 | Soledad through the application service | `game/application/SoledadGameServiceIntegrationTest` |
+| Play client endpoints and public static assets | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
+| Single-room lookup | `lobby/application/GetRoomServiceTest` |
 | Shared test doubles and fixtures | `support/` — `TestDeal`, `LegalMoves`, `LobbyFixture`, `StompTestClient`, `RecordingGameEventPublisher` |
 
 Disabled tests are acceptance criteria for the Known Gaps above, not dead code. To see

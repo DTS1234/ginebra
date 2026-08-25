@@ -6,6 +6,7 @@ import com.ginebra.lobby.domain.RemovePlayerResult;
 import com.ginebra.lobby.domain.Room;
 import com.ginebra.lobby.domain.RoomId;
 import com.ginebra.lobby.port.in.CreateRoomUseCase;
+import com.ginebra.lobby.port.in.GetRoomUseCase;
 import com.ginebra.lobby.port.in.JoinRoomUseCase;
 import com.ginebra.lobby.port.in.LeaveRoomUseCase;
 import com.ginebra.lobby.port.in.ListRoomsUseCase;
@@ -19,7 +20,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase {
+public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase, GetRoomUseCase {
 
     private final RoomRepository roomRepository;
     private final GameStarter gameStarter;
@@ -89,6 +90,36 @@ public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoo
             .toList();
 
         return new ListRoomsResponse(joinableRooms);
+    }
+
+    @Override
+    public GetRoomResult getRoom(GetRoomCommand command) {
+        final var playerIdentity = SecurityContextHelper.requireCurrentPlayerIdentity();
+        final var roomId = new RoomId(UUID.fromString(command.roomId()));
+
+        final var roomOpt = roomRepository.findById(roomId);
+        if (roomOpt.isEmpty()) {
+            return new GetRoomResult.RoomNotFound();
+        }
+
+        final var room = roomOpt.get();
+        if (!room.hasPlayer(playerIdentity.playerId())) {
+            return new GetRoomResult.NotAMember();
+        }
+
+        final var players = room.players().stream()
+            .map(p -> new GetRoomUseCase.PlayerDto(
+                p.playerId().value().toString(),
+                p.displayName()
+            ))
+            .toList();
+
+        return new GetRoomResult.Success(
+            room.id().value().toString(),
+            players,
+            room.status().name(),
+            room.gameId().map(id -> id.value().toString()).orElse(null)
+        );
     }
 
     @Override

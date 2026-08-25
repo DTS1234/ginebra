@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ginebra</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+    <h1>Ginebra</h1>
+    <div class="identity">
+        <span id="whoami">connecting…</span>
+        <span id="room-status"></span>
+    </div>
+</header>
+
+<main>
+    <section id="lobby">
+        <h2>Lobby</h2>
+        <p class="hint">
+            Five players are needed. Open this page in five tabs — add
+            <code>?name=Ada</code> to give a tab a name. One tab creates a room, the other
+            four join it; the game starts the moment the fifth player is in.
+        </p>
+        <div class="row">
+            <button id="create-room" class="primary">Create room</button>
+            <button id="refresh-rooms">Refresh</button>
+        </div>
+        <ul id="rooms"></ul>
+    </section>
+
+    <section id="game" class="hidden">
+        <div class="status-bar">
+            <span>Round <b id="round-number">-</b></span>
+            <span>Phase <b id="phase">-</b></span>
+            <span>Trump <b id="trump">-</b></span>
+            <span>Turn <b id="turn">-</b></span>
+            <span>Your coins <b id="coins">-</b></span>
+        </div>
+
+        <div id="soledad-actions" class="actions hidden">
+            <span class="actions-label">Soledad window open:</span>
+            <button id="pass-soledad">Pass</button>
+            <button id="declare-soledad" class="primary">Declare Soledad</button>
+        </div>
+
+        <div id="trump-actions" class="actions hidden">
+            <span class="actions-label">You go — pick the trump suit:</span>
+            <span id="trump-buttons"></span>
+        </div>
+
+        <h2>Table</h2>
+        <div id="basa" class="table-area"></div>
+
+        <h2>Your hand <span id="follow-hint" class="hint-inline"></span></h2>
+        <div id="hand" class="hand-area"></div>
+
+        <div class="columns">
+            <div>
+                <h2>Players</h2>
+                <ul id="scores"></ul>
+            </div>
+            <div>
+                <h2>Events</h2>
+                <div id="log"></div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

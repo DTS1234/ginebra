@@ -1,6 +1,7 @@
 package com.ginebra.lobby.adapter.in;
 
 import com.ginebra.lobby.port.in.CreateRoomUseCase;
+import com.ginebra.lobby.port.in.GetRoomUseCase;
 import com.ginebra.lobby.port.in.JoinRoomUseCase;
 import com.ginebra.lobby.port.in.LeaveRoomUseCase;
 import com.ginebra.lobby.port.in.ListRoomsUseCase;
@@ -19,12 +20,14 @@ public class RoomController {
     private final ListRoomsUseCase listRoomsUseCase;
     private final JoinRoomUseCase joinRoomUseCase;
     private final LeaveRoomUseCase leaveRoomUseCase;
+    private final GetRoomUseCase getRoomUseCase;
 
     public RoomController(
         CreateRoomUseCase createRoomUseCase,
         ListRoomsUseCase listRoomsUseCase,
         JoinRoomUseCase joinRoomUseCase,
-        LeaveRoomUseCase leaveRoomUseCase
+        LeaveRoomUseCase leaveRoomUseCase,
+        GetRoomUseCase getRoomUseCase
     ) {
         this.createRoomUseCase = Objects.requireNonNull(
             createRoomUseCase,
@@ -41,6 +44,10 @@ public class RoomController {
         this.leaveRoomUseCase = Objects.requireNonNull(
             leaveRoomUseCase,
             "leaveRoomUseCase must not be null"
+        );
+        this.getRoomUseCase = Objects.requireNonNull(
+            getRoomUseCase,
+            "getRoomUseCase must not be null"
         );
     }
 
@@ -73,6 +80,31 @@ public class RoomController {
             .toList();
 
         return ResponseEntity.ok(new ListRoomsResponseDto(rooms));
+    }
+
+    @GetMapping("/{roomId}")
+    public ResponseEntity<?> getRoom(@PathVariable String roomId) {
+        final var result = getRoomUseCase.getRoom(new GetRoomUseCase.GetRoomCommand(roomId));
+
+        if (result instanceof GetRoomUseCase.GetRoomResult.Success success) {
+            final var players = success.players().stream()
+                .map(p -> new PlayerDto(p.playerId(), p.displayName()))
+                .toList();
+            return ResponseEntity.ok(new GetRoomResponseDto(
+                success.roomId(),
+                players,
+                success.status(),
+                success.gameId()
+            ));
+        } else if (result instanceof GetRoomUseCase.GetRoomResult.RoomNotFound) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponseDto("ROOM_NOT_FOUND", "Room not found"));
+        } else if (result instanceof GetRoomUseCase.GetRoomResult.NotAMember) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponseDto("NOT_A_MEMBER", "You are not in this room"));
+        } else {
+            throw new IllegalStateException("Unexpected result: " + result);
+        }
     }
 
     @PostMapping("/{roomId}/join")
@@ -130,6 +162,13 @@ public class RoomController {
     }
 
     // HTTP DTOs (separate from use case models)
+    record GetRoomResponseDto(
+        String roomId,
+        List<PlayerDto> players,
+        String status,
+        String gameId
+    ) {}
+
     record CreateRoomRequestDto() {
         // Empty for now - future: room options
     }
