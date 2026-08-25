@@ -108,6 +108,8 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 | Piece | Where |
 |-------|-------|
 | Page, styles, icon | `src/main/resources/static/` |
+| Help panel: full card order per trump, plus the rules in one screen | `? Help` in the header |
+| Teams panel: both sides, who goes, basas each, live team totals | appears when the first King reveals them |
 | Endpoints it needs are pinned by tests | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
 
 Open one browser tab per player, `?name=Ada` to label a tab. One tab creates a room, the
@@ -125,6 +127,16 @@ Two things the client works around rather than fixes:
   topic to get its new hand. A `REQUEST_STATE` client message would be cleaner.
 - **No lobby push channel.** Players who joined before the room filled poll
   `GET /api/rooms/{id}` once a second until it reports a game id.
+- **No acknowledgement that a subscription is live.** The server pushes `GAME_STATE` when
+  the game topic subscription is registered, but STOMP frames are handled on a thread pool,
+  so the topic SUBSCRIBE can be processed before the private queue SUBSCRIBE the push is
+  addressed to - and the simple broker silently drops a message with no subscriber. It
+  sends no `RECEIPT` to wait on either (verified against the running server), so the client
+  re-asks until the state arrives. A `REQUEST_STATE` message would remove both this and the
+  round-end refresh above.
+
+The help panel derives the card order from the same rank tables as `CardRankingService`
+rather than restating them, so it shows what the engine actually does.
 
 The client mirrors `MoveValidator`'s follow-suit rule so it only offers legal cards; the
 server remains authoritative and still rejects anything illegal.

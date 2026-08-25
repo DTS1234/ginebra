@@ -303,3 +303,199 @@ button.primary {
 
 .log-good { color: var(--good); }
 .log-bad { color: var(--bad); }
+
+/* === Help panel === */
+
+.help-button {
+    padding: 0.2rem 0.7rem;
+    font-size: 0.85rem;
+}
+
+#help-panel {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem 1.25rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.help-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.help-head h2 {
+    margin-top: 0;
+}
+
+.help-suit-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+#help-trump-buttons {
+    display: inline-flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+
+.suit-chip {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.suit-chip.selected {
+    background: var(--accent);
+    color: #241a00;
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+.help-tables {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 780px) {
+    .help-tables {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.help-column h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.help-column.is-trump {
+    padding: 0.5rem;
+    margin: -0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+}
+
+.help-column.is-trump h3 {
+    color: var(--accent);
+}
+
+.help-column ol {
+    margin: 0;
+    padding-left: 1.6rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.help-column li {
+    padding: 0.1rem 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.mini-card {
+    display: inline-block;
+    min-width: 3.1rem;
+    padding: 0 0.35rem;
+    background: #f6f2e7;
+    color: #1c1a14;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.mini-card.suit-copas { color: #a3341f; }
+.mini-card.suit-oros { color: #9a7400; }
+.mini-card.suit-espadas { color: #2a4d80; }
+.mini-card.suit-bastos { color: #3f6b34; }
+
+.mini-note {
+    margin-left: 0.4rem;
+    color: var(--accent);
+    font-size: 0.75rem;
+}
+
+.help-rules ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    max-width: 75ch;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.help-rules li {
+    padding: 0.15rem 0;
+}
+
+.help-rules b {
+    color: var(--ink);
+}
+
+/* === Teams === */
+
+.teams {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+}
+
+.teams-label {
+    color: var(--accent);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.teams-sides {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+    .teams-sides {
+        grid-template-columns: 1fr;
+    }
+}
+
+.team h3 {
+    margin: 0 0 0.25rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.team ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.9rem;
+}
+
+.team li {
+    padding: 0.15rem 0;
+    color: var(--muted);
+}
+
+.team li.me {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.teams-score {
+    margin: 0.6rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
