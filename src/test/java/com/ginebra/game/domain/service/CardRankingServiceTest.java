@@ -305,15 +305,23 @@ class CardRankingServiceTest {
 
         static Stream<Arguments> nonTrumpRankings() {
             return Stream.of(
+                // Copas and Oros keep their Ace and run 2 down to 7 (spec 2.4)
                 Arguments.of(card(COPAS, REY), card(COPAS, CABALLO)),     // King beats Horse
                 Arguments.of(card(COPAS, CABALLO), card(COPAS, SOTA)),    // Horse beats Jack
                 Arguments.of(card(COPAS, SOTA), card(COPAS, AS)),         // Jack beats Ace
-                Arguments.of(card(COPAS, AS), card(COPAS, SIETE)),        // Ace beats 7
-                Arguments.of(card(COPAS, SIETE), card(COPAS, SEIS)),      // 7 beats 6
-                Arguments.of(card(COPAS, SEIS), card(COPAS, CINCO)),      // 6 beats 5
-                Arguments.of(card(COPAS, CINCO), card(COPAS, CUATRO)),    // 5 beats 4
-                Arguments.of(card(COPAS, CUATRO), card(COPAS, TRES)),     // 4 beats 3
-                Arguments.of(card(COPAS, TRES), card(COPAS, DOS))         // 3 beats 2
+                Arguments.of(card(COPAS, AS), card(COPAS, DOS)),          // Ace (Rovell) beats 2
+                Arguments.of(card(COPAS, DOS), card(COPAS, TRES)),        // 2 beats 3
+                Arguments.of(card(COPAS, TRES), card(COPAS, CUATRO)),     // 3 beats 4
+                Arguments.of(card(COPAS, CUATRO), card(COPAS, CINCO)),    // 4 beats 5
+                Arguments.of(card(COPAS, CINCO), card(COPAS, SEIS)),      // 5 beats 6
+                Arguments.of(card(COPAS, SEIS), card(COPAS, SIETE)),      // 6 beats 7
+                Arguments.of(card(COPAS, DOS), card(COPAS, SIETE)),       // 2 is the best number
+                Arguments.of(card(OROS, DOS), card(OROS, SIETE)),         // Oros runs the same way
+                // Espadas and Bastos have no Ace here and run 7 down to 2
+                Arguments.of(card(BASTOS, SOTA), card(BASTOS, SIETE)),    // Jack beats 7
+                Arguments.of(card(BASTOS, SIETE), card(BASTOS, SEIS)),    // 7 beats 6
+                Arguments.of(card(BASTOS, TRES), card(BASTOS, DOS)),      // 3 beats 2
+                Arguments.of(card(BASTOS, SIETE), card(BASTOS, DOS))      // 7 is the best number
             );
         }
     }
@@ -325,7 +333,7 @@ class CardRankingServiceTest {
         void ledSuitShouldBeatNonLedNonTrump() {
             final var trump = ESPADAS;
             final var ledSuit = COPAS;
-            final var ledCard = card(COPAS, DOS);     // Lowest led suit card
+            final var ledCard = card(COPAS, SIETE);   // Lowest led suit card in Copas
             final var otherCard = card(OROS, REY);    // King of other suit
 
             final var winner = service.higher(trump, ledSuit, ledCard, otherCard);
@@ -338,9 +346,9 @@ class CardRankingServiceTest {
             final var trump = ESPADAS;
             final var ledSuit = COPAS;
             final var king = card(COPAS, REY);
-            final var dos = card(COPAS, DOS);
+            final var siete = card(COPAS, SIETE);
 
-            final var winner = service.higher(trump, ledSuit, king, dos);
+            final var winner = service.higher(trump, ledSuit, king, siete);
 
             assertThat(winner).isEqualTo(king);
         }
@@ -349,7 +357,7 @@ class CardRankingServiceTest {
         void nonLedNonTrumpShouldLoseToLedSuit() {
             final var trump = ESPADAS;
             final var ledSuit = COPAS;
-            final var ledCard = card(COPAS, DOS);
+            final var ledCard = card(COPAS, SIETE);
             final var otherKing = card(OROS, REY);
 
             final var winner = service.higher(trump, ledSuit, otherKing, ledCard);
@@ -361,13 +369,13 @@ class CardRankingServiceTest {
         void whenBothNonLedNonTrumpHigherRankWins() {
             final var trump = ESPADAS;
             final var ledSuit = COPAS;
-            final var dos = card(OROS, DOS);
+            final var siete = card(OROS, SIETE);
             final var king = card(BASTOS, REY);
 
             // Neither can beat led suit, but King has better non-trump rank
             // In a real basa, neither wins (led suit or trump would win)
             // But for comparison purposes, higher rank is "better"
-            final var winner = service.higher(trump, ledSuit, dos, king);
+            final var winner = service.higher(trump, ledSuit, siete, king);
 
             assertThat(winner).isEqualTo(king);
         }

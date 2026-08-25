@@ -17,6 +17,7 @@ import java.util.Objects;
  * - Basto (Ace of Bastos) is ALWAYS third
  * - Trump cards beat all non-trump cards
  * - Led suit cards beat non-led, non-trump cards
+ * - Low cards run 2 down to 7 in Copas and Oros, 7 down to 2 in Espadas and Bastos
  */
 public class CardRankingService {
 
@@ -49,19 +50,33 @@ public class CardRankingService {
         // Note: AS is special (Espadilla/Basto), not in regular ranking
     );
 
-    // Non-trump suit rankings (same for all suits)
-    // Aces of Espadas/Bastos are special and not included
-    private static final Map<Rank, Integer> NON_TRUMP_RANKS = Map.ofEntries(
+    // Non-trump rankings for COPAS and OROS: their Ace is in play (Rovell), and the
+    // low cards run 2 down to 7 - the same direction they take when the suit is trump.
+    private static final Map<Rank, Integer> COPAS_OROS_NON_TRUMP_RANKS = Map.ofEntries(
         Map.entry(Rank.REY, 1),     // King - highest in non-trump
         Map.entry(Rank.CABALLO, 2), // Horse
         Map.entry(Rank.SOTA, 3),    // Jack
-        Map.entry(Rank.AS, 4),      // Ace (only for Copas/Oros)
-        Map.entry(Rank.SIETE, 5),
-        Map.entry(Rank.SEIS, 6),
-        Map.entry(Rank.CINCO, 7),
-        Map.entry(Rank.CUATRO, 8),
-        Map.entry(Rank.TRES, 9),
-        Map.entry(Rank.DOS, 10)
+        Map.entry(Rank.AS, 4),      // Ace (Rovell)
+        Map.entry(Rank.DOS, 5),
+        Map.entry(Rank.TRES, 6),
+        Map.entry(Rank.CUATRO, 7),
+        Map.entry(Rank.CINCO, 8),
+        Map.entry(Rank.SEIS, 9),
+        Map.entry(Rank.SIETE, 10)
+    );
+
+    // Non-trump rankings for ESPADAS and BASTOS: their Ace is a special card so it never
+    // appears here, and the low cards run 7 down to 2.
+    private static final Map<Rank, Integer> ESPADAS_BASTOS_NON_TRUMP_RANKS = Map.ofEntries(
+        Map.entry(Rank.REY, 1),
+        Map.entry(Rank.CABALLO, 2),
+        Map.entry(Rank.SOTA, 3),
+        Map.entry(Rank.SIETE, 4),
+        Map.entry(Rank.SEIS, 5),
+        Map.entry(Rank.CINCO, 6),
+        Map.entry(Rank.CUATRO, 7),
+        Map.entry(Rank.TRES, 8),
+        Map.entry(Rank.DOS, 9)
     );
 
     /**
@@ -178,8 +193,15 @@ public class CardRankingService {
 
     /**
      * Gets the rank of a card within a non-trump suit.
+     *
+     * The direction of the low cards depends on the suit, not on trump: Copas and Oros
+     * run 2 down to 7, Espadas and Bastos run 7 down to 2 (spec 2.4).
      */
     private int getNonTrumpRank(Card card) {
-        return NON_TRUMP_RANKS.getOrDefault(card.rank(), 99);
+        final var rankMap = switch (card.suit()) {
+            case COPAS, OROS -> COPAS_OROS_NON_TRUMP_RANKS;
+            case ESPADAS, BASTOS -> ESPADAS_BASTOS_NON_TRUMP_RANKS;
+        };
+        return rankMap.getOrDefault(card.rank(), 99);
     }
 }

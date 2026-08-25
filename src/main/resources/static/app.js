@@ -143,6 +143,46 @@ function cardName(card) {
     return RANK_LABEL[card.rank] + ' ' + SUIT_LABEL[card.suit];
 }
 
+/*
+ * Card order, mirroring CardRankingService.
+ *
+ * The three specials (Espadilla, Manilla, Basto) always take the top three places of the
+ * trump column. The low cards run 2 down to 7 in Copas and Oros and 7 down to 2 in
+ * Espadas and Bastos, whether or not the suit is trump. A suit whose Ace is a special
+ * card does not list that Ace.
+ */
+const TRUMP_TAIL_COPAS_OROS = ['AS', 'REY', 'CABALLO', 'SOTA', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS'];
+const TRUMP_TAIL_ESPADAS_BASTOS = ['REY', 'CABALLO', 'SOTA', 'SIETE', 'SEIS', 'CINCO', 'CUATRO', 'TRES'];
+const NON_TRUMP_COPAS_OROS = ['REY', 'CABALLO', 'SOTA', 'AS', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE'];
+const NON_TRUMP_ESPADAS_BASTOS = ['REY', 'CABALLO', 'SOTA', 'SIETE', 'SEIS', 'CINCO', 'CUATRO', 'TRES', 'DOS'];
+
+/** The Manilla for a given trump: the 7 for Copas/Oros, the 2 for Espadas/Bastos. */
+function manillaRank(trump) {
+    return trump === 'COPAS' || trump === 'OROS' ? 'SIETE' : 'DOS';
+}
+
+/**
+ * The ordered cards of one suit for a given trump, strongest first.
+ * Entries carry a note for the three special cards so the help can label them.
+ */
+function suitOrder(suit, trump) {
+    if (suit === trump) {
+        const tail = trump === 'COPAS' || trump === 'OROS'
+            ? TRUMP_TAIL_COPAS_OROS
+            : TRUMP_TAIL_ESPADAS_BASTOS;
+        return [
+            { card: { suit: 'ESPADAS', rank: 'AS' }, note: 'Espadilla' },
+            { card: { suit: trump, rank: manillaRank(trump) }, note: 'Manilla' },
+            { card: { suit: 'BASTOS', rank: 'AS' }, note: 'Basto' },
+            ...tail.map((rank) => ({ card: { suit: suit, rank: rank }, note: null }))
+        ];
+    }
+    const order = suit === 'COPAS' || suit === 'OROS'
+        ? NON_TRUMP_COPAS_OROS
+        : NON_TRUMP_ESPADAS_BASTOS;
+    return order.map((rank) => ({ card: { suit: suit, rank: rank }, note: null }));
+}
+
 /** Espadilla and Basto never count as their own suit when following. */
 function isSpecial(card) {
     return card.rank === 'AS' && (card.suit === 'ESPADAS' || card.suit === 'BASTOS');
@@ -299,6 +339,35 @@ async function enterGame(gameId, players) {
     state.stomp.subscribe('/user/queue/game-state', onGameState);
     state.stomp.subscribe('/user/queue/errors', onServerMessage);
     state.stomp.subscribe('/topic/game/' + gameId, onServerMessage);
+
+    awaitInitialState(0);
+}
+
+/**
+ * Makes sure the first GAME_STATE actually lands.
+ *
+ * The server pushes it when the game topic subscription is registered, but STOMP frames
+ * arrive on a thread pool: the topic SUBSCRIBE can be processed before the private queue
+ * SUBSCRIBE that the push is addressed to, and the simple broker drops a message with no
+ * subscriber. It sends no RECEIPT to wait on either, so the only reliable move is to ask
+ * again until the state is here.
+ */
+function awaitInitialState(attempt) {
+    const MAX_ATTEMPTS = 12;
+    if (state.round) {
+        return;
+    }
+    if (attempt >= MAX_ATTEMPTS) {
+        log('Could not load the game state - try reloading', 'bad');
+        return;
+    }
+    setTimeout(() => {
+        if (state.round) {
+            return;
+        }
+        refreshState();
+        awaitInitialState(attempt + 1);
+    }, 300);
 }
 
 /**
@@ -306,7 +375,11 @@ async function enterGame(gameId, players) {
  * on SUBSCRIBE, so a fresh subscription is how a client picks up a new deal.
  */
 function refreshState() {
-    const id = state.stomp.subscribe('/topic/game/' + state.gameId, onServerMessage);
+    // The handler is deliberately empty. Subscribing is only a trigger: the state itself
+    // arrives on the private queue, which is already subscribed. Handling broadcasts here
+    // too would deliver a second copy of every event for as long as this subscription is
+    // open, and a duplicate CARD_PLAYED arriving after BASA_WON would rewind the turn.
+    const id = state.stomp.subscribe('/topic/game/' + state.gameId, () => {});
     setTimeout(() => state.stomp.unsubscribe(id), 500);
 }
 
@@ -477,6 +550,12 @@ function render() {
     renderBasa();
     renderHand(myTurn);
     renderScores(round);
+    renderTeams(round);
+
+    // Keep an open help panel showing the trump actually in play.
+    if (state.trump && state.trump !== helpTrump && !el('help-panel').classList.contains('hidden')) {
+        renderHelp(state.trump);
+    }
 }
 
 function renderBasa() {
@@ -554,6 +633,117 @@ function renderScores(round) {
     }
 }
 
+// === Help panel ===
+
+/** Which trump the help is currently illustrating; follows the round once trump is chosen. */
+let helpTrump = 'COPAS';
+
+function toggleHelp() {
+    const panel = el('help-panel');
+    const opening = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !opening);
+    el('help-toggle').setAttribute('aria-expanded', String(opening));
+    if (opening) {
+        renderHelp(state.trump || helpTrump);
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function renderHelp(trump) {
+    helpTrump = trump;
+
+    const picker = el('help-trump-buttons');
+    picker.innerHTML = '';
+    for (const suit of Object.keys(SUIT_LABEL)) {
+        const button = document.createElement('button');
+        button.className = 'suit-chip' + (suit === trump ? ' selected' : '');
+        button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];
+        button.onclick = () => renderHelp(suit);
+        picker.appendChild(button);
+    }
+
+    const tables = el('help-tables');
+    tables.innerHTML = '';
+    // Trump first, then the others in their usual order.
+    const suits = [trump, ...Object.keys(SUIT_LABEL).filter((suit) => suit !== trump)];
+    for (const suit of suits) {
+        tables.appendChild(helpColumn(suit, trump));
+    }
+}
+
+function helpColumn(suit, trump) {
+    const column = document.createElement('div');
+    column.className = 'help-column' + (suit === trump ? ' is-trump' : '');
+
+    const heading = document.createElement('h3');
+    heading.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit] + (suit === trump ? ' — trump' : '');
+    column.appendChild(heading);
+
+    const list = document.createElement('ol');
+    for (const entry of suitOrder(suit, trump)) {
+        const item = document.createElement('li');
+
+        const chip = document.createElement('span');
+        chip.className = 'mini-card suit-' + entry.card.suit.toLowerCase();
+        chip.textContent = RANK_LABEL[entry.card.rank] + ' ' + SUIT_SYMBOL[entry.card.suit];
+        item.appendChild(chip);
+
+        if (entry.note) {
+            const note = document.createElement('span');
+            note.className = 'mini-note';
+            note.textContent = entry.note;
+            item.appendChild(note);
+        }
+        list.appendChild(item);
+    }
+    column.appendChild(list);
+    return column;
+}
+
+// === Teams ===
+
+function renderTeams(round) {
+    const panel = el('teams-panel');
+    const teams = round.teams;
+    if (!teams) {
+        panel.classList.add('hidden');
+        return;
+    }
+    panel.classList.remove('hidden');
+
+    fillTeam(el('team-two'), teams.teamOfTwo, round);
+    fillTeam(el('team-three'), teams.teamOfThree, round);
+
+    const basasWon = round.basasWon || {};
+    const total = (side) => side.reduce((sum, id) => sum + (basasWon[id] || 0), 0);
+    const mine = teams.teamOfTwo.includes(state.me.playerId) ? 'the team of two' : 'the team of three';
+    el('teams-score').textContent =
+        'Basas: two ' + total(teams.teamOfTwo) + ' - ' + total(teams.teamOfThree) + ' three'
+        + ' · you are on ' + mine + ' · first to five together wins the round';
+}
+
+function fillTeam(list, memberIds, round) {
+    list.innerHTML = '';
+    for (const playerId of memberIds) {
+        const item = document.createElement('li');
+        const isMe = playerId === state.me.playerId;
+        item.className = isMe ? 'me' : '';
+
+        const labels = [];
+        if (playerId === round.playerWhoGoes) {
+            labels.push('goes');
+        }
+        if (round.soledadPlayer === playerId) {
+            labels.push('soledad');
+        }
+        const basas = (round.basasWon || {})[playerId] || 0;
+        item.textContent = (isMe ? 'you' : seatOf(playerId))
+            + (labels.length ? ' (' + labels.join(', ') + ')' : '')
+            + ' — ' + basas + (basas === 1 ? ' basa' : ' basas');
+        list.appendChild(item);
+    }
+}
+
 function cardElement(card, playable) {
     const node = document.createElement('button');
     node.className = 'card suit-' + card.suit.toLowerCase() + (playable ? ' playable' : '');
@@ -573,6 +763,7 @@ function cardElement(card, playable) {
 window.addEventListener('DOMContentLoaded', async () => {
     el('create-room').onclick = () => createRoom().catch((e) => log(e.message, 'bad'));
     el('refresh-rooms').onclick = () => refreshRooms().catch((e) => log(e.message, 'bad'));
+    el('help-toggle').onclick = toggleHelp;
     el('pass-soledad').onclick = passSoledad;
     el('declare-soledad').onclick = declareSoledad;
     for (const suit of Object.keys(SUIT_LABEL)) {

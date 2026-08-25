@@ -157,10 +157,10 @@ class BasaResolverTest {
                 played(P5, Suit.COPAS, Rank.CUATRO)
             );
 
-            // P2 has highest COPAS (5 > 4 > 3 in non-trump COPAS)
+            // Copas numbers run 2 down to 7, so among 3, 5 and 4 the 3 is highest (spec 2.4)
             final var winner = resolver.resolveWinner(basa, Suit.BASTOS);
 
-            assertThat(winner).isEqualTo(P2);
+            assertThat(winner).isEqualTo(P1);
         }
     }
 

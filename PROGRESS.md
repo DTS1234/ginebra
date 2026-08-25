@@ -57,10 +57,20 @@ and `RoomService` has no per-room locking, unlike `GameService`.
 | 6 | Game (aggregate root) | Done |
 | 7 | MoveValidator, BasaResolver, TeamResolver | Done |
 
-Card ranking was checked rank-by-rank against all four trump tables in spec 2.4,
+Card ranking is pinned to all four trump tables of spec 2.4 by `SpecCardOrderTest`,
 including the Manilla switch (7 for Copas/Oros, 2 for Espadas/Bastos).
 
-**Rule correction (2026-08-25):** the winner of a basa leads the next one. `spec.md` 2.3
+**Rule correction (2026-08-25), card order:** the low cards run in opposite directions
+depending on the suit, trump or not — **Copas and Oros** rank 2 > 3 > 4 > 5 > 6 > 7, while
+**Espadas and Bastos** rank 7 > 6 > 5 > 4 > 3 > 2. `CardRankingService` applied the
+Espadas/Bastos direction to every suit, so a non-trump Copas or Oros basa could be awarded
+to the wrong player. `spec.md`'s four tables had it right all along; its "Key Principles"
+summary line contradicted them and has been corrected. `SpecCardOrderTest` now transcribes
+all four tables and checks every column in both directions, so the two cannot drift again.
+The tables also listed the Manilla twice — at position 2 and again at the foot of the trump
+column — against the spec's own "Note on Manilla"; those four rows are gone.
+
+**Rule correction (2026-08-25), basa lead:** the winner of a basa leads the next one. `spec.md` 2.3
 previously said the opposite — "the player to the right of the previous starting player
 (NOT the basa winner)" — and `Round.getNextBasaStarter` implemented that faithfully. The
 spec line was the error; spec, the design worked example, the domain and its tests are now
@@ -108,6 +118,8 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 | Piece | Where |
 |-------|-------|
 | Page, styles, icon | `src/main/resources/static/` |
+| Help panel: full card order per trump, plus the rules in one screen | `? Help` in the header |
+| Teams panel: both sides, who goes, basas each, live team totals | appears when the first King reveals them |
 | Endpoints it needs are pinned by tests | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
 
 Open one browser tab per player, `?name=Ada` to label a tab. One tab creates a room, the
@@ -125,6 +137,16 @@ Two things the client works around rather than fixes:
   topic to get its new hand. A `REQUEST_STATE` client message would be cleaner.
 - **No lobby push channel.** Players who joined before the room filled poll
   `GET /api/rooms/{id}` once a second until it reports a game id.
+- **No acknowledgement that a subscription is live.** The server pushes `GAME_STATE` when
+  the game topic subscription is registered, but STOMP frames are handled on a thread pool,
+  so the topic SUBSCRIBE can be processed before the private queue SUBSCRIBE the push is
+  addressed to - and the simple broker silently drops a message with no subscriber. It
+  sends no `RECEIPT` to wait on either (verified against the running server), so the client
+  re-asks until the state arrives. A `REQUEST_STATE` message would remove both this and the
+  round-end refresh above.
+
+The help panel derives the card order from the same rank tables as `CardRankingService`
+rather than restating them, so it shows what the engine actually does.
 
 The client mirrors `MoveValidator`'s follow-suit rule so it only offers legal cards; the
 server remains authoritative and still rejects anything illegal.
@@ -229,6 +251,7 @@ or the pin relaxed.
 | Area | Where |
 |------|-------|
 | Five clients over a real WebSocket (Phase 4 exit criterion) | `game/adapter/in/FivePlayerGameE2ETest` |
+| Card order against all four spec 2.4 tables | `game/domain/service/SpecCardOrderTest` |
 | Soledad rules, domain level | `game/domain/model/SoledadRoundRulesTest` |
 | Soledad through the application service | `game/application/SoledadGameServiceIntegrationTest` |
 | Play client endpoints and public static assets | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |

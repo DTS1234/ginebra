@@ -3,6 +3,8 @@ package com.ginebra.game.domain.model;
 import com.ginebra.identity.domain.PlayerId;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Instant;
 import java.util.*;
@@ -766,6 +768,59 @@ class RoundTest {
             assertThat(round.result().get()).isInstanceOf(RoundResult.Win.class);
             final var win = (RoundResult.Win) round.result().get();
             assertThat(win.winners()).containsExactlyInAnyOrder(players.get(0), players.get(1));
+        }
+
+        /**
+         * A team's five basas are counted together, however they are split between its
+         * members - 5-0, 4-1, 3-2 and so on all end the round.
+         */
+        @ParameterizedTest(name = "team of two wins 5 basas split {0}-{1}")
+        @CsvSource({"5,0", "4,1", "3,2", "2,3", "1,4", "0,5"})
+        void shouldEndWhenATeamsBasasAddUpToFive(int wonByFirst, int wonBySecond) {
+            // Arrange
+            final var players = createPlayers();
+            var round = createRoundInProgress(players);
+            round = round.withTeams(Teams.of(players.get(0), players.get(1), new HashSet<>(players)));
+
+            // Act: award the split, first player's share then the second's
+            for (var i = 0; i < wonByFirst; i++) {
+                round = playAndCompleteBasa(round, players, players.get(0));
+            }
+            for (var i = 0; i < wonBySecond; i++) {
+                round = playAndCompleteBasa(round, players, players.get(1));
+            }
+
+            // Assert
+            assertThat(round.isComplete()).as("round ends on the team's fifth basa").isTrue();
+            assertThat(round.result()).contains(new RoundResult.Win(
+                Set.of(players.get(0), players.get(1))
+            ));
+            assertThat(round.completedBasas())
+                .as("no basa is played after the round is decided")
+                .hasSize(5);
+        }
+
+        @ParameterizedTest(name = "team of three wins 5 basas split {0}-{1}-{2}")
+        @CsvSource({"5,0,0", "3,1,1", "2,2,1", "1,1,3", "0,0,5"})
+        void shouldEndWhenTheTeamOfThreesBasasAddUpToFive(int first, int second, int third) {
+            // Arrange
+            final var players = createPlayers();
+            var round = createRoundInProgress(players);
+            round = round.withTeams(Teams.of(players.get(0), players.get(1), new HashSet<>(players)));
+
+            // Act
+            final var shares = new int[]{first, second, third};
+            for (var member = 0; member < 3; member++) {
+                for (var i = 0; i < shares[member]; i++) {
+                    round = playAndCompleteBasa(round, players, players.get(2 + member));
+                }
+            }
+
+            // Assert
+            assertThat(round.isComplete()).isTrue();
+            assertThat(round.result()).contains(new RoundResult.Win(
+                Set.of(players.get(2), players.get(3), players.get(4))
+            ));
         }
 
         @Test

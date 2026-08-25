@@ -12,12 +12,43 @@
 <header>
     <h1>Ginebra</h1>
     <div class="identity">
+        <button id="help-toggle" class="help-button" title="Card order and rules"
+                aria-expanded="false" aria-controls="help-panel">? Help</button>
         <span id="whoami">connecting…</span>
         <span id="room-status"></span>
     </div>
 </header>
 
 <main>
+    <section id="help-panel" class="hidden" aria-label="Card order and rules">
+        <div class="help-head">
+            <h2>Card order</h2>
+            <span class="help-suit-picker">Showing the order when <span id="help-trump-buttons"></span> is trump</span>
+        </div>
+        <div id="help-tables" class="help-tables"></div>
+        <div class="help-rules">
+            <h2>Rules in one screen</h2>
+            <ul>
+                <li><b>Espadilla</b> (A&nbsp;⚔️ Espadas) is always the highest card, and
+                    <b>Basto</b> (A&nbsp;🌳 Bastos) is always third. Neither belongs to its own
+                    suit for following, and either may be played at any time.</li>
+                <li><b>Manilla</b> is always second and depends on trump: the <b>7</b> when
+                    Copas or Oros is trump, the <b>2</b> when Espadas or Bastos is trump.</li>
+                <li>Follow the suit that was led if you can. If a special card led, the suit
+                    to follow is trump. You are never forced to beat the cards already played.</li>
+                <li>Trump beats every non-trump card. A non-trump card can only win if nobody
+                    played trump and it is the highest of the led suit.</li>
+                <li>The low cards run in opposite directions by suit: in <b>Copas</b> and
+                    <b>Oros</b> the <b>2</b> is the best number and the 7 the worst; in
+                    <b>Espadas</b> and <b>Bastos</b> the <b>7</b> is the best and the 2 the
+                    worst. That holds whether or not the suit is trump.</li>
+                <li>The winner of a basa leads the next one.</li>
+                <li>A round ends the moment one team's basas <b>add up to five</b> - 5-0, 4-1,
+                    3-2, however they are split. Eight basas at 4-4 is a draw.</li>
+            </ul>
+        </div>
+    </section>
+
     <section id="lobby">
         <h2>Lobby</h2>
         <p class="hint">
@@ -50,6 +81,21 @@
         <div id="trump-actions" class="actions hidden">
             <span class="actions-label">You go — pick the trump suit:</span>
             <span id="trump-buttons"></span>
+        </div>
+
+        <div id="teams-panel" class="teams hidden">
+            <span class="teams-label">Teams revealed</span>
+            <div class="teams-sides">
+                <div class="team">
+                    <h3>Team of two</h3>
+                    <ul id="team-two"></ul>
+                </div>
+                <div class="team">
+                    <h3>Team of three</h3>
+                    <ul id="team-three"></ul>
+                </div>
+            </div>
+            <p id="teams-score" class="teams-score"></p>
         </div>
 
         <h2>Table</h2>
