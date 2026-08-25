@@ -60,6 +60,13 @@ and `RoomService` has no per-room locking, unlike `GameService`.
 Card ranking was checked rank-by-rank against all four trump tables in spec 2.4,
 including the Manilla switch (7 for Copas/Oros, 2 for Espadas/Bastos).
 
+**Rule correction (2026-08-25):** the winner of a basa leads the next one. `spec.md` 2.3
+previously said the opposite — "the player to the right of the previous starting player
+(NOT the basa winner)" — and `Round.getNextBasaStarter` implemented that faithfully. The
+spec line was the error; spec, the design worked example, the domain and its tests are now
+aligned on winner-leads. Rotation to the right still applies **between rounds**
+(`Game.startNextRound`, spec 2.2), which is a separate rule and unchanged.
+
 Soledad is **not** part of this phase's "Done" — see Known Gaps below.
 
 ---

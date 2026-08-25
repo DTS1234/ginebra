@@ -226,7 +226,7 @@
 3. Each player must play one card
 4. After all 5 cards are played, the highest card wins the basa
 5. Winner collects all 5 cards (the basa counts as 1 toward the 5 needed to win)
-6. **Next basa starts with the player to the right of the previous starting player** (NOT the basa winner)
+6. **The winner of the basa leads the next basa**
 
 **Card Following Rules**
 - **Must follow suit**: If a player has the suit that was led, they MUST play that suit
@@ -403,7 +403,7 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 │ 3. Players follow suit if possible  │
 │ 4. Highest card wins basa           │
 │ 5. First King reveals partnership   │
-│ 6. Next basa: player to the right   │
+│ 6. Next basa: led by the winner     │
 │                                     │
 │ Continue until one team wins 5 basas│
 └─────────────────────────────────────┘
