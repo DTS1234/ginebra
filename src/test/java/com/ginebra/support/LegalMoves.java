@@ -3,6 +3,7 @@ package com.ginebra.support;
 import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Round;
 import com.ginebra.game.domain.model.Suit;
+import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidation;
 import com.ginebra.game.domain.service.MoveValidator;
 import com.ginebra.identity.domain.PlayerId;
@@ -19,7 +20,7 @@ import java.util.Optional;
  */
 public final class LegalMoves {
 
-    private static final MoveValidator VALIDATOR = new MoveValidator();
+    private static final MoveValidator VALIDATOR = new MoveValidator(new CardRankingService());
 
     private LegalMoves() {
     }

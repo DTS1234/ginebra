@@ -175,6 +175,11 @@
 
 ## 2. Functional Requirements - Game Rules (Ginebra)
 
+> **Source.** The rules come from Juan Monjo Soliveres, *«Es joc de ginebra»*, translated in
+> [`rules-source.md`](./rules-source.md). Where this section and that document disagree, the
+> source wins. [`rules-diff.md`](./rules-diff.md) tracks the differences still outstanding —
+> only §2.3's following rules have been reconciled so far.
+
 ### 2.1 Game Overview
 
 **Game Type**: Spanish card trick-taking game for exactly 5 players
@@ -229,20 +234,50 @@
 6. **The winner of the basa leads the next basa**
 
 **Card Following Rules**
-- **Must follow suit**: If a player has the suit that was led, they MUST play that suit
-- **Cannot follow suit**: If they don't have the led suit, they can:
+
+There are two obligations, and which one applies depends on whether the card that opened
+the basa was a trump. The Espadilla, the Manilla and the Basto are trumps, so leading any
+of them is a trump lead.
+
+*A plain (non-trump) suit is led:*
+- **Must follow suit**: If a player holds the suit that was led, they MUST play it
+- **Cannot follow suit**: If they hold none of it, they may:
     - Play any other suit
     - **Fallar**: Play a trump card (beats non-trump cards)
     - **Refallar**: Beat another player's trump card with a higher trump
-- **NOT required to "kill"**: Players can play a lower card of the same suit (don't have to beat previous cards)
+- **Fallar is only open to a player who is void** in the led suit. A player holding the led
+  suit may not trump it — the Espadilla and the Basto included
+
+*A trump is led:*
+- **Must play a trump** if the player holds one
+- **Except** that they may withhold a special card — Espadilla, Manilla or Basto — that
+  **outranks the card led**. An ordinary trump that happens to beat the card led carries no
+  such privilege
+- Which yields the four cases the source states directly:
+
+| Card led | Must play a trump | May withhold |
+|----------|-------------------|--------------|
+| Espadilla | everyone holding one | nothing |
+| Manilla | everyone holding one | Espadilla |
+| Basto | everyone holding one | Espadilla, Manilla |
+| Any other trump | everyone holding one | Espadilla, Manilla, Basto |
+
+- Withholding is a permission, not a ban: a player may always choose to play the special
+  card instead
+
+*Both cases:*
+- **NOT required to "kill"**: Players can play a lower card (don't have to beat previous cards)
 - These rules apply throughout the entire round (before and after first King)
 
 **Special Cards: Espadilla and Basto**
 - **Ace of Espadas (Espadilla)**: Universal high card, doesn't belong to Espadas suit for following purposes
 - **Ace of Bastos (Basto)**: Universal high card, doesn't belong to Bastos suit for following purposes
 - These two cards beat all other cards in the game
-- When played, they count as trump suit cards (the "leading color")
-- They can be played at any time (even when player has the led suit)
+- They are trump cards whatever the trump suit is, and a lead of either makes the basa a
+  trump lead (the "leading color")
+- Because they are trumps, they are **not** exempt from following a plain suit: a player
+  who can still follow the led suit must do so rather than play one. Their privilege is the
+  right to be withheld from a trump lead, described above
 
 ### 2.4 Card Ranking System
 

@@ -7,8 +7,8 @@ Every finding cites the source passage it rests on. Findings marked **[uncertain
 a passage the source leaves ambiguous or that was partly obscured in the photographs —
 they are written up so the decision can be made, not so it can be implemented blind.
 
-Nothing in the code has been changed. Section 3 lists the code work this implies, for a
-follow-up.
+Findings marked **✅ resolved** have been applied to `spec.md` and the code; the rest are
+still proposals. Section 3 lists the work in order.
 
 ---
 
@@ -109,7 +109,7 @@ whether the win stands minus the point, or something worse. Needs confirmation.
 
 ---
 
-### D-5 — When a trump is led, everyone must trump · **high**
+### D-5 — When a trump is led, everyone must trump · **high** · ✅ resolved
 
 **Source.** §4.5, four sentences, reducible to one rule: **when a trump is led you must
 play a trump if you hold one, except that you may withhold a special card that outranks
@@ -122,15 +122,22 @@ the card led.**
 | Basto | everyone | espadilla, manilla |
 | Any other trump | everyone | espadilla, manilla, basto |
 
-**Spec.** §2.3 has no trump-lead obligation at all. It describes only following the led
+**Spec.** §2.3 had no trump-lead obligation at all — it described only following the led
 suit, with *fallar* and *refallar* as free choices.
 
-**Consequence.** `MoveValidator` gets one case right by accident and one wrong. It excludes
-special cards from the "do you hold the led suit" check, which correctly lets you withhold
-the basto when a plain trump is led — but it applies the same exclusion when the
-**espadilla** is led, where the source allows no exemption and the basto must be played.
-It also never treats the manilla as withholdable, because `Card.isSpecial()` covers only
-the espadilla and the basto.
+**Was.** `MoveValidator` got one case right by accident and one wrong. It excluded special
+cards from the "do you hold the led suit" check, which correctly let you withhold the basto
+when a plain trump was led — but it applied the same exclusion when the **espadilla** was
+led, where the source allows no exemption and the basto must be played. It also never
+treated the manilla as withholdable, because `Card.isSpecial()` covers only the espadilla
+and the basto.
+
+**Resolved.** `spec.md` §2.3 now states the unified rule and its four cases, and
+`MoveValidator.validateTrumpLead` implements it: a trump lead compels a trump unless every
+trump held is a special card outranking the card led. Withholding stays a permission — the
+special card may still be played. Rank comes from `CardRankingService` rather than a second
+table. Covered by `MoveValidatorTest.TrumpLead`, one test per source sentence, and mirrored
+in the client's `isPlayable`. New rejection code: `MUST_PLAY_TRUMP`.
 
 ---
 
@@ -149,7 +156,7 @@ mistaken for verified.
 
 ---
 
-### D-7 — "Espadilla and basto can be played at any time" is not supported · **medium**
+### D-7 — "Espadilla and basto can be played at any time" is not supported · **medium** · ✅ resolved
 
 **Spec.** §2.3: *"They can be played at any time (even when player has the led suit)."*
 
@@ -163,9 +170,15 @@ played out of suit.
 you may not renege on a plain-suit lead to play one. Their privilege is exemption from the
 trump-lead obligation.
 
-**[uncertain]** This is inference from what the source permits, not a passage that settles
-it. It changes legality of moves, so it needs confirmation before it reaches
-`MoveValidator`.
+**Resolved.** Confirmed by the project owner on 2026-08-25 and implemented. The
+unconditional `if (cardToPlay.isSpecial()) return Valid;` bypass is gone from
+`MoveValidator`; a player who can still follow the led suit must do so. The specials keep
+their other property — they are not members of Espadas and Bastos for following, so a
+player holding nothing else of a led Espadas or Bastos is void and may discard or fallar.
+
+It remains **inference** from what the source permits rather than a passage that settles it.
+`MoveValidatorTest.SpecialCards.shouldRequireFollowingAPlainSuitRatherThanPlayingTheBasto`
+pins the case that prompted the decision.
 
 ---
 
@@ -418,7 +431,7 @@ Grouped by what has to move together. The disabled acceptance tests listed in
 | C-1 | Replace balances with a posso: an ante at game start, `cobrar`/`pagar` against the pot, no bankruptcy end condition | `Game` (`INITIAL_COINS`, `WIN_COINS`, `LOSE_COINS`, `DRAW_COINS`, `applyCoins`, `isAnyPlayerBankrupt`), `GameStatePayload`, `GameStateMapper` |
 | C-2 | Delete `RoundResult.Draw`; end the round when the opponents reach 4 or the going side reaches 5 | `RoundResult`, `Round.checkForRoundEnd`, `Game.calculateCoinChanges` |
 | C-3 | Settlement as base + increments, replacing `max(estuche, duende)`; dengue paid win or lose | `Game.calculateBonus`, `Game.calculateCoinChanges` |
-| C-4 | Trump-lead obligation with rank-based exemption | `MoveValidator`, and the client's mirror of it in `static/app.js` |
+| ~~C-4~~ | ~~Trump-lead obligation with rank-based exemption~~ — **done**, with D-7 | `MoveValidator`, `Card`, `static/app.js` |
 | C-5 | Detect *primeres*; add a *todo* declaration at five basas and detect the result | `Round`, `Game`, a new client→server message, `GameWebSocketController` |
 | C-6 | Four kings at deal time — collect 4, end the hand, pre-empt soledad | `Game.start` / `startNextRound`, `Round` |
 | C-7 | *Posar-se el rei* as a distinct outcome; distinguish a chosen king from a forced one, end the hand when the *mà*'s king is forced, and charge 1 for *caure el rei* | `TeamResolver`, `Round`, `Game` |
@@ -427,5 +440,6 @@ Grouped by what has to move together. The disabled acceptance tests listed in
 | C-10 | Update the help panel's rules text and card-order display to match | `static/app.js`, `static/index.html` |
 | C-11 | Extend `SpecCardOrderTest` with the source's four trump lists, so the tables are pinned to the source and not only to the spec | `game/domain/service/SpecCardOrderTest` |
 
-**Deliberately not proposed:** D-6, D-7 and D-17 stay out of the code until someone
-confirms them. D-17 in particular would reject moves that are legal today.
+**Deliberately not proposed:** D-6 and D-17 stay out of the code until someone confirms
+them. D-17 in particular would reject moves that are legal today. (D-7 was confirmed and is
+now implemented — see above.)

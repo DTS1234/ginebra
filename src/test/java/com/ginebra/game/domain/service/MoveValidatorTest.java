@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MoveValidatorTest {
 
-    private final MoveValidator validator = new MoveValidator();
+    private final MoveValidator validator = new MoveValidator(new CardRankingService());
 
     private static Card card(Suit suit, Rank rank) {
         return new Card(suit, rank);
@@ -118,7 +118,7 @@ class MoveValidatorTest {
     class SpecialCards {
 
         @Test
-        void shouldAlwaysAllowEspadillaEvenWhenHasLedSuit() {
+        void shouldRejectEspadillaWhenPlayerCanStillFollowTheLedSuit() {
             final var hand = List.of(
                 Card.espadilla(),
                 card(Suit.COPAS, Rank.REY),
@@ -126,14 +126,15 @@ class MoveValidatorTest {
             );
             final var ledCard = card(Suit.COPAS, Rank.DOS);
 
-            // Espadilla can always be played, even when player has COPAS
+            // The Espadilla is a trump, so playing it here is fallar - only open when void.
             final var result = validator.validate(hand, Card.espadilla(), Suit.BASTOS, Optional.of(ledCard));
 
-            assertThat(result).isInstanceOf(MoveValidation.Valid.class);
+            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_FOLLOW_SUIT");
         }
 
         @Test
-        void shouldAlwaysAllowBastoEvenWhenHasLedSuit() {
+        void shouldRejectBastoWhenPlayerCanStillFollowTheLedSuit() {
             final var hand = List.of(
                 Card.basto(),
                 card(Suit.COPAS, Rank.REY),
@@ -141,10 +142,40 @@ class MoveValidatorTest {
             );
             final var ledCard = card(Suit.COPAS, Rank.DOS);
 
-            // Basto can always be played, even when player has COPAS
             final var result = validator.validate(hand, Card.basto(), Suit.BASTOS, Optional.of(ledCard));
 
+            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_FOLLOW_SUIT");
+        }
+
+        @Test
+        void shouldAllowSpecialCardAsFallarWhenVoidInTheLedSuit() {
+            final var hand = List.of(
+                Card.basto(),
+                card(Suit.OROS, Rank.TRES)
+            );
+            final var ledCard = card(Suit.COPAS, Rank.DOS);
+
+            final var result = validator.validate(hand, Card.basto(), Suit.ESPADAS, Optional.of(ledCard));
+
             assertThat(result).isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldRequireFollowingAPlainSuitRatherThanPlayingTheBasto() {
+            // Oros is led and the player holds a low oro plus the Basto. The Basto is a
+            // trump, and fallar is open only to a player with none of the led suit.
+            final var hand = List.of(
+                card(Suit.OROS, Rank.TRES),
+                Card.basto(),
+                card(Suit.ESPADAS, Rank.CINCO)
+            );
+            final var ledCard = card(Suit.OROS, Rank.REY);
+
+            final var result = validator.validate(hand, Card.basto(), Suit.COPAS, Optional.of(ledCard));
+
+            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_FOLLOW_SUIT");
         }
 
         @Test
@@ -189,7 +220,7 @@ class MoveValidatorTest {
             );
             final var ledCard = card(Suit.ESPADAS, Rank.CABALLO);
 
-            // Must play the regular Espadas card (or Espadilla, which is always valid)
+            // Must play the regular Espadas card; the Espadilla is a trump, not an Espada.
             final var result = validator.validate(hand, card(Suit.COPAS, Rank.TRES), Suit.COPAS, Optional.of(ledCard));
 
             assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
@@ -209,11 +240,11 @@ class MoveValidatorTest {
             );
             final var ledCard = Card.espadilla();
 
-            // Must follow COPAS (trump) because Espadilla counts as trump
+            // An Espadilla lead is a trump lead, and COPAS in hand is a trump
             final var result = validator.validate(hand, card(Suit.OROS, Rank.TRES), Suit.COPAS, Optional.of(ledCard));
 
             assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
-            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_FOLLOW_SUIT");
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_PLAY_TRUMP");
         }
 
         @Test
@@ -225,11 +256,11 @@ class MoveValidatorTest {
             );
             final var ledCard = Card.basto();
 
-            // Must follow OROS (trump) because Basto counts as trump
+            // A Basto lead is a trump lead, and OROS in hand is a trump
             final var result = validator.validate(hand, card(Suit.COPAS, Rank.TRES), Suit.OROS, Optional.of(ledCard));
 
             assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
-            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_FOLLOW_SUIT");
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_PLAY_TRUMP");
         }
 
         @Test
@@ -258,6 +289,81 @@ class MoveValidatorTest {
             final var result = validator.validate(hand, card(Suit.COPAS, Rank.REY), Suit.COPAS, Optional.of(ledCard));
 
             assertThat(result).isInstanceOf(MoveValidation.Valid.class);
+        }
+    }
+
+    /**
+     * rules-source.md §4.5: when a trump is led everyone must play a trump if they hold
+     * one, except that a special card outranking the card led may be kept back.
+     */
+    @Nested
+    class TrumpLead {
+
+        // Trump is COPAS throughout, so the Manilla is the 7 de copes.
+        private static final Suit TRUMP = Suit.COPAS;
+        private static final Card MANILLA = new Card(Suit.COPAS, Rank.SIETE);
+        private static final Card PLAIN_TRUMP = new Card(Suit.COPAS, Rank.CUATRO);
+        private static final Card DISCARD = new Card(Suit.OROS, Rank.TRES);
+
+        private MoveValidation play(Card cardToPlay, Card ledCard, Card... hand) {
+            return validator.validate(List.of(hand), cardToPlay, TRUMP, Optional.of(ledCard));
+        }
+
+        private void assertMustTrump(MoveValidation result) {
+            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_PLAY_TRUMP");
+        }
+
+        @Test
+        void espadillaLeadShouldExemptNothing() {
+            // "Si un trumfa d'espadilla, és obligatori tirar trumfo si en tens."
+            assertMustTrump(play(DISCARD, Card.espadilla(), Card.basto(), DISCARD));
+            assertMustTrump(play(DISCARD, Card.espadilla(), MANILLA, DISCARD));
+            assertMustTrump(play(DISCARD, Card.espadilla(), PLAIN_TRUMP, DISCARD));
+        }
+
+        @Test
+        void manillaLeadShouldExemptOnlyTheEspadilla() {
+            // "…però es qui té l'espadilla se la juga si vol."
+            assertThat(play(DISCARD, MANILLA, Card.espadilla(), DISCARD))
+                .isInstanceOf(MoveValidation.Valid.class);
+            assertMustTrump(play(DISCARD, MANILLA, Card.basto(), DISCARD));
+            assertMustTrump(play(DISCARD, MANILLA, Card.espadilla(), PLAIN_TRUMP, DISCARD));
+        }
+
+        @Test
+        void bastoLeadShouldExemptTheEspadillaAndTheManilla() {
+            // "Es qui tenen espadilla i manilla, se la poden jugar si volen."
+            assertThat(play(DISCARD, Card.basto(), Card.espadilla(), MANILLA, DISCARD))
+                .isInstanceOf(MoveValidation.Valid.class);
+            assertMustTrump(play(DISCARD, Card.basto(), MANILLA, PLAIN_TRUMP, DISCARD));
+        }
+
+        @Test
+        void plainTrumpLeadShouldExemptAllThreeSpecials() {
+            // "Es qui tinguen ses tres cartes (espadilla, manilla, basto) se les poden jugar si volen."
+            assertThat(play(DISCARD, PLAIN_TRUMP, Card.espadilla(), MANILLA, Card.basto(), DISCARD))
+                .isInstanceOf(MoveValidation.Valid.class);
+            assertMustTrump(play(DISCARD, PLAIN_TRUMP, Card.basto(), new Card(Suit.COPAS, Rank.SEIS), DISCARD));
+        }
+
+        @Test
+        void shouldNotExemptAnOrdinaryTrumpThatHappensToBeatTheCardLed() {
+            // The privilege belongs to the three specials, not to any card that outranks.
+            assertMustTrump(play(DISCARD, new Card(Suit.COPAS, Rank.CINCO), new Card(Suit.COPAS, Rank.REY), DISCARD));
+        }
+
+        @Test
+        void shouldAllowWithholdableSpecialToBePlayedAnyway() {
+            // The exemption is permission to keep it back, not a ban on playing it.
+            assertThat(play(Card.espadilla(), MANILLA, Card.espadilla(), DISCARD))
+                .isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldAllowAnyCardWhenHoldingNoTrumpAtAll() {
+            assertThat(play(DISCARD, PLAIN_TRUMP, DISCARD, new Card(Suit.BASTOS, Rank.CINCO)))
+                .isInstanceOf(MoveValidation.Valid.class);
         }
     }
 

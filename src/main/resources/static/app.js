@@ -576,16 +576,26 @@ function renderBasa() {
     }
 }
 
-/**
- * The suit that must be followed in the current basa, or null if this player leads.
- * A special card leading makes trump the suit to follow.
- */
-function ledSuit() {
-    if (state.basa.length === 0) {
-        return null;
-    }
-    const first = state.basa[0].card;
-    return isSpecial(first) ? state.trump : first.suit;
+/** The card that opened the current basa, or null if this player leads. */
+function ledCard() {
+    return state.basa.length === 0 ? null : state.basa[0].card;
+}
+
+/** The Espadilla and the Basto are trumps whatever the trump suit is. */
+function isTrumpCard(card) {
+    return isSpecial(card) || card.suit === state.trump;
+}
+
+/** Position in the trump order, where 0, 1 and 2 are Espadilla, Manilla and Basto. */
+function trumpIndex(card) {
+    const key = cardKey(card);
+    return suitOrder(state.trump, state.trump).findIndex((entry) => cardKey(entry.card) === key);
+}
+
+/** Only a special card outranking the card led may be kept back from a trump lead. */
+function mayWithhold(card, led) {
+    const index = trumpIndex(card);
+    return index >= 0 && index <= 2 && index < trumpIndex(led);
 }
 
 /**
@@ -593,12 +603,18 @@ function ledSuit() {
  * The server stays authoritative - this just avoids clicks it would reject.
  */
 function isPlayable(card) {
-    const led = ledSuit();
-    if (led === null || isSpecial(card)) {
+    const led = ledCard();
+    if (led === null) {
         return true;
     }
-    const canFollow = state.hand.some((held) => !isSpecial(held) && held.suit === led);
-    return !canFollow || card.suit === led;
+    if (isTrumpCard(led)) {
+        // A trump was led: play a trump unless every trump held may be withheld.
+        return isTrumpCard(card)
+            || !state.hand.some((held) => isTrumpCard(held) && !mayWithhold(held, led));
+    }
+    // A plain suit was led: follow it if you hold it - the specials are trumps, not an escape.
+    const canFollow = state.hand.some((held) => !isSpecial(held) && held.suit === led.suit);
+    return !canFollow || (card.suit === led.suit && !isSpecial(card));
 }
 
 function renderHand(myTurn) {
@@ -613,10 +629,15 @@ function renderHand(myTurn) {
         container.innerHTML = '<p class="empty">Hand is empty.</p>';
     }
 
-    const led = ledSuit();
-    el('follow-hint').textContent = playing && led
-        ? 'Must follow ' + SUIT_SYMBOL[led] + ' ' + SUIT_LABEL[led] + ' if you can'
-        : '';
+    const led = ledCard();
+    if (!playing || led === null) {
+        el('follow-hint').textContent = '';
+    } else if (isTrumpCard(led)) {
+        el('follow-hint').textContent = 'Trump led - must play a trump if you can';
+    } else {
+        el('follow-hint').textContent =
+            'Must follow ' + SUIT_SYMBOL[led.suit] + ' ' + SUIT_LABEL[led.suit] + ' if you can';
+    }
 }
 
 function renderScores(round) {

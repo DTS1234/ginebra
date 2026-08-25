@@ -10,13 +10,33 @@ import java.util.Optional;
 /**
  * Validates whether a card can be legally played according to Ginebra rules.
  *
- * Key rules:
- * - Espadilla and Basto are "free" cards: they can always be played regardless of led suit.
- * - Players must follow the effective led suit if they have non-special cards of that suit.
- * - When a special card leads, the effective led suit becomes the trump suit.
- * - Players are NOT required to "kill" (play a higher card).
+ * Two obligations, depending on what was led (rules-source.md §4.4 and §4.5):
+ *
+ * - <b>A plain suit is led.</b> You must follow it if you hold it. Trumping - "fallar" - is
+ *   available only when you are void: <i>"Si no en tens, pots «fallar», si vols."</i> The
+ *   Espadilla and the Basto are trumps, so they are not an escape from following a plain
+ *   suit; nor do they count as members of Espadas and Bastos when one of those is led.
+ *
+ * - <b>A trump is led.</b> You must play a trump if you hold one, except that you may
+ *   withhold a special card - Espadilla, Manilla or Basto - that outranks the card led.
+ *   That single rule reproduces all four cases the source spells out: nothing is exempt
+ *   from an Espadilla lead, the Espadilla is exempt from a Manilla lead, the Espadilla and
+ *   Manilla from a Basto lead, and all three from any other trump.
+ *
+ * Players are never required to "kill" - playing under the current best card is legal.
  */
 public class MoveValidator {
+
+    /** Effective ranks 1, 2 and 3 are the Espadilla, the Manilla and the Basto. */
+    private static final int LOWEST_SPECIAL_RANK = 3;
+
+    private final CardRankingService cardRankingService;
+
+    public MoveValidator(CardRankingService cardRankingService) {
+        this.cardRankingService = Objects.requireNonNull(
+            cardRankingService, "cardRankingService must not be null"
+        );
+    }
 
     /**
      * Validates whether a card play is legal.
@@ -47,25 +67,71 @@ public class MoveValidator {
             return new MoveValidation.Valid();
         }
 
-        // Special cards (Espadilla, Basto) can always be played
-        if (cardToPlay.isSpecial()) {
+        final var ledCard = firstCardInBasa.get();
+
+        if (ledCard.isTrump(trumpSuit)) {
+            return validateTrumpLead(hand, cardToPlay, trumpSuit, ledCard);
+        }
+        return validatePlainSuitLead(hand, cardToPlay, ledCard.suit());
+    }
+
+    /**
+     * A trump was led: a trump must be played unless every trump held may be withheld.
+     */
+    private MoveValidation validateTrumpLead(
+        List<Card> hand,
+        Card cardToPlay,
+        Suit trumpSuit,
+        Card ledCard
+    ) {
+        if (cardToPlay.isTrump(trumpSuit)) {
             return new MoveValidation.Valid();
         }
 
-        final var effectiveSuit = effectiveLedSuit(firstCardInBasa.get(), trumpSuit);
+        final var holdsCompellingTrump = hand.stream()
+            .filter(c -> c.isTrump(trumpSuit))
+            .anyMatch(c -> !mayWithhold(c, ledCard, trumpSuit));
 
-        final var hasNonSpecialOfLedSuit = hand.stream()
-            .filter(c -> !c.isSpecial())
-            .anyMatch(c -> c.suit() == effectiveSuit);
-
-        if (hasNonSpecialOfLedSuit && cardToPlay.suit() != effectiveSuit) {
+        if (holdsCompellingTrump) {
             return new MoveValidation.Invalid(
-                "MUST_FOLLOW_SUIT",
-                "Must play " + effectiveSuit + " (you have cards of that suit)"
+                "MUST_PLAY_TRUMP",
+                "Must play a trump: " + ledCard + " was led and you hold a trump you cannot withhold"
             );
         }
 
         return new MoveValidation.Valid();
+    }
+
+    /**
+     * A plain suit was led: it must be followed by a player who holds it.
+     */
+    private MoveValidation validatePlainSuitLead(List<Card> hand, Card cardToPlay, Suit ledSuit) {
+        final var holdsLedSuit = hand.stream().anyMatch(c -> c.followsSuit(ledSuit));
+
+        if (holdsLedSuit && !cardToPlay.followsSuit(ledSuit)) {
+            return new MoveValidation.Invalid(
+                "MUST_FOLLOW_SUIT",
+                "Must play " + ledSuit + " (you have cards of that suit)"
+            );
+        }
+
+        return new MoveValidation.Valid();
+    }
+
+    /**
+     * Whether a trump may be kept back when {@code ledCard} was led.
+     *
+     * Only the three special cards may, and only over a card they outrank. An ordinary
+     * trump that happens to beat the card led carries no such privilege.
+     */
+    private boolean mayWithhold(Card card, Card ledCard, Suit trumpSuit) {
+        final var rank = trumpRank(card, trumpSuit);
+        return rank <= LOWEST_SPECIAL_RANK && rank < trumpRank(ledCard, trumpSuit);
+    }
+
+    /** Rank within the trump order, where 1, 2 and 3 are Espadilla, Manilla and Basto. */
+    private int trumpRank(Card card, Suit trumpSuit) {
+        return cardRankingService.getEffectiveRank(trumpSuit, trumpSuit, card);
     }
 
     /**

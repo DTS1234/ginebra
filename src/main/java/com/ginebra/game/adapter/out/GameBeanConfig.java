@@ -20,7 +20,7 @@ public class GameBeanConfig {
 
     @Bean
     public MoveValidator moveValidator() {
-        return new MoveValidator();
+        return new MoveValidator(cardRankingService());
     }
 
     @Bean

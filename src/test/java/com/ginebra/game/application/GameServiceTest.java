@@ -45,7 +45,7 @@ class GameServiceTest {
         gameService = new GameService(
             gameRepository,
             eventPublisher,
-            new MoveValidator(),
+            new MoveValidator(cardRankingService),
             new BasaResolver(cardRankingService),
             new TeamResolver(),
             FIXED_CLOCK,
@@ -278,7 +278,7 @@ class GameServiceTest {
             ? Optional.<Card>empty()
             : Optional.of(basa.cardsPlayed().get(0).card());
 
-        final var validator = new MoveValidator();
+        final var validator = new MoveValidator(new CardRankingService());
         for (final var card : hand) {
             final var validation = validator.validate(hand, card, trumpSuit, firstCard);
             if (validation instanceof com.ginebra.game.domain.service.MoveValidation.Valid) {

@@ -62,7 +62,7 @@ class SoledadGameServiceIntegrationTest {
         gameService = new GameService(
             gameRepository,
             eventPublisher,
-            new MoveValidator(),
+            new MoveValidator(cardRankingService),
             new BasaResolver(cardRankingService),
             new TeamResolver(),
             FIXED_CLOCK,

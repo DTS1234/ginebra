@@ -451,6 +451,7 @@ Do not read silence here as agreement with `spec.md`.
 - The order of cards **within a non-trump suit** — only the trump-suit order is given.
 - The **direction of play** around the table, and how the *mà* passes between hands.
 - Whether the espadilla and basto may be played **out of suit** when you could follow.
+  (Settled by decision, not by the source — see D-7 in `rules-diff.md`: they may not.)
 - Who **leads the next basa** after one is won.
 - The **size** of the posso stake, beyond "agreed in common, in equal parts".
 - Any notion of a **draw**, an overall **game winner**, or a per-player coin balance.
