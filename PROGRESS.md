@@ -2,6 +2,8 @@
 
 This document tracks what has been implemented.
 
+Last verified: 2026-08-25 — full suite green (`sh gradlew test`).
+
 ---
 
 ## Phase 1: Identity Foundation
@@ -13,6 +15,9 @@ This document tracks what has been implemented.
 | 2 | GET /api/auth/me endpoint | Done |
 | 3 | JWT validation filter | Done |
 | 4 | In-memory token store (for anonymous session tracking) | Done |
+
+Not in scope of this phase, still outstanding: registered user accounts (spec 1.3),
+anonymous identity cleanup after 24h of inactivity (design §8).
 
 ---
 
@@ -29,6 +34,9 @@ This document tracks what has been implemented.
 | - | In-memory room repository | Done |
 | - | Room lifecycle (WAITING → STARTING) | Done |
 
+Outstanding: 30-minute room expiry (design §8), one-active-game-per-player (design §8),
+and `RoomService` has no per-room locking, unlike `GameService`.
+
 ---
 
 ## Phase 3: Game Engine - Core Domain
@@ -44,6 +52,11 @@ This document tracks what has been implemented.
 | 6 | Game (aggregate root) | Done |
 | 7 | MoveValidator, BasaResolver, TeamResolver | Done |
 
+Card ranking was checked rank-by-rank against all four trump tables in spec 2.4,
+including the Manilla switch (7 for Copas/Oros, 2 for Espadas/Bastos).
+
+Soledad is **not** part of this phase's "Done" — see Known Gaps below.
+
 ---
 
 ## Phase 4: WebSocket Integration
@@ -52,13 +65,24 @@ This document tracks what has been implemented.
 | Step | Description | Status |
 |------|-------------|--------|
 | - | WebSocket configuration with STOMP | Done |
-| - | /ws/game/{gameId} endpoint | Done |
+| - | /ws/game endpoint | Done |
 | - | Message types (client→server, server→client) | Done |
 | - | Connection tracking | Done |
 | - | Game event broadcasting | Done |
 | - | Room → Game transition trigger | Done |
-| - | End-to-end integration test | Done |
+| - | Multi-client end-to-end test (exit criterion) | Done |
 
+**Exit criterion — "5 clients can connect, play cards, see real-time updates" —
+is covered by `FivePlayerGameE2ETest`**: five real STOMP clients authenticate over REST,
+fill a room, connect, receive private hands, pass Soledad, select trump, play a complete
+basa and observe every broadcast. Previously the only WebSocket test asserted that a
+single subscriber received `GAME_STATE`, which did not demonstrate the criterion.
+
+Known weakness in this phase: `GameSubscriptionInterceptor` checks game membership from an
+`@EventListener` on `SessionSubscribeEvent`, which fires *after* the broker registers the
+subscription — so returning early does not veto it. A non-member who knows a gameId can
+subscribe to `/topic/game/{id}` and follow the broadcast stream. Private hands are not
+exposed (they go over `/user/**`), so this is unauthorised spectating, not cheating.
 
 ---
 
@@ -74,6 +98,9 @@ This document tracks what has been implemented.
 | - | Server restart recovery | Pending |
 | - | Player reconnection with state sync | Pending |
 
+No persistence code exists and `build.gradle.kts` has no JDBC driver, PostgreSQL driver,
+migration tool or Testcontainers dependency.
+
 ---
 
 ## Phase 6: Hardening
@@ -88,12 +115,99 @@ This document tracks what has been implemented.
 
 ---
 
+## Known Gaps
+
+Items below are implemented partially or not at all despite living inside a phase
+marked COMPLETE. Each functional gap has acceptance tests already written and `@Disabled`;
+enable them as the behaviour lands.
+
+### 1. Soledad is declared but never actually played (Phase 3/4)
+
+`soledadPlayer` is stored on `Round` and echoed into the state DTO, but it is read
+nowhere in the win or scoring logic. The declaration window works; everything after it
+falls back to ordinary 2-vs-3 rules.
+
+| Gap | Spec | Acceptance test (disabled) |
+|-----|------|----------------------------|
+| `Round.withSoledadDeclared` overwrites `playerWhoGoes`, so the declarer also leads the first basa | 2.5 — the declarer chooses trump, the round still starts with the normal-rotation player | `SoledadRoundRulesTest.TurnOrder` (2), `SoledadGameServiceIntegrationTest.shouldStartPlayWithTheNormalRotationStarter` |
+| The first King still forms a 2-vs-3 partnership, giving the Soledad player a partner | 2.5 — Soledad is 1 vs 4 | `SoledadRoundRulesTest.shouldRejectTeamFormationInSoledadRound`, `SoledadGameServiceIntegrationTest.shouldNeverPublishTeamsRevealed` |
+| `Round.checkForRoundEnd` only understands teams, so a Soledad round never ends on the fifth basa | 2.5 — 5 basas alone wins, fewer and the other four win | `SoledadRoundRulesTest.RoundOutcome` (2) |
+| `Game.calculateCoinChanges` has no Soledad branch and pays the flat ±2 team rate | 2.6 — 3 coins with each of the other four, 12 in total | `SoledadRoundRulesTest.Scoring` (2), `SoledadGameServiceIntegrationTest.shouldSettleCoinsAtTheSoledadRate` |
+| Next-round rotation runs off the declarer instead of the normal starter | 2.2 | `SoledadGameServiceIntegrationTest.shouldRotateToTheSeatRightOfTheNormalStarterInTheNextRound` |
+
+Related: when the player who "goes" plays the first King themselves, `TeamResolver`
+defers (spec 2.3 says they may stop the game — unimplemented). The fallback is not
+neutral: the *next* King played by someone else forms the teams instead.
+
+### 2. No scheduled work exists (all phases)
+
+There is no `@EnableScheduling` or `@Scheduled` anywhere, so every resolved timeout in
+design §8 is unimplemented:
+
+- 2-minute Soledad auto-pass — `soledadDeadline` is computed and stored but nothing ever
+  fires on it, and there is no `SoledadAutoPassed` event.
+- 5-minute disconnect pause.
+- 30-minute room expiry.
+- 24-hour anonymous identity cleanup.
+
+Design §5.3 also names a `SoledadValidator`; that logic currently sits inline in
+`GameService` and `Round`.
+
+### 3. Smaller items
+
+- Registered user accounts (spec 1.3) — only the anonymous path exists.
+- One active game per player (design §8) — not enforced; a player can sit in several rooms.
+- `RoomService` mutates a shared `Room` with no lock, so concurrent joins can both see 4 players.
+- Shuffling uses `new Random()` (a 48-bit LCG). Against the anti-cheat stance of spec 1.4,
+  `SecureRandom` is the safer default for a coin game.
+- `NoOpGameEventPublisher` relies on `@ConditionalOnMissingBean` on a scanned `@Component`,
+  which is order-dependent outside auto-configuration. It resolves to
+  `StompGameEventPublisher` today (verified at runtime), but the wiring is fragile.
+
+---
+
+## Build Environment
+
+`build.gradle.kts` pins the Java toolchain to 17. A JDK 17 must be discoverable or the
+build fails before compiling with *"Cannot find a Java installation ... languageVersion=17"*.
+Containers and CI images that ship only a newer JDK need a toolchain download repository,
+or the pin relaxed.
+
+---
+
+## Test Suite
+
+| Area | Where |
+|------|-------|
+| Five clients over a real WebSocket (Phase 4 exit criterion) | `game/adapter/in/FivePlayerGameE2ETest` |
+| Soledad rules, domain level | `game/domain/model/SoledadRoundRulesTest` |
+| Soledad through the application service | `game/application/SoledadGameServiceIntegrationTest` |
+| Shared test doubles and fixtures | `support/` — `TestDeal`, `LegalMoves`, `LobbyFixture`, `StompTestClient`, `RecordingGameEventPublisher` |
+
+Disabled tests are acceptance criteria for the Known Gaps above, not dead code. To see
+them fail against the current implementation:
+
+```
+sh gradlew test -Djunit.jupiter.conditions.deactivate='org.junit*DisabledCondition'
+```
+
+---
+
 ## Commit History
 
 | Commit | Description |
 |--------|-------------|
-| bd2a9ad | Phase 2 - [AI] /post for creating the room |
-| 64ae76e | Phase 2 - [AI] Room domain model |
-| 1b9d204 | Phase 1 - [AI] JWT filter |
-| 86a64a4 | Phase 1 - [AI] /api/auth/me get anon user endpoint |
-| 17e77ec | Phase 1 - [AI] /api/auth create anon session |
+| eb3a95c | Add .worktrees/ to .gitignore |
+| 71b81b7 | Phase 4 - WebSocket integration, game service, soledad, round/game domain updates |
+| 967640c | intermediate state |
+| 86df339 | Phase 3 - step 6, 7 - game aggregate root, MoveValidator, BasaResolver, TeamResolver |
+| 4cbc225 | Phase 3 - step 5 Round - core domain |
+| ac1767b | Phase 3 - step 4 game basa - core domain |
+| 2cd22cb | Phase 3 - step 3 game engine - core domain |
+| 4053933 | Phase 3 - Card, Suit, Rank |
+| 0c59b45 | Phase 2 - steps 3,4,5 room endpoints |
+| bd2a9ad | Phase 2 - /post for creating the room |
+| 64ae76e | Phase 2 - Room domain model |
+| 1b9d204 | Phase 1 - JWT filter |
+| 86a64a4 | Phase 1 - /api/auth/me get anon user endpoint |
+| 17e77ec | Phase 1 - /api/auth create anon session |
