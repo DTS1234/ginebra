@@ -130,6 +130,12 @@ on its own, and every setting that matters is in the dashboard, where it cannot 
    Do **not** set `PORT` — Railway injects it, and the app reads it.
 3. **Settings → Networking → Generate Domain.** That is the URL people open. WebSockets
    work through it untouched.
+
+   It will ask which port to route the domain to: answer **8080**. That is `ENV PORT=8080`
+   / `EXPOSE 8080` in the `Dockerfile` and `port: ${PORT:8080}` in `application.yml`.
+   The app listens on `$PORT` when Railway injects it and falls back to 8080 otherwise, so
+   the two agree — unless you set a `PORT` variable by hand in step 2, in which case delete
+   it or enter that value here instead.
 4. **Settings → Deploy → replicas: 1.** More than one and players would land on different
    instances that cannot see each other's games.
 5. **Check the deploy strategy.** Railway's default is to bring the new instance up before
