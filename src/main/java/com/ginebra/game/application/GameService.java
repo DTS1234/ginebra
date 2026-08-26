@@ -232,7 +232,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 : Optional.of(basa.cardsPlayed().get(0).card());
 
             final var leadContext = new MoveValidator.LeadContext(
-                round.previousLedSuit(), round.sideDecided()
+                round.ledSuits(), round.sideDecided()
             );
 
             final var validation = moveValidator.validate(hand, card, trumpSuit, firstCard, leadContext);

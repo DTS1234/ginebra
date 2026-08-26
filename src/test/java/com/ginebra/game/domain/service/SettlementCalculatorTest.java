@@ -282,15 +282,21 @@ class SettlementCalculatorTest {
 
         @Test
         void shouldChargeTheMaAloneWhenTheirOwnKingEndsTheHand() {
+            // Confirmed by the players 2026-08-26: "A pays 1 and we redeal, no other
+            // players charged." Nobody collects either - the hand simply did not happen.
             final var round = inProgress().withKingPlayed(ma(), true);
 
-            final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
+            final var settlement = calculator.settle(round, plainDeal());
+            final var deltas = settlement.playerDeltas();
 
             assertThat(round.isComplete()).isTrue();
             assertThat(deltas.get(ma())).isEqualTo(-SettlementCalculator.FORCED_KING_PENALTY);
             for (final var player : players.subList(1, 5)) {
                 assertThat(deltas.get(player)).isZero();
             }
+            assertThat(settlement.totalCollected())
+                .as("the pot pays nothing out on a fallen king")
+                .isZero();
         }
     }
 

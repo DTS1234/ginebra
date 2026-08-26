@@ -440,19 +440,21 @@ public final class Round {
     }
 
     /**
-     * The effective suit led in the previous basa, or empty if this is the first.
+     * Every effective suit led so far in this round.
      *
      * A special card leading counts as leading trump, the same way it does everywhere else.
-     * This is what the leader must lead away from while no King has appeared.
+     * While no King has appeared the leader must open with a suit that is <b>not</b> in
+     * this set, if they hold one - that is how the King gets smoked out.
      */
-    public Optional<Suit> previousLedSuit() {
-        if (completedBasas.isEmpty() || trumpSuit == null) {
-            return Optional.empty();
+    public Set<Suit> ledSuits() {
+        if (trumpSuit == null) {
+            return Set.of();
         }
-        final var previous = completedBasas.get(completedBasas.size() - 1);
-        return previous.cardsPlayed().stream().findFirst()
+        return completedBasas.stream()
+            .flatMap(basa -> basa.cardsPlayed().stream().limit(1))
             .map(played -> com.ginebra.game.domain.service.MoveValidator
-                .effectiveLedSuit(played.card(), trumpSuit));
+                .effectiveLedSuit(played.card(), trumpSuit))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

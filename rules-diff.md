@@ -346,19 +346,16 @@ the discard option when void.
 
 **Spec.** Had no mention of it.
 
-**Resolved.** Confirmed by the project owner on 2026-08-26 and implemented. `spec.md` §2.3
-states the obligation; `MoveValidator.validateLead` enforces it, driven by a `LeadContext`
-carrying the previous basa's effective led suit and whether a King has appeared. Two limits
-the source does not state but the rule needs: it **lapses** once a King decides the sides
-(that is what *"fins que isca o posen rei"* means), and it **yields** when the leader holds
-nothing outside that suit — a duty to change suit cannot be allowed to make a hand
-unplayable. A special card counts as leading trump, consistently with the rest of the
-engine. New rejection code: `MUST_CHANGE_SUIT`, covered by
-`MoveValidatorTest.LeadingBeforeTheKing`, and mirrored in the client's `isPlayable`.
-
-**Still open**: whether *"un altre pal"* means *different from the last suit led* (what is
-implemented) or *any suit not yet led*. The latter becomes impossible after four basas, so
-the former is the only workable reading — but it is a reading.
+**Resolved.** `spec.md` §2.3 states the obligation; `MoveValidator.validateLead` enforces
+it, driven by a `LeadContext` carrying the set of suits led so far and whether a King has
+appeared. Two limits the source does not state but the rule needs, both implied by the
+players' *"if you have any"*: it **lapses** once a King decides the sides (that is what
+*"fins que isca o posen rei"* means), and it **yields** when the leader holds nothing in an
+untouched suit — a duty to change suit cannot be allowed to make a hand unplayable. Once
+all four suits have been led the rule is spent and the leader is free again. A special card
+counts as leading trump, consistently with the rest of the engine. Rejection code
+`MUST_CHANGE_SUIT`, covered by `MoveValidatorTest.LeadingBeforeTheKing`, and mirrored in
+the client's `isPlayable`.
 
 ---
 
@@ -437,7 +434,7 @@ implements them.
 | D-2 no draw, D-3 blocked at four | `RoundResult` (`GoingSideWon`/`GoingSideFailed`/`FourKings`/`KingFell`), `Round.checkForRoundEnd`, `Round.BASAS_TO_BLOCK` |
 | D-4, D-11 todo | `Round.madeTodo`, and `checkForRoundEnd` playing on past five while todo is live |
 | D-5, D-7 following rules | `MoveValidator`, `Card.isTrump`, `Card.followsSuit` |
-| D-17 change of suit before the King | `MoveValidator.validateLead` and `LeadContext`, fed by `Round.previousLedSuit` / `Round.sideDecided` |
+| D-17 change of suit before the King | `MoveValidator.validateLead` and `LeadContext`, fed by `Round.ledSuits` / `Round.sideDecided` |
 | D-6 the ace's two positions | `CardRankingService` - already correct; now pinned by `SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt` |
 | D-8, D-9, D-18 settlement ladder | `SettlementCalculator` — base plus +1 increments, the dengue always collected |
 | D-10 primeres | `Round.madePrimeres` |
@@ -461,9 +458,10 @@ D-17 was confirmed and implemented.
 |---|---|
 | D-16 "es primer rei aida" | Not a rules question - the domain records the call (`Round.withFirstKingCalled`) and the state payload carries it, but no client control or STOMP message is wired up yet. |
 
-### 3.3 Choices the source forced, which need a player's confirmation
+### 3.3 Choices the source forced
 
-Each is implemented one way and flagged here so it can be corrected cheaply.
+Each is implemented one way. Items still needing confirmation are written up as askable
+questions in `rules-questions.md`; the rest have since been confirmed.
 
 1. **Todo is auto-detected, not called.** The source has the going side call it on reaching
    five. Since it never says what a *missed* todo costs, calling it is free and a rational
@@ -479,8 +477,9 @@ Each is implemented one way and flagged here so it can be corrected cheaply.
    row rather than the number printed before it.
 4. **A losing side's payment is raised by its own primeres and estutxe**, which is the only
    reading that makes `"Si perden i tenen l'estutxe"` self-consistent.
-5. **The mà's forced king ends the hand with only the 1-coin penalty settled.** The source
-   says the hand ends but not how it is paid.
+5. ~~**The mà's forced king ends the hand with only the 1-coin penalty settled.**~~
+   **Confirmed by the players 2026-08-26**: *"A pays 1 and we redeal, no other players
+   charged."* Which is what was already implemented.
 6. **Losing defenders pay nothing.** The source lists no charge for them; the pot absorbs it.
 
 ### 3.4 Still outstanding, unrelated to the source

@@ -174,6 +174,9 @@ basas.
 > Si es qui és mà té bones cartes però veu que té un «rei pelat» que li pot caure, pot dir:
 > «es primer rei aida», i aixina es altres jugadors li'l posaran.
 
+**Clarified by the players (2026-08-26):** when it is the *mà's own* king that falls, the
+hand ends and **the mà pays 1 — nobody else pays or collects**; the cards are dealt again.
+
 **Translation.** Normally it is the player with good cards who puts the king. This is
 called ***posar el rei***. A player with no king cannot put one. **Many times you put the
 king without meaning to, because it falls on you** (you are forced to play it).
@@ -455,8 +458,8 @@ Do not read silence here as agreement with `spec.md`.
 - The **direction of play** around the table, and how the *mà* passes between hands.
 - Whether the espadilla and basto may be played **out of suit** when you could follow.
   (Settled by decision, not by the source — see D-7 in `rules-diff.md`: they may not.)
-- Exactly what *"un altre pal"* is measured against — the suit led last basa, or any suit
-  led so far. (Settled by decision as the former — see D-17.)
+- Exactly what *"un altre pal"* is measured against. (Settled by the players as *any suit
+  led so far* — see D-17.)
 - Who **leads the next basa** after one is won.
 - The **size** of the posso stake, beyond "agreed in common, in equal parts".
 - Any notion of a **draw**, an overall **game winner**, or a per-player coin balance.

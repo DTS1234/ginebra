@@ -249,6 +249,8 @@ things it decides depends on who played it and whether they had a choice.
 - A player holding no King cannot form the partnership
 - **Caure el rei**: a King you are forced to play still forms the partnership — *"moltes
   voltes poses el rei sense voler perquè et cau"* — and **costs its owner 1 coin**
+- When it is the **mà's own** King that is forced out the hand ends there: the mà pays 1,
+  **nobody else pays or collects**, and the cards are dealt again
 - **Es primer rei aida**: the one who goes, holding a bare King (*rei pelat*) that may be
   forced out, may call for a King to be put on them as early as possible
 
@@ -293,11 +295,12 @@ of them is a trump lead.
   card instead
 
 *Opening a basa, while no King has appeared:*
-- The leader **must lead a different suit** from the one they led in the previous basa —
+- The leader **must lead a suit that has not been led yet this round** —
   *"Després has de tirar un altre pal fins que isca o posen rei"*. This is how the King
-  gets smoked out
+  gets smoked out. With oros and copas already led, the leader must go to espadas or bastos
 - The obligation **lapses** the moment a King decides the sides
-- It **yields to what is possible**: a leader holding nothing outside that suit leads it
+- It **yields to what is possible**: a leader holding nothing in an untouched suit may
+  repeat one. Once all four suits have been led it is spent, and the leader is free again
 
 *Both cases:*
 - **NOT required to "kill"**: Players can play a lower card (don't have to beat previous cards)
@@ -568,9 +571,11 @@ losing side's payment is raised by its **own** primeres and estutxe.*
 - [ ] What happens if the trump chooser disconnects before choosing?
 - [ ] Can players join/leave between rounds, or must the same 5 play the entire game?
 - [ ] Maximum game duration or number of rounds?
-- [ ] What a *missed* todo costs, if anything, once it has been called.
+- [ ] What a *missed* todo costs, if anything, once it has been called
+      (`rules-questions.md` Q1).
 - [ ] Whether a four-king holder who plays on and **loses** still keeps the 4 (implemented
       as yes — it reads as a holding award like the dengue).
+- [ ] Whose primeres or estutxe raises a losing side's payment (`rules-questions.md` Q3).
 
 ---
 

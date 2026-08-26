@@ -648,18 +648,19 @@ function suitLedBy(card) {
 }
 
 /**
- * Opening a basa: while no King has appeared the leader must change suit, unless they
- * hold nothing else. Mirrors MoveValidator.validateLead.
+ * Opening a basa: while no King has appeared the leader must open with a suit not yet led
+ * this round, unless they hold nothing untouched. Mirrors MoveValidator.validateLead.
  */
 function isPlayableAsLead(card) {
     const round = state.round;
-    if (!round || round.mode || !round.previousLedSuit) {
+    const led = (round && round.ledSuits) || [];
+    if (!round || round.mode || led.length === 0) {
         return true;
     }
-    if (suitLedBy(card) !== round.previousLedSuit) {
+    if (!led.includes(suitLedBy(card))) {
         return true;
     }
-    return !state.hand.some((held) => suitLedBy(held) !== round.previousLedSuit);
+    return !state.hand.some((held) => !led.includes(suitLedBy(held)));
 }
 
 /** Only a special card outranking the card led may be kept back from a trump lead. */
@@ -704,9 +705,12 @@ function renderHand(myTurn) {
         el('follow-hint').textContent = '';
     } else if (led === null) {
         const round = state.round;
-        el('follow-hint').textContent = (!round.mode && round.previousLedSuit)
-            ? 'You lead — change suit from ' + SUIT_SYMBOL[round.previousLedSuit] + ' '
-                + SUIT_LABEL[round.previousLedSuit] + ' until a King comes out'
+        const untouched = ['COPAS', 'OROS', 'ESPADAS', 'BASTOS']
+            .filter((suit) => !(round.ledSuits || []).includes(suit));
+        el('follow-hint').textContent = (!round.mode && untouched.length > 0
+                && (round.ledSuits || []).length > 0)
+            ? 'You lead — a suit not led yet, until a King comes out: '
+                + untouched.map((suit) => SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit]).join(', ')
             : '';
     } else if (isTrumpCard(led)) {
         el('follow-hint').textContent = 'Trump led - must play a trump if you can';

@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -369,42 +370,60 @@ class MoveValidatorTest {
 
     /**
      * rules-source.md §4.4: <i>"Després has de tirar un altre pal fins que isca o posen
-     * rei"</i> - while no King has appeared, the leader must change suit each basa.
+     * rei"</i> - while no King has appeared, the leader must open with a suit that has not
+     * been led yet this round.
+     *
+     * Confirmed by the players 2026-08-26: with oros and copas already led, the leader must
+     * go to espadas or bastos <i>if they hold any</i>.
      */
     @Nested
     class LeadingBeforeTheKing {
 
         private static final Suit TRUMP = Suit.COPAS;
 
-        private MoveValidation lead(Card cardToPlay, Suit previouslyLed, boolean sideDecided, Card... hand) {
+        private MoveValidation lead(Card cardToPlay, Set<Suit> alreadyLed, boolean sideDecided, Card... hand) {
             return validator.validate(
                 List.of(hand), cardToPlay, TRUMP, Optional.empty(),
-                new MoveValidator.LeadContext(Optional.ofNullable(previouslyLed), sideDecided)
+                new MoveValidator.LeadContext(alreadyLed, sideDecided)
             );
         }
 
-        @Test
-        void shouldAllowAnythingOnTheFirstBasa() {
-            final var hand = new Card[]{card(Suit.OROS, Rank.TRES), card(Suit.COPAS, Rank.CINCO)};
-
-            assertThat(lead(hand[0], null, false, hand)).isInstanceOf(MoveValidation.Valid.class);
-            assertThat(lead(hand[1], null, false, hand)).isInstanceOf(MoveValidation.Valid.class);
-        }
-
-        @Test
-        void shouldRejectRepeatingTheSuitLedLastBasa() {
-            final var repeat = card(Suit.OROS, Rank.CINCO);
-            final var result = lead(repeat, Suit.OROS, false, repeat, card(Suit.ESPADAS, Rank.TRES));
-
+        private void assertMustChange(MoveValidation result) {
             assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
             assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_CHANGE_SUIT");
         }
 
         @Test
-        void shouldAllowAnyOtherSuit() {
-            final var other = card(Suit.ESPADAS, Rank.TRES);
+        void shouldAllowAnythingOnTheFirstBasa() {
+            final var hand = new Card[]{card(Suit.OROS, Rank.TRES), card(Suit.ESPADAS, Rank.CINCO)};
 
-            assertThat(lead(other, Suit.OROS, false, card(Suit.OROS, Rank.CINCO), other))
+            assertThat(lead(hand[0], Set.of(), false, hand)).isInstanceOf(MoveValidation.Valid.class);
+            assertThat(lead(hand[1], Set.of(), false, hand)).isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldRejectRepeatingTheSuitLedLastBasa() {
+            final var repeat = card(Suit.OROS, Rank.CINCO);
+
+            assertMustChange(lead(repeat, Set.of(Suit.OROS), false,
+                repeat, card(Suit.ESPADAS, Rank.TRES)));
+        }
+
+        @Test
+        void shouldRejectGoingBackToASuitLedEarlier() {
+            // Oros then copas led; espadas is still untouched, so oros stays barred.
+            final var backToOros = card(Suit.OROS, Rank.CINCO);
+
+            assertMustChange(lead(backToOros, Set.of(Suit.OROS, Suit.COPAS), false,
+                backToOros, card(Suit.ESPADAS, Rank.TRES)));
+        }
+
+        @Test
+        void shouldAllowAnySuitStillUntouched() {
+            final var untouched = card(Suit.ESPADAS, Rank.TRES);
+
+            assertThat(lead(untouched, Set.of(Suit.OROS, Suit.COPAS), false,
+                card(Suit.OROS, Rank.CINCO), untouched))
                 .isInstanceOf(MoveValidation.Valid.class);
         }
 
@@ -412,28 +431,36 @@ class MoveValidatorTest {
         void shouldLapseOnceAKingHasDecidedTheSide() {
             final var repeat = card(Suit.OROS, Rank.CINCO);
 
-            assertThat(lead(repeat, Suit.OROS, true, repeat, card(Suit.ESPADAS, Rank.TRES)))
+            assertThat(lead(repeat, Set.of(Suit.OROS), true, repeat, card(Suit.ESPADAS, Rank.TRES)))
                 .as("the obligation only lasts until a King comes out")
                 .isInstanceOf(MoveValidation.Valid.class);
         }
 
         @Test
-        void shouldYieldWhenTheLeaderHoldsNothingElse() {
+        void shouldYieldWhenTheLeaderHoldsNothingUntouched() {
             final var only = card(Suit.OROS, Rank.CINCO);
 
-            assertThat(lead(only, Suit.OROS, false, only, card(Suit.OROS, Rank.TRES)))
+            assertThat(lead(only, Set.of(Suit.OROS, Suit.COPAS), false,
+                only, card(Suit.COPAS, Rank.TRES)))
                 .as("a duty to change suit cannot make a hand unplayable")
                 .isInstanceOf(MoveValidation.Valid.class);
         }
 
         @Test
-        void shouldTreatASpecialCardAsLeadingTrump() {
-            // Trump is COPAS, so the Basto opens a trump lead - blocked after a COPAS lead.
-            final var result = lead(Card.basto(), Suit.COPAS, false,
-                Card.basto(), card(Suit.OROS, Rank.TRES));
+        void shouldBeSpentOnceAllFourSuitsHaveBeenLed() {
+            final var anything = card(Suit.OROS, Rank.CINCO);
 
-            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
-            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_CHANGE_SUIT");
+            assertThat(lead(anything, Set.of(Suit.OROS, Suit.COPAS, Suit.ESPADAS, Suit.BASTOS),
+                false, anything, card(Suit.ESPADAS, Rank.TRES)))
+                .as("nothing is left untouched, so the leader is free again")
+                .isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldTreatASpecialCardAsLeadingTrump() {
+            // Trump is COPAS, so the Basto opens a trump lead - barred once copas is led.
+            assertMustChange(lead(Card.basto(), Set.of(Suit.COPAS), false,
+                Card.basto(), card(Suit.OROS, Rank.TRES)));
         }
 
         @Test

@@ -3,9 +3,12 @@ package com.ginebra.game.domain.service;
 import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Suit;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Validates whether a card can be legally played according to Ginebra rules.
@@ -25,9 +28,9 @@ import java.util.Optional;
  *
  * A third rule constrains the player who <i>opens</i> a basa, while no King has appeared:
  * <i>"Després has de tirar un altre pal fins que isca o posen rei"</i> (§4.4) - they must
- * lead a <b>different suit</b> from the one they led last time, which is how the King gets
- * smoked out. It lapses the moment a King decides the side, and yields if the leader holds
- * nothing else.
+ * lead a suit that has <b>not been led yet this round</b>, which is how the King gets
+ * smoked out. It lapses the moment a King decides the side, and yields once the leader
+ * holds nothing in any suit still untouched.
  *
  * Players are never required to "kill" - playing under the current best card is legal.
  */
@@ -60,21 +63,22 @@ public class MoveValidator {
     }
 
     /**
-     * What the leader of a basa needs to know beyond their own hand: the suit they led last
-     * time, and whether a King has already decided the side.
+     * What the leader of a basa needs to know beyond their own hand: which suits have
+     * already been led this round, and whether a King has already decided the side.
      *
-     * @param previousLedSuit the effective suit led in the previous basa, empty on the first
+     * @param ledSuits the effective suits led so far, empty on the first basa
      * @param sideDecided whether a King has appeared, which lifts the obligation
      */
-    public record LeadContext(Optional<Suit> previousLedSuit, boolean sideDecided) {
+    public record LeadContext(Set<Suit> ledSuits, boolean sideDecided) {
 
         public LeadContext {
-            Objects.requireNonNull(previousLedSuit, "previousLedSuit must not be null");
+            Objects.requireNonNull(ledSuits, "ledSuits must not be null");
+            ledSuits = Set.copyOf(ledSuits);
         }
 
         /** No obligation to honour - the first basa, or a round whose side is settled. */
         public static LeadContext unconstrained() {
-            return new LeadContext(Optional.empty(), true);
+            return new LeadContext(Set.of(), true);
         }
     }
 
@@ -118,11 +122,14 @@ public class MoveValidator {
     }
 
     /**
-     * Opening a basa: free, except that while no King has appeared the leader must lead a
-     * different suit from the one they led last time (rules-source.md §4.4).
+     * Opening a basa: free, except that while no King has appeared the leader must open
+     * with a suit not yet led this round (rules-source.md §4.4).
      *
-     * The obligation yields to what is possible - a leader holding nothing outside that
-     * suit leads it - because the source states a duty, not a way to make a hand unplayable.
+     * Confirmed by the players 2026-08-26: with oros and copas already led, the leader must
+     * go to espadas or bastos <i>if they hold any</i>. So the obligation is measured against
+     * every suit led so far, not merely the last one, and it yields once nothing untouched
+     * is left in hand - the source states a duty, not a way to make a hand unplayable. Once
+     * all four suits have been led it is spent, and the leader is free again.
      */
     private MoveValidation validateLead(
         List<Card> hand,
@@ -130,22 +137,27 @@ public class MoveValidator {
         Suit trumpSuit,
         LeadContext leadContext
     ) {
-        if (leadContext.sideDecided() || leadContext.previousLedSuit().isEmpty()) {
+        final var led = leadContext.ledSuits();
+
+        if (leadContext.sideDecided() || led.isEmpty()) {
             return new MoveValidation.Valid();
         }
 
-        final var previous = leadContext.previousLedSuit().get();
-        if (effectiveLedSuit(cardToPlay, trumpSuit) != previous) {
+        if (!led.contains(effectiveLedSuit(cardToPlay, trumpSuit))) {
             return new MoveValidation.Valid();
         }
 
-        final var canChange = hand.stream()
-            .anyMatch(c -> effectiveLedSuit(c, trumpSuit) != previous);
+        final var holdsUntouchedSuit = hand.stream()
+            .anyMatch(c -> !led.contains(effectiveLedSuit(c, trumpSuit)));
 
-        if (canChange) {
+        if (holdsUntouchedSuit) {
+            final var remaining = Arrays.stream(Suit.values())
+                .filter(suit -> !led.contains(suit))
+                .map(Suit::name)
+                .collect(Collectors.joining(", "));
             return new MoveValidation.Invalid(
                 "MUST_CHANGE_SUIT",
-                "Must lead a suit other than " + previous + " until a King comes out"
+                "Must lead a suit not yet led until a King comes out: " + remaining
             );
         }
 

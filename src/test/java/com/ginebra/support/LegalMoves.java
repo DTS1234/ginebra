@@ -40,7 +40,7 @@ public final class LegalMoves {
             : Optional.of(basa.cardsPlayed().get(0).card());
 
         final var leadContext = new MoveValidator.LeadContext(
-            round.previousLedSuit(), round.sideDecided()
+            round.ledSuits(), round.sideDecided()
         );
 
         final var hand = round.getHand(player);
