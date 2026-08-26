@@ -89,15 +89,89 @@ JWT_SECRET="$(openssl rand -base64 48)" ./gradlew bootRun
 
 ---
 
-## 4. As a jar, on a small server
+## 4. Hosting it properly
+
+There is no database and no build step for the frontend, so the whole game is one process.
+That makes deployment easy — but it also means **every table lives in memory**, which
+constrains how you run it:
+
+- **One instance only.** A second one would not see the first one's games. No autoscaling,
+  no load balancer spreading players across replicas.
+- **A restart drops every game in progress.** Deploy when nobody is playing, and avoid
+  rolling restarts. Persistence is Phase 5 and has not been started.
+- **WebSockets must survive the proxy.** Whatever sits in front has to pass the upgrade
+  through, or the page connects and then sits silent.
+
+`Dockerfile` builds and runs the whole thing, so any platform that takes a container will
+do. It listens on `$PORT`, which is what these platforms inject, and falls back to 8080.
+
+### Fly.io — closest fit
+
+Single machine, WebSockets work out of the box, and `fly.toml` is already in the repo with
+autoscaling off and one machine pinned.
+
+```sh
+fly launch --no-deploy          # claims the app name, keeps the committed fly.toml
+fly secrets set JWT_SECRET="$(openssl rand -base64 48)"
+fly deploy
+```
+
+### Render / Railway — git push and forget
+
+Point either at the repo; both detect the `Dockerfile`. Then:
+
+- set **`JWT_SECRET`** to a long random string,
+- set instances/replicas to **1**,
+- leave `PORT` alone — the platform sets it.
+
+### A small VPS
+
+```sh
+docker build -t ginebra .
+docker run -d --name ginebra --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 \
+  -e JWT_SECRET="$(openssl rand -base64 48)" \
+  ginebra
+```
+
+Then put Caddy in front for TLS — two lines, and it proxies WebSockets without being asked:
+
+```
+ginebra.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+With nginx you have to ask, or the game will connect and go quiet:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;   # a game runs for hours; do not time it out
+}
+```
+
+### Without a container
 
 ```sh
 ./gradlew bootJar
-java -jar build/libs/ginebra-0.1.0-SNAPSHOT.jar
+JWT_SECRET="..." java -jar build/libs/ginebra-0.1.0-SNAPSHOT.jar
 ```
 
-One file, one process, port 8080. Behind nginx or Caddy, make sure the WebSocket upgrade
-headers are proxied through — the game will connect and then sit silent without them.
+One file, one process. Needs a JDK 17+ on the host.
+
+### Before it goes anywhere public
+
+- **Set `JWT_SECRET`.** The default in `application.yml` is a placeholder and is committed
+  to the repo — anyone could mint tokens for your server.
+- **No rate limiting exists yet** (Phase 6). Anyone who finds the URL can create rooms.
+- **Anonymous auth only.** There are no accounts to protect, but there is also nothing
+  stopping someone joining a room they were not invited to.
+
+A tunnel (section 3) is the better choice while you are only testing with people you know.
 
 ---
 

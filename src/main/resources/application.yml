@@ -1,3 +1,7 @@
+server:
+  # Hosting platforms hand the port in through $PORT; locally it is just 8080.
+  port: ${PORT:8080}
+
 spring:
   application:
     name: ginebra-online

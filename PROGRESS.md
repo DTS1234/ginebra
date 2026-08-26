@@ -122,7 +122,9 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 | Teams panel: both sides, who goes, basas each, live team totals | appears when the first King reveals them |
 | Endpoints it needs are pinned by tests | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
 
-See `RUNNING.md` for how to start it and how to expose it for a remote play-test.
+See `RUNNING.md` for how to start it, expose it for a remote play-test, and deploy it -
+there is a `Dockerfile` and a `fly.toml`, and the app reads `$PORT` so any container
+platform will take it. One instance only: games are in memory until Phase 5.
 Open one browser tab per player, `?name=Ada` to label a tab. One tab creates a room, the
 other four join from the list, and the game starts when the fifth is in. Verified by
 driving five real Chromium tabs through a full basa: deal, Soledad window, trump, five
@@ -138,7 +140,10 @@ Two things the client works around rather than fixes:
   topic to get its new hand. A `REQUEST_STATE` client message would be cleaner.
 - **No lobby push channel.** Players who joined before the room filled poll
   `GET /api/rooms/{id}` once a second until it reports a game id.
-- **No acknowledgement that a subscription is live.** The server pushes `GAME_STATE` when
+- **No acknowledgement that a subscription is live.** This also makes
+  `GameWebSocketIntegrationTest.shouldReceiveGameStateOnSubscribe` occasionally flaky - it
+  can see `PLAYER_CONNECTED` before `GAME_STATE`. A `REQUEST_STATE` message would fix the
+  test and the workaround together. The server pushes `GAME_STATE` when
   the game topic subscription is registered, but STOMP frames are handled on a thread pool,
   so the topic SUBSCRIBE can be processed before the private queue SUBSCRIBE the push is
   addressed to - and the simple broker silently drops a message with no subscriber. It
