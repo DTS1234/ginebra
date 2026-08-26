@@ -5,15 +5,23 @@
     --ink: #e8f1ec;
     --muted: #91ab9f;
     --accent: #f0b429;
-    --paper: #f6f2e7;
-    --copas: #ab2f24;
-    --oros: #a2760a;
-    --espadas: #2a4d80;
-    --bastos: #3d6a32;
-    --copas-lit: #e0796d;
-    --oros-lit: #dfb03e;
-    --espadas-lit: #7ba7e6;
-    --bastos-lit: #7cbe69;
+    /* The deck: white stock, ink outlines, and the colours a baraja española is printed in. */
+    --paper: #fdfcf8;
+    --card-ink: #2b2620;
+    --c-gold: #edb422;
+    --c-red: #cc2229;
+    --c-blue: #1f5aa8;
+    --c-green: #2f9440;
+    --c-brown: #9a6431;
+    --c-brown-dk: #66401c;
+    --c-skin: #f7d1a8;
+    --c-steel: #ccd6de;
+    --c-steel-dk: #8d9daa;
+    /* The same four for text, where they sit on the dark table rather than on paper. */
+    --copas: #e0796d;
+    --oros: #dfb03e;
+    --espadas: #7ba7e6;
+    --bastos: #7cbe69;
     --good: #6fd08c;
     --bad: #e2726e;
 }
@@ -267,7 +275,7 @@ button.primary {
     height: 6.4rem;
     padding: 0;
     background: var(--paper);
-    border: 1px solid #cdc4ad;
+    border: 1px solid #b9b2a2;
     border-radius: 7px;
     overflow: hidden;
 }
@@ -294,71 +302,69 @@ button.primary {
 /* === The card faces === */
 
 /*
- * Everything inside a face is painted in currentColor, so the suit colour is set once
- * here and the symbols, the index and the pinta all follow it.
+ * The symbols are coloured by class rather than by currentColor: a chalice is gold with
+ * a red band whatever it is next to, the way it is on the printed card. This reaches
+ * inside <use> because the symbols themselves are in the document.
  */
-.suit-copas { color: var(--copas); }
-.suit-oros { color: var(--oros); }
-.suit-espadas { color: var(--espadas); }
-.suit-bastos { color: var(--bastos); }
+.c-gold { fill: var(--c-gold); }
+.c-red { fill: var(--c-red); }
+.c-blue { fill: var(--c-blue); }
+.c-green { fill: var(--c-green); }
+.c-brown { fill: var(--c-brown); }
+.c-brown-dk { fill: var(--c-brown-dk); }
+.c-skin { fill: var(--c-skin); }
+.c-steel { fill: var(--c-steel); }
+.c-steel-dk { fill: var(--c-steel-dk); }
+.c-white { fill: #fff; }
+.c-ink { fill: var(--card-ink); }
+.c-none { fill: none; }
+
+/* Everything on a face is outlined, which is what holds the colours apart at hand size. */
+.ol,
+.ol-thin {
+    stroke: var(--card-ink);
+    stroke-linejoin: round;
+}
+
+.ol { stroke-width: 3; }
+.ol-thin { stroke-width: 2; }
+
+.feather {
+    fill: none;
+    stroke: var(--c-green);
+    stroke-width: 6;
+    stroke-linecap: round;
+}
 
 .card-index {
-    fill: currentColor;
-    font: 700 21px/1 "Iowan Old Style", Georgia, "Times New Roman", serif;
+    fill: var(--card-ink);
+    font: 700 20px/1 "Iowan Old Style", Georgia, "Times New Roman", serif;
 }
 
 /* The frame, and the pieces of paper that break it into the suit's pinta. */
 .pinta {
     fill: none;
-    stroke: currentColor;
-    stroke-width: 2.2;
-    opacity: 0.6;
+    stroke: var(--card-ink);
+    stroke-width: 1.8;
+    opacity: 0.75;
 }
 
 .pinta-gap {
     fill: var(--paper);
 }
 
-.coin-face { fill: currentColor; opacity: 0.13; }
-.coin-rim { fill: none; stroke: currentColor; stroke-width: 6; }
-.coin-inner { fill: none; stroke: currentColor; stroke-width: 3; }
-.coin-rays line { stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; }
-
-.eye,
-.knot { fill: var(--paper); }
-
-.plume {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 6;
-    stroke-linecap: round;
-}
-
-/*
- * A suit mark the size of the surrounding text. Outside a card it sits on the dark
- * table, where the ink colours of the deck go muddy, so it takes a lighter shade -
- * except in the help panel's little cards, which are paper like a real card.
- */
+/* A suit mark the size of the surrounding text, drawn from the same symbols. */
 .suit-icon {
-    width: 1em;
-    height: 1em;
-    vertical-align: -0.15em;
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: -0.25em;
 }
 
-.suit-icon.suit-copas { color: var(--copas-lit); }
-.suit-icon.suit-oros { color: var(--oros-lit); }
-.suit-icon.suit-espadas { color: var(--espadas-lit); }
-.suit-icon.suit-bastos { color: var(--bastos-lit); }
-
-.mini-card .suit-icon.suit-copas { color: var(--copas); }
-.mini-card .suit-icon.suit-oros { color: var(--oros); }
-.mini-card .suit-icon.suit-espadas { color: var(--espadas); }
-.mini-card .suit-icon.suit-bastos { color: var(--bastos); }
-
-.suit-chip.selected .suit-icon,
-.primary .suit-icon {
-    color: #241a00;
-}
+/* Words next to a suit mark still take the suit's colour, lightened for the dark table. */
+.suit-copas { color: var(--copas); }
+.suit-oros { color: var(--oros); }
+.suit-espadas { color: var(--espadas); }
+.suit-bastos { color: var(--bastos); }
 
 .played {
     display: flex;
@@ -524,6 +530,7 @@ button.primary {
     padding: 0.05rem 0.4rem;
     background: var(--paper);
     border-radius: 4px;
+    color: var(--card-ink);
     font-weight: 700;
     font-size: 0.8rem;
 }
