@@ -91,6 +91,11 @@ A player **has the *dengue*** when they hold the espadilla and the basto at the 
 A player **has the *estutxe*** when they hold the espadilla, the manilla and the basto at
 the same time.
 
+**Clarified by the players (2026-08-26):** the estutxe pays **only if you go** — *"si vas"* —
+and then it pays **whether you win or lose**, to **both** players of the going side, not just
+the one holding it. The dengue, by contrast, is personal to whoever holds it and is
+collected by anyone, on either side.
+
 Note the two suit-specific names for the ace: **rovell** is the ace of *oros*,
 **carabassa** is the ace of *copes*.
 
@@ -270,6 +275,11 @@ player who signalled.
 **Translation.** The side that goes should try to ***fer primeres*** — to **win the first
 four basas in a row**. That way, if they win, they collect more. The opponents will try to
 stop it happening.
+
+**Clarified by the players (2026-08-26):** it is only ever the **going side's** primeres
+that count. If they make primeres and win they collect a coin more; if they make primeres
+and still lose they pay a coin more. The opposing side's own primeres are worth **nothing**
+to them.
 
 The cards gathered at each basa are laid crosswise on top of one another in a **zig-zag**
 so they can be counted more easily.

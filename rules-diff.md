@@ -104,8 +104,11 @@ are not played."*
 play on for the extra point. Reaching five is the decision point, not automatically the
 end.
 
-**[uncertain]** The source does not say what happens if *todo* is called and then missed —
-whether the win stands minus the point, or something worse. Needs confirmation.
+**Priced by the players (2026-08-26):** made is **+1**, called and missed is **−1**. That
+makes it a real gamble, so the engine cannot decide for the player: a `WAITING_FOR_TODO`
+round status pauses play on the call, `TodoUseCase` carries the decision, and the client
+offers "go for todo" or "bank the win". The window only opens on a clean sweep to five —
+with todo already out of reach there is nothing to decide.
 
 ---
 
@@ -463,26 +466,38 @@ D-17 was confirmed and implemented.
 Each is implemented one way. Items still needing confirmation are written up as askable
 questions in `rules-questions.md`; the rest have since been confirmed.
 
-1. **Todo is auto-detected, not called.** The source has the going side call it on reaching
-   five. Since it never says what a *missed* todo costs, calling it is free and a rational
-   player always would - so the engine plays on whenever the going side has swept every
-   basa, and awards the point if they take all eight. This avoids a blocking decision
-   window that nothing would time out (see `PROGRESS.md`: no scheduled work exists). If a
-   missed todo turns out to carry a penalty, the call has to become explicit.
+1. ~~**Todo is auto-detected, not called.**~~ **Superseded 2026-08-26**: a missed todo
+   costs 1, so the call is now explicit. Like the Soledad window it has no timeout, which
+   is the standing gap recorded in `PROGRESS.md`.
 2. **A four-king holder who plays on and loses still collects the 4.** The choice itself is
    confirmed; what the source does not say is whether the 4 survives a loss. Implemented as
    yes, reading *"Per tindre es quatre reis, 4"* as an unconditional holding award like the
    dengue - so a holder who goes alone and is blocked nets `4 - 5 = -1`.
-3. **The estutxe always scores the dengue too**, per the parenthetical in the source's own
-   row rather than the number printed before it.
-4. **A losing side's payment is raised by its own primeres and estutxe**, which is the only
-   reading that makes `"Si perden i tenen l'estutxe"` self-consistent.
+3. ~~**The estutxe always scores the dengue too.**~~ **Superseded 2026-08-26**: the estutxe
+   pays `+1` to *every* player on the going side, win or lose, and the dengue is a separate
+   personal coin. That reading makes `"Per guanyar i tindre l'estutxe, 3 cadegú (si n té el
+   dengue, 4)"` exact rather than approximate.
+4. ~~**A losing side's payment is raised by its own primeres and estutxe.**~~ **Half
+   confirmed 2026-08-26**: *primeres* yes, and only the going side's own - the opponents'
+   primeres are worth nothing to them. *Estutxe* no: it is collected for going, not staked.
+   That leaves one printed row unexplained, which is the only open question left - see
+   §3.5.
 5. ~~**The mà's forced king ends the hand with only the 1-coin penalty settled.**~~
    **Confirmed by the players 2026-08-26**: *"A pays 1 and we redeal, no other players
    charged."* Which is what was already implemented.
 6. **Losing defenders pay nothing.** The source lists no charge for them; the pot absorbs it.
 
-### 3.4 Still outstanding, unrelated to the source
+### 3.4 The one open question
+
+The source's **pay** table reads *"Si perden i tenen l'estutxe, 3 cadegú"* and *"Si perden
+primeres i estutxe, 4 cadegú"* — as though the estutxe raised what a losing side pays. The
+players say the estutxe is simply collected for going, win or lose. Under that rule a losing
+pair holding it nets `-2 + 1 = -1`, not `-3`.
+
+Everything else in the settlement now reproduces the printed rows exactly, so this one row
+is worth asking about rather than quietly reconciling. Written up in `rules-questions.md`.
+
+### 3.5 Still outstanding, unrelated to the source
 
 The gaps `PROGRESS.md` records that this work did not touch: no scheduled work of any kind
 (the 2-minute Soledad auto-pass, disconnect pause, room expiry), registered accounts, one

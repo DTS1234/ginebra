@@ -9,6 +9,7 @@ import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
 import com.ginebra.game.port.in.StartGameUseCase;
+import com.ginebra.game.port.in.TodoUseCase;
 import com.ginebra.game.port.out.GameEventPublisher;
 import com.ginebra.game.port.out.GameRepository;
 import com.ginebra.identity.domain.PlayerId;
@@ -26,7 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Thread safety: synchronizes on per-game locks to ensure atomic read-modify-write cycles.
  */
 @Service
-public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase {
+public class GameService
+    implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase, TodoUseCase {
 
     private final GameRepository gameRepository;
     private final GameEventPublisher eventPublisher;
@@ -357,6 +359,46 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
             .filter(c -> !c.equals(card))
             .noneMatch(c -> moveValidator.validate(hand, c, trumpSuit, firstCardInBasa, leadContext)
                 instanceof MoveValidation.Valid);
+    }
+
+    @Override
+    public TodoResult decideTodo(TodoCommand command, boolean call) {
+        final var gameId = command.gameId();
+        final var playerId = command.playerId();
+        final var lock = gameLocks.computeIfAbsent(gameId, k -> new Object());
+
+        synchronized (lock) {
+            final var gameOpt = gameRepository.findById(gameId);
+            if (gameOpt.isEmpty()) {
+                return new TodoResult.GameNotFound();
+            }
+
+            final var game = gameOpt.get();
+            final var round = game.currentRound().orElse(null);
+            if (round == null || !round.isWaitingForTodo()) {
+                return new TodoResult.InvalidGameState("Not waiting for a todo decision");
+            }
+            if (!round.todoCaller().map(playerId::equals).orElse(false)) {
+                return new TodoResult.NotYourCall();
+            }
+
+            final var balancesBefore = game.coinBalances();
+            final var updatedGame = game.decideTodo(playerId, call);
+            final var updatedRound = updatedGame.currentRound().orElseThrow();
+
+            eventPublisher.publishToGame(gameId, new GameEvent.TodoDecided(
+                playerId,
+                call,
+                updatedRound.currentPlayer().orElse(null)
+            ));
+
+            if (updatedRound.isComplete()) {
+                finishRound(gameId, updatedGame, balancesBefore);
+            } else {
+                gameRepository.save(updatedGame);
+            }
+            return new TodoResult.Success();
+        }
     }
 
     /**

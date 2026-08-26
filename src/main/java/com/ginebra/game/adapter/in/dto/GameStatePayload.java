@@ -41,6 +41,8 @@ public record GameStatePayload(
         List<String> goingSide,
         List<String> opposingSide,
         boolean firstKingCalled,
+        String todoCaller,
+        boolean todoCalled,
         List<String> soledadPasses,
         String soledadPlayer,
         String fourKingHolder,

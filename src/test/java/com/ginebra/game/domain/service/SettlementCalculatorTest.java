@@ -151,6 +151,34 @@ class SettlementCalculatorTest {
         }
 
         @Test
+        void aCalledTodoThatWasMissedShouldCostTheGoingSideOne() {
+            // Confirmed 2026-08-26: "you lose 1 if you don't make it, you earn one if you make".
+            final var round = helped().goingSideCallsTodoAndMissesIt().round();
+
+            final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
+
+            assertThat(round.todoCalled()).isTrue();
+            assertThat(round.madeTodo()).isFalse();
+            // 2 base + 1 primeres - 1 for the missed todo.
+            assertThat(deltas.get(ma())).isEqualTo(SettlementCalculator.BASE_HELPED);
+            assertThat(deltas.get(aider())).isEqualTo(SettlementCalculator.BASE_HELPED);
+        }
+
+        @Test
+        void primeresShouldBeWorthNothingToTheOpposingSide() {
+            // "The other team does not get anything if they get primeres."
+            final var round = helped().opposingSideTakesPrimeresAndBlocks().round();
+
+            final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
+
+            assertThat(round.madePrimeres()).isFalse();
+            for (final var player : round.opposingSide()) {
+                assertThat(deltas.get(player))
+                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
+            }
+        }
+
+        @Test
         void todoShouldAddOneOnTopOfPrimeres() {
             final var round = helped().goingSideWinsEverything().round();
 
@@ -175,15 +203,47 @@ class SettlementCalculatorTest {
         }
 
         @Test
-        void estutxeShouldAddOneOnTopOfTheDengue() {
+        void estutxeShouldPayEveryPlayerOnTheGoingSide() {
+            // Confirmed 2026-08-26: "you only get the money for the estuche if you go, and
+            // both team players get the money". So the source's "Per guanyar i tindre
+            // l'estutxe, 3 cadegú (si n té el dengue, 4)" comes out exactly.
             final var deal = dealWithEstutxe(ma());
             final var round = helped().goingSideWinsFive().round();
 
             final var deltas = calculator.settle(round, deal).playerDeltas();
 
-            // "Si tens l'estutxe i vas, 2" - the estutxe contains the dengue, so both score.
             assertThat(deltas.get(ma()))
+                .as("the holder also has the dengue, which is personal")
                 .isEqualTo(SettlementCalculator.BASE_HELPED + 2 * SettlementCalculator.INCREMENT);
+            assertThat(deltas.get(aider()))
+                .as("their partner collects the estutxe but not the dengue")
+                .isEqualTo(SettlementCalculator.BASE_HELPED + SettlementCalculator.INCREMENT);
+        }
+
+        @Test
+        void estutxeShouldStillBePaidWhenTheGoingSideLoses() {
+            // "does not matter if you win or lose" - it pays because you went.
+            final var deal = dealWithEstutxe(ma());
+            final var round = helped().opposingSideBlocks().round();
+
+            final var deltas = calculator.settle(round, deal).playerDeltas();
+
+            assertThat(deltas.get(aider()))
+                .as("-2 for the loss, +1 for the estutxe")
+                .isEqualTo(SettlementCalculator.INCREMENT - SettlementCalculator.BASE_HELPED);
+        }
+
+        @Test
+        void estutxeShouldPayNothingToTheOpposingSide() {
+            final var deal = dealWithEstutxe(opponent());
+            final var round = helped().goingSideWinsFive().round();
+
+            final var deltas = calculator.settle(round, deal).playerDeltas();
+
+            assertThat(deltas.get(opponent()))
+                .as("only the dengue, which anyone collects")
+                .isEqualTo(SettlementCalculator.INCREMENT);
+            assertThat(deltas.get(ma())).isEqualTo(SettlementCalculator.BASE_HELPED);
         }
 
         @Test
@@ -436,6 +496,23 @@ class SettlementCalculatorTest {
             return this;
         }
 
+        /** Five in a row, todo called, then one dropped. */
+        private Scenario goingSideCallsTodoAndMissesIt() {
+            for (var i = 0; i < 5; i++) {
+                award(goingPlayer());
+            }
+            award(opposingPlayer());
+            return this;
+        }
+
+        /** The opponents take the first four, which both blocks and is their primeres. */
+        private Scenario opposingSideTakesPrimeresAndBlocks() {
+            for (var i = 0; i < Round.BASAS_TO_BLOCK; i++) {
+                award(opposingPlayer());
+            }
+            return this;
+        }
+
         private Scenario opposingSideBlocks() {
             for (var i = 0; i < Round.BASAS_TO_BLOCK; i++) {
                 award(opposingPlayer());
@@ -471,6 +548,11 @@ class SettlementCalculatorTest {
                 round = round.withCardPlayed(current, hand.get(0), NOW);
             }
             round = round.completeBasa(winner);
+
+            // A clean sweep to five pauses on the todo call; these scenarios play on.
+            if (round.isWaitingForTodo()) {
+                round = round.withTodoCalled(round.todoCaller().orElseThrow());
+            }
         }
     }
 }

@@ -55,6 +55,7 @@ public final class Round {
     private final PlayerId forcedKingPlayer;
     private final boolean firstKingCalled;
     private final PlayerId fourKingHolder;
+    private final boolean todoCalled;
 
     private Round(
         int roundNumber,
@@ -74,7 +75,8 @@ public final class Round {
         PlayerId soloPlayer,
         PlayerId forcedKingPlayer,
         boolean firstKingCalled,
-        PlayerId fourKingHolder
+        PlayerId fourKingHolder,
+        boolean todoCalled
     ) {
         if (roundNumber < 1) {
             throw new IllegalArgumentException("roundNumber must be >= 1, got: " + roundNumber);
@@ -126,6 +128,7 @@ public final class Round {
         this.forcedKingPlayer = forcedKingPlayer;
         this.firstKingCalled = firstKingCalled;
         this.fourKingHolder = fourKingHolder;
+        this.todoCalled = todoCalled;
     }
 
     // === Factory Methods ===
@@ -201,7 +204,8 @@ public final class Round {
             null,
             null,
             false,
-            fourKingHolder
+            fourKingHolder,
+            false
         );
     }
 
@@ -322,6 +326,33 @@ public final class Round {
 
     public boolean isComplete() {
         return status == RoundStatus.COMPLETE;
+    }
+
+    /**
+     * Whether play is paused on the going side's "fer todo" decision.
+     */
+    public boolean isWaitingForTodo() {
+        return status == RoundStatus.WAITING_FOR_TODO;
+    }
+
+    /**
+     * Whether "fer todo" was called. Called and missed costs the going side a coin.
+     */
+    public boolean todoCalled() {
+        return todoCalled;
+    }
+
+    /**
+     * Whose call "fer todo" is: the one who goes, or the lone player when they go alone.
+     */
+    public Optional<PlayerId> todoCaller() {
+        final var going = goingSide();
+        if (going.isEmpty()) {
+            return Optional.empty();
+        }
+        return going.contains(playerWhoGoes)
+            ? Optional.of(playerWhoGoes)
+            : going.stream().findFirst();
     }
 
     public Set<PlayerId> soledadPasses() {
@@ -681,6 +712,50 @@ public final class Round {
     }
 
     /**
+     * Records the going side calling "fer todo": play continues for all eight basas.
+     *
+     * Making it is worth a coin, missing it costs one - confirmed by the players
+     * 2026-08-26 - so the call is a real gamble and has to be theirs to make.
+     */
+    public Round withTodoCalled(PlayerId playerId) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+        requireTodoDecisionFrom(playerId);
+
+        final var nextBasaNumber = completedBasas.size() + 1;
+
+        return copy()
+            .todoCalled(true)
+            .status(RoundStatus.IN_PROGRESS)
+            .currentBasa(Basa.start(nextBasaNumber, getNextBasaStarter(completedBasas)))
+            .build();
+    }
+
+    /**
+     * Records the going side declining "fer todo": the round ends on the win they have.
+     */
+    public Round withTodoDeclined(PlayerId playerId) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+        requireTodoDecisionFrom(playerId);
+
+        return copy()
+            .status(RoundStatus.COMPLETE)
+            .result(new RoundResult.GoingSideWon(goingSide(), opposingSide(), goingSideBasas()))
+            .build();
+    }
+
+    private void requireTodoDecisionFrom(PlayerId playerId) {
+        if (status != RoundStatus.WAITING_FOR_TODO) {
+            throw new IllegalStateException("Not waiting for a todo decision: " + status);
+        }
+        final var caller = todoCaller().orElseThrow(
+            () -> new IllegalStateException("No side to call todo")
+        );
+        if (!caller.equals(playerId)) {
+            throw new IllegalStateException("Todo is " + caller + "'s call, not " + playerId + "'s");
+        }
+    }
+
+    /**
      * Completes the current basa with the determined winner.
      * Starts the next basa or ends the round if it has been decided.
      *
@@ -712,6 +787,14 @@ public final class Round {
                 .currentBasa(null)
                 .status(RoundStatus.COMPLETE)
                 .result(roundResult.get())
+                .build();
+        }
+
+        if (todoIsNowTheirCall(newCompletedBasas)) {
+            return copy()
+                .completedBasas(List.copyOf(newCompletedBasas))
+                .currentBasa(null)
+                .status(RoundStatus.WAITING_FOR_TODO)
                 .build();
         }
 
@@ -814,8 +897,8 @@ public final class Round {
         final var opposingBasas = basasWonByAny(opposing, basas);
 
         if (goingBasas >= BASAS_TO_WIN) {
-            final var todoStillLive = goingBasas == basas.size() && basas.size() < MAX_BASAS;
-            if (todoStillLive) {
+            if (todoIsStillReachable(basas)) {
+                // Either theirs to call, or already called and being played out.
                 return Optional.empty();
             }
             return Optional.of(new RoundResult.GoingSideWon(going, opposing, goingBasas));
@@ -826,6 +909,24 @@ public final class Round {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Whether the going side still holds every basa played and there are basas left, which
+     * is the only state in which "fer todo" is worth anything.
+     */
+    private boolean todoIsStillReachable(List<Basa> basas) {
+        return basasWonByAny(goingSide(), basas) == basas.size() && basas.size() < MAX_BASAS;
+    }
+
+    /**
+     * Whether the going side has just reached five with a clean sweep and has not yet
+     * decided whether to go for todo.
+     */
+    private boolean todoIsNowTheirCall(List<Basa> basas) {
+        return !todoCalled
+            && basasWonByAny(goingSide(), basas) >= BASAS_TO_WIN
+            && todoIsStillReachable(basas);
     }
 
     private static Map<PlayerId, List<Card>> deepCopyHands(Map<PlayerId, List<Card>> original) {
@@ -865,6 +966,7 @@ public final class Round {
         private PlayerId forcedKingPlayer;
         private boolean firstKingCalled;
         private PlayerId fourKingHolder;
+        private boolean todoCalled;
 
         private Builder(Round from) {
             this.roundNumber = from.roundNumber;
@@ -885,6 +987,7 @@ public final class Round {
             this.forcedKingPlayer = from.forcedKingPlayer;
             this.firstKingCalled = from.firstKingCalled;
             this.fourKingHolder = from.fourKingHolder;
+            this.todoCalled = from.todoCalled;
         }
 
         private Builder trumpSuit(Suit v) { this.trumpSuit = v; return this; }
@@ -901,12 +1004,13 @@ public final class Round {
         private Builder soloPlayer(PlayerId v) { this.soloPlayer = v; return this; }
         private Builder forcedKingPlayer(PlayerId v) { this.forcedKingPlayer = v; return this; }
         private Builder firstKingCalled(boolean v) { this.firstKingCalled = v; return this; }
+        private Builder todoCalled(boolean v) { this.todoCalled = v; return this; }
 
         private Round build() {
             return new Round(
                 roundNumber, trumpSuit, playerWhoGoes, playerOrder, completedBasas, currentBasa,
                 hands, teams, status, result, soledadPasses, soledadPlayer, soledadDeadline,
-                mode, soloPlayer, forcedKingPlayer, firstKingCalled, fourKingHolder
+                mode, soloPlayer, forcedKingPlayer, firstKingCalled, fourKingHolder, todoCalled
             );
         }
     }

@@ -221,8 +221,10 @@ engine was already right, and the order they gave is now pinned by
 `SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt`. The four-kings choice was confirmed the same day: the holder may take the 4 or play the
 hand out alone, keeping the 4 either way. The fallen king and the change-of-suit rule were confirmed on 2026-08-26 too: the mà pays 1
 and the cards are dealt again with nobody else charged, and the leader must open with a suit
-not yet led that round rather than merely a different one. Two readings are still open - the
-missed todo and whose primeres raises a losing payment - written up as askable questions in
+not yet led that round rather than merely a different one. The todo penalty and the estutxe were priced on 2026-08-26 too: a missed todo costs 1, so
+the call is now an explicit decision (`WAITING_FOR_TODO`, `TodoUseCase`, a client button);
+and the estutxe pays every player on the going side, win or lose, which makes the source's
+printed rows come out exactly. One printed row is still unexplained and is written up in
 `rules-questions.md`.
 
 Not wired to the client: the *"es primer rei aida"* call exists in the domain and the state

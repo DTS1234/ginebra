@@ -498,6 +498,15 @@ function onServerMessage(message) {
             });
             break;
 
+        case 'TODO_DECIDED':
+            log(seatOf(payload.byPlayer) + (payload.called
+                ? ' calls todo — playing on for all eight'
+                : ' banks the win'), 'good');
+            state.currentTurn = payload.currentTurn;
+            state.basa = [];
+            setTimeout(refreshState, 250);
+            break;
+
         case 'ROUND_ENDED':
             log('Round ' + payload.roundNumber + ' ended: '
                 + payload.result.replace(/_/g, ' ').toLowerCase()
@@ -529,6 +538,10 @@ function onServerMessage(message) {
 
 function passSoledad() {
     state.stomp.send('/app/game/' + state.gameId + '/soledad-pass', {});
+}
+
+function decideTodo(call) {
+    state.stomp.send('/app/game/' + state.gameId + '/' + (call ? 'call-todo' : 'decline-todo'), {});
 }
 
 function declareSoledad() {
@@ -564,6 +577,17 @@ function render() {
     el('posso').textContent = state.posso ?? '-';
     el('turn').textContent = state.currentTurn ? seatOf(state.currentTurn) : '-';
     el('turn').className = myTurn ? 'highlight' : '';
+
+    const todoOpen = round.status === 'WAITING_FOR_TODO';
+    const myTodoCall = todoOpen && round.todoCaller === state.me.playerId;
+    el('todo-actions').classList.toggle('hidden', !todoOpen);
+    if (todoOpen) {
+        el('todo-label').textContent = myTodoCall
+            ? 'Five basas, all of them yours — go for todo? Made is +1, called and missed is −1:'
+            : 'Waiting for ' + seatOf(round.todoCaller) + ' to decide on todo';
+        el('call-todo').disabled = !myTodoCall;
+        el('decline-todo').disabled = !myTodoCall;
+    }
 
     const soledadOpen = round.status === 'WAITING_FOR_SOLEDAD';
     el('soledad-actions').classList.toggle('hidden', !soledadOpen);
@@ -870,6 +894,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     el('help-toggle').onclick = toggleHelp;
     el('pass-soledad').onclick = passSoledad;
     el('declare-soledad').onclick = declareSoledad;
+    el('call-todo').onclick = () => decideTodo(true);
+    el('decline-todo').onclick = () => decideTodo(false);
     for (const suit of Object.keys(SUIT_LABEL)) {
         const button = document.createElement('button');
         button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];

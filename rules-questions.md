@@ -130,98 +130,76 @@ motor, así que no hubo que tocar código — solo fijarlo con un test.
 
 ---
 
-## Dudas que siguen abiertas
+## Q1 — «Fer todo»: si se canta y no se hace · ✅ RESPONDIDA (2026-08-26)
 
-Quedan dos. La implementación ya toma una decisión en cada una, así que se puede jugar sin
-resolverlas — pero confirmarlas nos quitaría suposiciones.
+> **La respuesta.** *"You lose 1 if you don't make it and you earn one if you make."*
+> Hacerlo vale **+1**; cantarlo y no hacerlo cuesta **−1**.
+>
+> O sea que es una apuesta de verdad, y por tanto **hay que preguntárselo al jugador**: el
+> programa ya no puede decidir por él. Al llegar a cinco basas llevándolas todas, la partida
+> se para y el que va elige «voy a por el todo» o «me quedo con la mano».
 
 ---
 
-### Q1 — «Fer todo»: si se canta y no se hace, ¿pasa algo?
+## Q3 — Primeras y estuche al perder · ✅ RESPONDIDA (2026-08-26)
 
-**Lo que no sabemos.** El libro dice que el todo *«ho has de demanar quan tens cinc bases»*
-— que hay que cantarlo al llegar a cinco basas — y que vale 1 más. Lo que no dice es qué
-pasa si lo cantas y luego no lo consigues.
-
-#### Versión corta
-
-> Una duda de la ginebra, para la versión online.
+> **Las primeras: las del que va.** Si el bando que va hace primeras y gana, cobra 1 más;
+> si hace primeras y aun así pierde, paga 1 más. **Las primeras de los contrarios no les dan
+> nada a ellos.**
 >
-> Cuando el que va llega a cinco basas y **canta «todo»**, y luego resulta que no las hace
-> todas porque los contrarios le ganan una:
+> **El estuche: se cobra por ir, no por ganar.** Solo lo cobras **si vas** (*si vas*), y
+> entonces se cobra **tanto si ganas como si pierdes** — y lo cobran **los dos** jugadores
+> del bando que va, no solo el que lo lleva.
 >
-> **¿pasa algo por haberlo cantado, o simplemente ha ganado la mano y se queda sin el punto
-> del todo?**
-
-#### Versión larga, con ejemplo
-
-> Una duda sobre el todo, para aclarar una regla.
->
-> Pongamos esta mano. A va, y B le ha puesto el rey. A y B ganan las basas 1, 2, 3, 4 y 5,
-> las cinco seguidas. Con eso ya tienen ganada la mano: cobrarían 2 cada uno.
->
-> Pero como las llevan **todas**, A canta «todo» y se sigue jugando para intentar las ocho.
->
-> En la basa 6 los contrarios se llevan una. Ya no puede haber todo.
->
-> **¿Qué pasa entonces?**
->
-> 1. **¿Ganan igual y cobran sus 2**, y lo único que pierden es el punto del todo?
-> 2. **¿O se paga algo por haberlo cantado y no hacerlo?** ¿Cuánto? ¿Y quién lo cobra?
-> 3. **¿O incluso se pierde la mano** aunque tuvieran las cinco basas?
->
-> Y una pregunta añadida, porque nos hace falta para el programa:
->
-> **¿Es obligatorio cantarlo?** Es decir, si el que va llega a cinco basas llevándolas todas
-> y **no dice nada**, ¿se acaba la mano ahí y cobra sus 2? ¿O se sigue jugando de todas
-> formas y si las hace todas cobra el punto igualmente?
-
-*Por qué lo preguntamos:* ahora mismo el programa **no pregunta nada**. Si el que va lleva
-todas las basas, sigue jugando solo; en cuanto pierde una, se para y cobra lo que le toque.
-Lo hicimos así porque, si cantarlo no cuesta nada, cantarlo siempre sale a cuenta y la
-pregunta sobra. Si resulta que **sí** cuesta algo, entonces hay que preguntárselo de verdad
-al jugador cuando llegue a cinco.
+> Con eso, la línea del libro *«Per guanyar i tindre l'estutxe, 3 cadegú (si n té el dengue,
+> 4)»* sale exacta: 2 de base + 1 del estuche cada uno, y el que además lleva el dengue, 4.
 
 ---
 
-### Q3 — Perder llevando el estuche, o habiendo hecho primeras: ¿quién sube el pago?
+## La única duda que queda
 
-**Lo que no sabemos.** En la tabla de lo que **se paga** vienen estas dos líneas: *«Si
-perden i primeres, 3 cadegú»* y *«Si perden i tenen l'estutxe, 3 cadegú»* — cuando lo normal
-por perder son 2 cada uno. No queda claro **de quién** son esas primeras.
+### El estuche en la tabla de lo que **se paga**
+
+**Lo que no cuadra.** En la tabla de pagos del libro hay dos líneas que parecen decir que el
+estuche también sube lo que paga el que pierde:
+
+- *«Si perden i tenen l'estutxe, 3 cadegú»* — cuando lo normal por perder son 2.
+- *«Si perden primeres i estutxe, 4 cadegú»*
+
+Pero si el estuche **se cobra por ir**, gane o pierda, entonces al que pierde llevándolo le
+saldría **−2 de la mano +1 del estuche = −1**, no −3.
 
 #### Versión corta
 
-> Una duda de la ginebra, para la versión online.
+> Una última duda de la ginebra.
 >
-> En la lista de lo que se paga pone que si pierden y hay primeras se pagan **3** en vez de
-> 2. **¿Las primeras de quién — las del que va, o las de los contrarios?**
+> Ya nos habéis dicho que **el estuche se cobra por ir**, se gane o se pierda, y que lo
+> cobran los dos del bando que va.
 >
-> O sea: el que va, **¿paga más por haber hecho él las primeras y perder igualmente, o paga
-> más porque se las han hecho a él?**
+> Pero en el libro, en la lista de lo que **se paga**, pone *«si pierden y tienen el
+> estuche, 3 cada uno»*, cuando lo normal por perder son 2.
+>
+> **¿Es que el estuche sube también lo que se paga al perder — o esa línea del libro está
+> mal / se entiende de otra manera?**
 
 #### Versión larga, con ejemplo
 
-> Una duda sobre lo que se paga al perder.
+> **A** va y **B** le ha puesto el rey. **C, D y E** son los contrarios. **A** lleva
+> espadilla, manilla y basto — el estuche. La mano acaba con A y B perdiendo.
 >
-> Somos cinco: **A** va y **B** le ha puesto el rey. **C, D y E** son los contrarios. La
-> mano acaba con A y B perdiendo — se quedan sin las cinco basas. Lo normal sería que
-> pagaran 2 cada uno.
+> Por perder les tocaría pagar **2 cada uno**. Y por el estuche cobran **1 cada uno**, según
+> nos habéis dicho, porque se cobra por ir.
 >
-> **Caso 1.** A y B ganaron **las cuatro primeras basas** — hicieron primeras — pero luego
-> se hundieron y perdieron las cuatro últimas.
-> **¿Pagan 3 cada uno en vez de 2, por haber hecho ellos las primeras aunque hayan perdido?**
+> **¿Cuánto acaban pagando A y B?**
 >
-> **Caso 2.** Las cuatro primeras las hicieron **C, D y E**, y A y B pierden.
-> **¿Pagan A y B los 3 por las primeras de los contrarios?**
+> 1. **1 cada uno** (los 2 de perder menos el 1 del estuche).
+> 2. **2 cada uno** (el estuche se cobra aparte y no se descuenta de lo que se paga).
+> 3. **3 cada uno**, como pone el libro — es decir, el estuche sube el pago *y además* se
+>    cobra, o directamente no se cobra cuando se pierde.
 >
-> Y lo mismo con el estuche:
->
-> **Caso 3.** **A** lleva espadilla, manilla y basto — el estuche — y aun así pierden.
-> **¿Paga A 3 en vez de 2 por llevar el estuche y no haber sacado la mano?** ¿Y B, que no lo
-> lleva, paga 2 o 3?
+> Y lo mismo con la línea *«si pierden primeras y estuche, 4 cada uno»*.
 
-*Por qué lo preguntamos:* ahora mismo el programa hace el **caso 1** — lo que sube el pago
-es lo que hizo o llevaba **el bando que va**, no el de los contrarios. Nos pareció la única
-lectura con la que *«si perden i **tenen** l'estutxe»* tiene sentido, porque «tenen» son los
-que pierden. Pero es una interpretación nuestra.
+*Lo que hace el programa ahora:* la **opción 1** — pagan 2 de la mano y cobran 1 del
+estuche, así que les queda −1 a cada uno. Es lo que se sigue de lo que nos dijisteis. Lo
+preguntamos porque **todas las demás líneas del libro salen exactas** con las reglas que nos
+habéis dado, y esta es la única que no cuadra.

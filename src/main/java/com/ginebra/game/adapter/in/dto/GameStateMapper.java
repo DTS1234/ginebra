@@ -96,6 +96,12 @@ public class GameStateMapper {
             payload.put("king", toCardDto(sd.king()));
             payload.put("forced", sd.forced());
             return new ServerMessage("SIDE_DECIDED", payload);
+        } else if (event instanceof GameEvent.TodoDecided td) {
+            final var payload = new HashMap<String, Object>();
+            payload.put("byPlayer", td.byPlayer().value().toString());
+            payload.put("called", td.called());
+            payload.put("currentTurn", td.currentTurn() != null ? td.currentTurn().value().toString() : null);
+            return new ServerMessage("TODO_DECIDED", payload);
         } else if (event instanceof GameEvent.RoundEnded re) {
             final var payload = new HashMap<String, Object>();
             payload.put("roundNumber", re.roundNumber());
@@ -177,6 +183,8 @@ public class GameStateMapper {
             round.goingSide().stream().map(p -> p.value().toString()).toList(),
             round.opposingSide().stream().map(p -> p.value().toString()).toList(),
             round.firstKingCalled(),
+            round.todoCaller().map(p -> p.value().toString()).orElse(null),
+            round.todoCalled(),
             soledadPasses,
             soledadPlayer,
             round.fourKingHolder().map(p -> p.value().toString()).orElse(null),

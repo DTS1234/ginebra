@@ -272,6 +272,77 @@ class KingRulesTest {
         }
 
         @Test
+        void shouldPauseOnTheTodoCallAtFiveWithACleanSweep() {
+            var round = inProgress().withKingPlayed(aider(), false);
+            for (var i = 0; i < 5; i++) {
+                round = awardWithoutDeciding(round, ma());
+            }
+
+            assertThat(round.isWaitingForTodo()).isTrue();
+            assertThat(round.todoCaller())
+                .as("the one who goes decides for the side")
+                .contains(ma());
+            assertThat(round.currentBasa()).as("play is paused").isEmpty();
+        }
+
+        @Test
+        void shouldEndTheRoundWhenTheGoingSideBanksTheWin() {
+            var round = inProgress().withKingPlayed(aider(), false);
+            for (var i = 0; i < 5; i++) {
+                round = awardWithoutDeciding(round, ma());
+            }
+
+            round = round.withTodoDeclined(ma());
+
+            assertThat(round.isComplete()).isTrue();
+            assertThat(round.todoCalled()).isFalse();
+            assertThat(round.completedBasas()).hasSize(5);
+            assertThat(round.result().orElseThrow()).isInstanceOf(RoundResult.GoingSideWon.class);
+        }
+
+        @Test
+        void shouldPlayOnWhenTheGoingSideCallsTodo() {
+            var round = inProgress().withKingPlayed(aider(), false);
+            for (var i = 0; i < 5; i++) {
+                round = awardWithoutDeciding(round, ma());
+            }
+
+            round = round.withTodoCalled(ma());
+
+            assertThat(round.isInProgress()).isTrue();
+            assertThat(round.todoCalled()).isTrue();
+            assertThat(round.currentBasa().orElseThrow().basaNumber()).isEqualTo(6);
+        }
+
+        @Test
+        void shouldRecordACalledTodoThatWasMissed() {
+            var round = inProgress().withKingPlayed(aider(), false);
+            for (var i = 0; i < 5; i++) {
+                round = awardWithoutDeciding(round, ma());
+            }
+            round = round.withTodoCalled(ma());
+            round = award(round, opponent());
+
+            assertThat(round.isComplete()).as("the win was already theirs").isTrue();
+            assertThat(round.todoCalled()).isTrue();
+            assertThat(round.madeTodo()).isFalse();
+            assertThat(round.result().orElseThrow()).isInstanceOf(RoundResult.GoingSideWon.class);
+        }
+
+        @Test
+        void shouldRefuseTheCallFromAnyoneElse() {
+            var round = inProgress().withKingPlayed(aider(), false);
+            for (var i = 0; i < 5; i++) {
+                round = awardWithoutDeciding(round, ma());
+            }
+            final var paused = round;
+
+            assertThatThrownBy(() -> paused.withTodoCalled(opponent()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("call");
+        }
+
+        @Test
         void shouldReportTodoWhenTheGoingSideTakesEveryBasa() {
             var round = inProgress().withKingPlayed(aider(), false);
             for (var i = 0; i < Round.MAX_BASAS; i++) {
@@ -332,6 +403,19 @@ class KingRulesTest {
         return round.withTrump(TRUMP);
     }
 
+    /** Plays a basa and awards it, leaving any todo window open for the test to answer. */
+    private Round awardWithoutDeciding(Round round, PlayerId winner) {
+        if (round.isComplete() || round.isWaitingForTodo()) {
+            return round;
+        }
+        for (var seat = 0; seat < 5; seat++) {
+            final var current = round.currentPlayer().orElseThrow();
+            final var hand = new ArrayList<>(round.getHand(current));
+            round = round.withCardPlayed(current, hand.get(0), NOW);
+        }
+        return round.completeBasa(winner);
+    }
+
     /** Plays out a basa with whatever cards are to hand and awards it to the given player. */
     private Round award(Round round, PlayerId winner) {
         if (round.isComplete()) {
@@ -342,6 +426,12 @@ class KingRulesTest {
             final var hand = new ArrayList<>(round.getHand(current));
             round = round.withCardPlayed(current, hand.get(0), NOW);
         }
-        return round.completeBasa(winner);
+        round = round.completeBasa(winner);
+
+        // A clean sweep to five pauses on the todo call; these scenarios play on.
+        if (round.isWaitingForTodo()) {
+            round = round.withTodoCalled(round.todoCaller().orElseThrow());
+        }
+        return round;
     }
 }

@@ -1071,6 +1071,10 @@ class RoundTest {
                 // Complete with team of two winning
                 final var winner = (basaNum % 2 == 0) ? players.get(0) : players.get(1);
                 round = round.completeBasa(winner);
+
+                if (round.isWaitingForTodo()) {
+                    round = round.withTodoCalled(round.todoCaller().orElseThrow());
+                }
             }
 
             // Verify round is complete with team of two as winners

@@ -47,6 +47,15 @@ public sealed interface GameEvent {
         boolean forced
     ) implements GameEvent {}
 
+    /**
+     * The going side decided whether to go for "fer todo".
+     */
+    record TodoDecided(
+        PlayerId byPlayer,
+        boolean called,
+        PlayerId currentTurn
+    ) implements GameEvent {}
+
     record RoundEnded(
         int roundNumber,
         RoundResult result,

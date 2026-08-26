@@ -233,6 +233,23 @@ public final class Game {
     }
 
     /**
+     * Records the going side's "fer todo" decision. Declining ends and settles the round.
+     *
+     * @param call true to play on for all eight basas, false to bank the win
+     */
+    public Game decideTodo(PlayerId playerId, boolean call) {
+        requireInProgress();
+        requireCurrentRound();
+
+        final var updatedRound = call
+            ? currentRound.withTodoCalled(playerId)
+            : currentRound.withTodoDeclined(playerId);
+        final var updated = withCurrentRound(updatedRound);
+
+        return updatedRound.isComplete() ? updated.settleCurrentRound() : updated;
+    }
+
+    /**
      * Selects the trump suit for the current round.
      */
     public Game selectTrump(Suit trump) {

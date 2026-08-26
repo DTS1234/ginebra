@@ -23,29 +23,32 @@ import java.util.Objects;
  *              you went alone                   5
  *              you were dealt the four kings    4
  *
- *   +1 each    primeres   the first four basas in a row
- *              todo       all eight basas - which contains primeres
- *              dengue     espadilla + basto
- *              estutxe    espadilla + manilla + basto, on top of the dengue
+ *   +1         primeres   the first four basas in a row, by the going side
  * </pre>
  *
- * The same figure is collected on a win and paid on a loss, so holding the estutxe or
- * making primeres raises your stake in both directions. Three things sit outside the
- * ladder: the <b>dengue is always collected</b>, win or lose and on either side - <i>"El
- * dengue sempre es cobra"</i> - the <b>four kings are always worth 4</b> to whoever was
- * dealt them, whether they take the 4 and end the hand or go alone and play it out, and a
- * <b>forced king costs its owner 1</b>.
+ * That figure is collected on a win and paid on a loss, so making primeres raises the
+ * going side's stake in both directions - and the opponents' own primeres are worth
+ * nothing to them (confirmed by the players 2026-08-26).
+ *
+ * Four items sit outside the stake and are only ever collected or charged, never negated
+ * by the outcome:
+ *
+ * <ul>
+ *   <li><b>Estutxe, +1 to every player on the going side.</b> <i>"Si tens l'estutxe i
+ *       vas"</i> - it pays because you went, not because you won, and it pays the whole
+ *       side rather than just the holder. That is what makes the source's <i>"Per guanyar
+ *       i tindre l'estutxe, 3 cadegú (si n té el dengue, 4)"</i> come out exactly: 2 base
+ *       + 1 estutxe each, and the one who also holds the dengue takes 4.</li>
+ *   <li><b>Dengue, +1 to whoever was dealt it</b>, win or lose and on either side -
+ *       <i>"El dengue sempre es cobra"</i>. Personal to the holder, unlike the estutxe.</li>
+ *   <li><b>Todo, +1 to every player on the going side if made, -1 if called and missed.</b></li>
+ *   <li><b>Four kings, +4</b> to whoever was dealt them, whatever they then decide, and a
+ *       <b>forced king costs its owner 1</b>.</li>
+ * </ul>
  *
  * The opposing side collects a flat 1 when the going side fails, or 2 if the going side
  * was held under four basas. It pays nothing when the going side wins: the source lists no
  * charge for losing defenders, and the pot covers the difference.
- *
- * <p>Two readings the source leaves open, resolved here and recorded in rules-diff.md:
- * the printed row <i>"Per guanyar i tindre l'estutxe, 3 cadegú (si n té el dengue, 4)"</i>
- * is taken at its parenthetical - the estutxe contains the dengue, so it always scores
- * both, for 4. And the source does not say whose primeres raises a losing side's payment;
- * here it is the going side's own, which is what makes <i>"Si perden i tenen l'estutxe"</i>
- * read consistently.
  */
 public class SettlementCalculator {
 
@@ -91,11 +94,11 @@ public class SettlementCalculator {
 
         if (result instanceof RoundResult.GoingSideWon won) {
             for (final var player : won.goingSide()) {
-                deltas.merge(player, stakeOf(round, player, dealSnapshot), Integer::sum);
+                deltas.merge(player, stakeOf(round), Integer::sum);
             }
         } else if (result instanceof RoundResult.GoingSideFailed failed) {
             for (final var player : failed.goingSide()) {
-                deltas.merge(player, -stakeOf(round, player, dealSnapshot), Integer::sum);
+                deltas.merge(player, -stakeOf(round), Integer::sum);
             }
             final var award = failed.goingSideBasas() < HELD_LOW_THRESHOLD
                 ? OPPOSING_SIDE_AWARD_HELD_LOW
@@ -106,6 +109,11 @@ public class SettlementCalculator {
         }
         // RoundResult.FourKings settles on the four-kings award alone, and
         // RoundResult.KingFell on the forced-king penalty alone.
+
+        // Items the going side collects for what it held or did, not for winning.
+        for (final var player : round.goingSide()) {
+            deltas.merge(player, goingSideExtras(round, dealSnapshot), Integer::sum);
+        }
 
         // "Per tindre es quatre reis, 4" - unconditional, like the dengue. A holder who
         // goes alone keeps it on top of whatever the hand then settles at.
@@ -130,20 +138,38 @@ public class SettlementCalculator {
     /**
      * What one player of the going side collects on a win, or pays on a loss.
      */
-    private int stakeOf(Round round, PlayerId player, Map<PlayerId, List<Card>> dealSnapshot) {
-        var stake = baseOf(round);
+    private int stakeOf(Round round) {
+        return round.madePrimeres() ? baseOf(round) + INCREMENT : baseOf(round);
+    }
 
-        if (round.madePrimeres()) {
-            stake += INCREMENT;
-        }
-        if (round.madeTodo()) {
-            stake += INCREMENT;
-        }
+    /**
+     * What every player on the going side collects regardless of the outcome: the estutxe
+     * because they went, and the todo they made - or owes, if they called it and missed.
+     */
+    private int goingSideExtras(Round round, Map<PlayerId, List<Card>> dealSnapshot) {
+        var extras = 0;
+
         final var trump = round.trumpSuit().orElse(null);
-        if (trump != null && hasEstutxe(dealSnapshot.get(player), trump)) {
-            stake += INCREMENT;
+        if (trump != null && anyOnGoingSideHasEstutxe(round, dealSnapshot, trump)) {
+            extras += INCREMENT;
         }
-        return stake;
+
+        if (round.madeTodo()) {
+            extras += INCREMENT;
+        } else if (round.todoCalled()) {
+            extras -= INCREMENT;
+        }
+
+        return extras;
+    }
+
+    private boolean anyOnGoingSideHasEstutxe(
+        Round round,
+        Map<PlayerId, List<Card>> dealSnapshot,
+        Suit trump
+    ) {
+        return round.goingSide().stream()
+            .anyMatch(player -> hasEstutxe(dealSnapshot.get(player), trump));
     }
 
     private int baseOf(Round round) {

@@ -455,12 +455,20 @@ The round is decided by whichever of these comes first:
 - The **mà's own King is forced out** (*caure el rei*), which ends the hand where it stands
 - A **four-king deal**, which ends the hand before anyone plays
 
-**Fer todo**: winning *all eight* basas. The source has the going side call it on reaching
-five, and play on. Because a missed *todo* costs nothing beyond the point itself, the
-engine treats reaching five with a clean sweep as the call: the round continues while every
-basa so far belongs to the going side, and settles the moment one does not.
+**Fer todo**: winning *all eight* basas. When the going side reaches five **having won every
+basa so far**, play pauses and the decision is theirs — *"you lose 1 if you don't make it and
+you earn one if you make"*:
 
-**Fer primeres**: winning the **first four basas in a row**. Worth a point to the going side.
+- **Bank the win** and the round ends there
+- Or **call todo** and play on: `+1` if they take all eight, `-1` if they drop one
+
+The call belongs to the one who goes, or to the lone player when they go alone. Reaching
+five *without* a clean sweep ends the round immediately — todo is already out of reach, so
+there is nothing to decide.
+
+**Fer primeres**: winning the **first four basas in a row**. Worth a point to the going side,
+collected on a win and paid on a loss. The **opposing side's** primeres are worth nothing to
+them.
 
 **Settlement**
 
@@ -473,33 +481,37 @@ set of **+1 increments**, and the same figure is collected on a win and paid on 
 | You put your own King (*posar-se el rei*) | 4 |
 | You went alone (*anar a soles*) | 5 |
 
-| Increment | |
+| Added to the stake | |
 |---|---|
-| *Primeres* — the first four basas in a row | +1 |
-| *Todo* — all eight basas (contains primeres) | +1 |
-| *Dengue* — Espadilla + Basto in your dealt hand | +1 |
-| *Estutxe* — Espadilla + Manilla + Basto, on top of the dengue | +1 |
+| *Primeres* — the first four basas in a row, by the going side | +1 |
 
-Three items sit outside the ladder:
+Four items sit **outside** the stake — they are collected or charged as they stand, and are
+never negated by the outcome:
 
-- **The four kings are always worth 4** to whoever was dealt them, whether they take the 4
-  and end the hand or go alone and play it out. A holder who plays on and loses still
-  collects the 4 against the 5 they pay.
-- **The dengue is always collected** — *"El dengue sempre es cobra"* — win or lose, and on
-  either side. It is the one item that never appears on the paying side.
-- **A forced King costs its owner 1** (*caure el rei*), whoever they are.
+- **Estutxe — `+1` to every player on the going side.** *"Si tens l'estutxe i vas"* — it pays
+  because you **went**, not because you won, and it pays the **whole side**, not just the
+  holder. This is what makes the source's *"Per guanyar i tindre l'estutxe, 3 cadegú (si n
+  té el dengue, 4)"* come out exactly: 2 base + 1 estutxe each, and whoever also holds the
+  dengue takes 4.
+- **Dengue — `+1` to whoever was dealt it**, win or lose and on either side: *"El dengue
+  sempre es cobra"*. Personal to the holder, unlike the estutxe.
+- **Todo — `+1` to every player on the going side if made, `-1` if called and missed.**
+- **Four kings — `+4`** to whoever was dealt them, whatever they then decide; and a **forced
+  King costs its owner 1** (*caure el rei*).
 
 **The opposing side** collects a flat **1** when the going side fails, or **2** if the going
 side was held under four basas. It pays nothing when the going side wins — the source lists
 no charge for losing defenders, and the pot covers the difference.
 
 Sanity check against the source's own maximum: `5 (alone) + 4 (four kings) + 1 (primeres) +
-2 (dengue and estutxe) + 1 (todo) = 13`.
+1 (estutxe) + 1 (dengue) + 1 (todo) = 13`.
 
-*Two readings the source leaves open, resolved here and recorded in `rules-diff.md`: the
-printed row "Per guanyar i tindre l'estutxe, 3 cadegú (si n té el dengue, 4)" is taken at
-its parenthetical, since the estutxe contains the dengue and so always scores both; and a
-losing side's payment is raised by its **own** primeres and estutxe.*
+> **One open discrepancy.** The source's *pay* table has *"Si perden i tenen l'estutxe, 3
+> cadegú"* and *"Si perden primeres i estutxe, 4 cadegú"* — as though the estutxe also
+> raised what a losing side pays. The players say the estutxe is simply collected for going,
+> win or lose, which is what is implemented (a losing pair with the estutxe nets `-2 + 1`).
+> Recorded in `rules-questions.md`; the settlement is otherwise exact against every other
+> printed row.
 
 ### 2.7 Complete Game Flow
 
@@ -571,11 +583,10 @@ losing side's payment is raised by its **own** primeres and estutxe.*
 - [ ] What happens if the trump chooser disconnects before choosing?
 - [ ] Can players join/leave between rounds, or must the same 5 play the entire game?
 - [ ] Maximum game duration or number of rounds?
-- [ ] What a *missed* todo costs, if anything, once it has been called
-      (`rules-questions.md` Q1).
 - [ ] Whether a four-king holder who plays on and **loses** still keeps the 4 (implemented
       as yes — it reads as a holding award like the dengue).
-- [ ] Whose primeres or estutxe raises a losing side's payment (`rules-questions.md` Q3).
+- [ ] Why the source's pay table charges a losing side extra for the estutxe, when the
+      players say it is simply collected for going (`rules-questions.md`).
 
 ---
 
