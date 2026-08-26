@@ -218,8 +218,9 @@ Six readings the source leaves open are implemented one way and listed in `rules
 timeout infrastructure to back a blocking decision window. D-17 (the leader must change suit until a King appears) is implemented too, and D-6 - where
 the ace ranks in a non-trump suit - was confirmed by Tàrbena players on 2026-08-26: the
 engine was already right, and the order they gave is now pinned by
-`SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt`. No rules question is
-outstanding; the readings still worth confirming are listed in `rules-questions.md`.
+`SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt`. The four-kings choice was confirmed the same day: the holder may take the 4 or play the
+hand out alone, keeping the 4 either way. Four readings are still worth confirming and are
+written up with worked examples in `rules-questions.md`.
 
 Not wired to the client: the *"es primer rei aida"* call exists in the domain and the state
 payload but has no control or message.

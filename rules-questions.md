@@ -91,21 +91,104 @@ motor, así que no hubo que tocar código — solo fijarlo con un test.
 
 ---
 
-## Otras dudas, por si sale la conversación
+## Q2 — Los cuatro reyes: ¿se acaba la mano, o puede jugarla? · ✅ RESPONDIDA (2026-08-26)
 
-Estas siguen abiertas. La implementación ya toma una decisión en cada una, pero confirmarlas
-nos ahorraría suposiciones. Están detalladas en `rules-diff.md` §3.3.
+> **La respuesta.** *"If you wanna try to win, then you go."* El que recibe los cuatro reyes
+> **elige**: se lleva los 4 y se acaba la mano, o va a soles y la juega — y en ese caso se
+> queda los 4 **además** de lo que haga. Nadie más puede ir a soles contra ese reparto.
+>
+> Eso es lo que hace alcanzable el máximo de 13 que da el libro: 5 de ir a soles + 4 de los
+> cuatro reyes + 1 de primeras + 2 del estuche + 1 de todo.
+>
+> Implementado: la ventana de soledad se abre reducida a ese jugador. Si pasa, cobra 4 y se
+> acaba. Si declara, es una soledad normal con los 4 encima.
 
-1. **Fer todo.** El libro dice que se pide al llegar a cinco basas. Si se pide y luego
-   **no** se hace, ¿pasa algo? ¿Se pierde solo el punto del todo, o se paga algo más?
-2. **Los cuatro reyes.** Si a uno le vienen los cuatro reyes cobra cuatro y se acaba la
-   mano. Pero, ¿puede en vez de eso **ir a soles** y jugar la mano, cobrando los cuatro
-   además de lo que haga? (El máximo de 13 que da el libro parece decir que sí.)
-3. **Si el que va pierde teniendo el estuche o habiendo hecho primeras**, ¿paga más por
-   ello? ¿O lo que sube el pago son las primeras del **contrario**?
-4. **Cuando al que es mano le cae el rey y se acaba la mano**, ¿qué se paga exactamente?
-   ¿Solo el 1 del rey caído, o algo más?
-5. **Cambiar de palo hasta que salga el rey.** Ya está confirmado que es obligatorio. Lo
-   que falta: el que sale, ¿tiene que cambiar de palo respecto al **palo anterior**, o
-   respecto a **todos los que ya se han jugado**? (Implementado como lo primero — lo
-   segundo se vuelve imposible pasadas cuatro basas.)
+---
+
+## Dudas que siguen abiertas
+
+La implementación ya toma una decisión en cada una, así que se puede jugar sin resolverlas
+— pero confirmarlas nos quitaría suposiciones. Cada una lleva un ejemplo concreto de mesa.
+
+### 1. «Fer todo»: si se pide y no se hace, ¿pasa algo?
+
+**Qué es «fer todo».** Hacer **las ocho basas**, todas. El libro solo dice: *«"Fer todo" ho
+has de demanar quan tens cinc bases»* — hay que **cantarlo al llegar a cinco**. Vale 1
+más.
+
+**Ejemplo.** Tú vas (te han puesto el rey). Ganas las basas 1, 2, 3, 4 y 5 — las cinco
+seguidas. Ya has ganado la mano: cobras tus 2. Pero como las llevas todas, cantas «todo» y
+seguís jugando para intentar las ocho.
+
+En la basa 6 un contrario se lleva una. Ya no hay todo.
+
+> **¿Qué pasa entonces?**
+> - (a) Nada: has ganado igual, cobras tus 2 y te quedas sin el punto del todo.
+> - (b) Algo peor: por haberlo cantado y no hacerlo, pagas, o pierdes la mano.
+
+*Lo que hace el programa ahora:* (a) — la victoria se mantiene y solo se pierde el punto.
+De hecho, como cantarlo no cuesta nada, el programa **no pregunta**: si el que va lleva
+todas las basas, sigue jugando solo; si pierde una, se para y cobra. Si la respuesta es
+(b), habría que preguntárselo de verdad al jugador.
+
+### 2. Perder llevando el estuche o habiendo hecho primeras: ¿quién sube el pago?
+
+**El texto.** En la tabla de lo que **se paga**: *«Si perden i primeres, 3 cadegú»* y *«Si
+perden i tenen l'estutxe, 3 cadegú»* — cuando lo normal por perder son 2.
+
+**La duda.** *Primeras de quién.*
+
+**Ejemplo.** A va, B le pone el rey. C, D y E son los contrarios. La mano acaba con A y B
+perdiendo.
+
+> - **Caso i:** A y B ganaron **las cuatro primeras basas** (hicieron primeras) y luego se
+>   hundieron: perdieron las cuatro últimas. ¿Pagan 3 cada uno en vez de 2, por haber hecho
+>   primeras aunque hayan perdido?
+> - **Caso ii:** Fueron **C, D y E** los que hicieron las cuatro primeras. A y B pierden.
+>   ¿Pagan 3 por las primeras **del contrario**?
+
+Y lo mismo con el estuche: si **A** lleva espadilla + manilla + basto y aun así pierde,
+¿paga 3 en vez de 2 por llevarlo?
+
+*Lo que hace el programa ahora:* el caso **i** — lo que sube el pago es lo que hizo o
+llevaba **el bando que va**, no el contrario. Es la única lectura con la que *«si perden i
+**tenen** l'estutxe»* tiene sentido: «tenen» son los que pierden. (Detalle: al que pierde
+con estuche le sale −3 de la mano pero +1 del dengue, porque el dengue siempre se cobra,
+así que acaba en −2.)
+
+### 3. Cuando al que es mano le cae el rey y se acaba la mano: ¿qué se paga?
+
+**El texto.** *«Si es qui és mà li cau el rei s'acaba sa mà»*, y en la tabla de pagos *«Si
+et cau el rei, 1»*.
+
+**Ejemplo.** A es mano y ha hecho triunfos de oros. Sale alguien de **copas**. A tiene una
+sola copa en la mano: **el rey de copas**. Como hay que servir el palo, A está obligado a
+echarlo — no lo pone porque quiera, *le cae*. La mano se acaba ahí mismo.
+
+> **¿Qué se liquida?**
+> - (a) A paga 1 y ya está: nadie más cobra ni paga, se reparte de nuevo.
+> - (b) A paga 1 **y** algo más — ¿los otros cuatro cobran algo del posso?
+> - (c) Otra cosa.
+
+*Lo que hace el programa ahora:* (a). A paga 1, nadie cobra nada (salvo quien lleve el
+dengue, que se cobra siempre), y se reparte otra vez.
+
+### 4. Cambiar de palo hasta que salga el rey: ¿respecto a qué?
+
+**El texto.** *«Després has de tirar un altre pal fins que isca o posen rei»* — ya está
+confirmado que es **obligatorio** cambiar de palo mientras no haya salido rey. Lo que falta
+es respecto a qué se mide «un altre pal».
+
+**Ejemplo.** Triunfos: bastos. Todavía no ha salido ningún rey.
+
+> - **Basa 1:** el que sale echa **oros**.
+> - **Basa 2:** el que sale ahora no puede repetir oros. Echa **copas**.
+> - **Basa 3:** sigue sin salir rey. No puede repetir copas. **¿Puede volver a oros?**
+>   - **Lectura A:** sí — solo está prohibido el palo de la basa **anterior**.
+>   - **Lectura B:** no — oros ya se jugó, así que solo le quedan espadas o bastos.
+>
+> Con la lectura B, en la basa 5 ya se habrían jugado los cuatro palos y **no quedaría nada
+> legal que echar**. Por eso creemos que es la A.
+
+*Lo que hace el programa ahora:* la **lectura A**. Y si al que sale no le queda más que ese
+palo, puede repetirlo — la obligación no puede dejar a nadie sin jugada.

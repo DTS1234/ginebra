@@ -148,13 +148,30 @@ class KingRulesTest {
         }
     }
 
+    /**
+     * rules-source.md §4.8: four kings in one hand is worth 4 and ends the hand - unless
+     * the holder would rather play it out alone, which only they may do. Confirmed by the
+     * players 2026-08-26: <i>"if you wanna try to win, then you go"</i>.
+     */
     @Nested
     @DisplayName("Four kings in one hand")
     class FourKings {
 
         @Test
-        void shouldEndTheRoundAtTheDeal() {
+        void shouldRecordTheHolderWithoutEndingTheHandYet() {
             final var round = Round.start(1, ma(), players, fourKingDeal(opponent()), DEADLINE);
+
+            assertThat(round.fourKingHolder()).contains(opponent());
+            assertThat(round.isWaitingForSoledad())
+                .as("the holder still has a choice to make")
+                .isTrue();
+            assertThat(round.mode()).isEmpty();
+        }
+
+        @Test
+        void shouldEndTheHandWhenTheHolderDeclines() {
+            final var round = Round.start(1, ma(), players, fourKingDeal(opponent()), DEADLINE)
+                .withSoledadPass(opponent());
 
             assertThat(round.isComplete()).isTrue();
             assertThat(round.mode()).contains(RoundMode.FOUR_KINGS);
@@ -162,13 +179,26 @@ class KingRulesTest {
         }
 
         @Test
-        void shouldSkipTheSoledadWindowEntirely() {
+        void shouldTurnIntoASoledadWhenTheHolderPlaysItOut() {
+            final var round = Round.start(1, ma(), players, fourKingDeal(opponent()), DEADLINE)
+                .withSoledadDeclared(opponent());
+
+            assertThat(round.mode()).contains(RoundMode.SOLEDAD);
+            assertThat(round.goingSide()).containsExactly(opponent());
+            assertThat(round.trumpChooser()).isEqualTo(opponent());
+            assertThat(round.fourKingHolder())
+                .as("they keep the four kings on top of whatever the hand settles at")
+                .contains(opponent());
+        }
+
+        @Test
+        void shouldRefuseToLetAnyoneElseGoAloneAgainstAFourKingDeal() {
+            // "Si en es mateix temps un altre jugador vullguera anar a soles, no podria."
             final var round = Round.start(1, ma(), players, fourKingDeal(opponent()), DEADLINE);
 
-            assertThat(round.isWaitingForSoledad()).isFalse();
-            assertThat(round.soledadDeadline())
-                .as("nobody may declare against a four-king deal")
-                .isEmpty();
+            assertThatThrownBy(() -> round.withSoledadDeclared(ma()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("four kings");
         }
 
         @Test
@@ -183,6 +213,7 @@ class KingRulesTest {
 
             final var round = Round.start(1, ma(), players, hands, DEADLINE);
 
+            assertThat(round.fourKingHolder()).isEmpty();
             assertThat(round.isWaitingForSoledad()).isTrue();
             assertThat(round.mode()).isEmpty();
         }

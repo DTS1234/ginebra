@@ -565,7 +565,11 @@ function render() {
     el('turn').textContent = state.currentTurn ? seatOf(state.currentTurn) : '-';
     el('turn').className = myTurn ? 'highlight' : '';
 
-    el('soledad-actions').classList.toggle('hidden', round.status !== 'WAITING_FOR_SOLEDAD');
+    const soledadOpen = round.status === 'WAITING_FOR_SOLEDAD';
+    el('soledad-actions').classList.toggle('hidden', !soledadOpen);
+    if (soledadOpen) {
+        renderSoledadWindow(round);
+    }
     el('trump-actions').classList.toggle('hidden', !iPickTrump);
 
     renderBasa();
@@ -595,6 +599,31 @@ function renderBasa() {
     if (state.basa.length === 0) {
         table.innerHTML = '<p class="empty">No cards on the table yet.</p>';
     }
+}
+
+/**
+ * The Soledad window. A four-king deal narrows it to one player: only they may go alone,
+ * and their pass takes the 4 and ends the hand.
+ */
+function renderSoledadWindow(round) {
+    const holder = round.fourKingHolder;
+    const mine = holder === state.me.playerId;
+
+    if (!holder) {
+        el('soledad-label').textContent = 'Soledad window open:';
+        el('pass-soledad').disabled = false;
+        el('declare-soledad').disabled = false;
+        el('declare-soledad').textContent = 'Declare Soledad';
+        return;
+    }
+
+    el('soledad-label').textContent = mine
+        ? 'Four kings! Take the 4, or play it out alone and keep the 4 as well:'
+        : seatOf(holder) + ' was dealt the four kings — only they may go alone';
+    el('pass-soledad').disabled = !mine;
+    el('declare-soledad').disabled = !mine;
+    el('declare-soledad').textContent = mine ? 'Go alone (keep the 4)' : 'Declare Soledad';
+    el('pass-soledad').textContent = mine ? 'Take the 4, end the hand' : 'Pass';
 }
 
 /** The card that opened the current basa, or null if this player leads. */

@@ -262,9 +262,19 @@ reis, s'acaba sa mà."*
 
 **Spec.** No mention.
 
-**Rule.** A player dealt all four kings collects **4**, the hand ends before play, and the
-deal **pre-empts any soledad declaration** — only the four-king holder may go alone.
-Ordering matters: this must be checked at deal time, ahead of the soledad window.
+**Rule.** A player dealt all four kings collects **4**, and then chooses: take it and end
+the hand, or go alone and play it out, keeping the 4 on top. Nobody else may declare
+Soledad against such a deal.
+
+**Resolved.** Implemented at the deal: the round records a `fourKingHolder` and opens the
+Soledad window narrowed to that player. Their pass ends the hand with the 4; their
+declaration turns it into an ordinary Soledad round with the 4 added on top of the base 5.
+The choice reuses the existing Soledad window, so it needs no new decision state. Covered
+by `KingRulesTest.FourKings` and two rows of `SettlementCalculatorTest`.
+
+**Confirmed by the players** (2026-08-26): *"if you wanna try to win, then you go"* — the
+holder may play the hand out. This is what makes the source's 13-coin maximum reachable,
+and it removes the apparent contradiction between §4.8's *"s'acaba sa mà"* and that maximum.
 
 ---
 
@@ -461,8 +471,10 @@ Each is implemented one way and flagged here so it can be corrected cheaply.
    basa, and awards the point if they take all eight. This avoids a blocking decision
    window that nothing would time out (see `PROGRESS.md`: no scheduled work exists). If a
    missed todo turns out to carry a penalty, the call has to become explicit.
-2. **A four-king deal always ends the hand.** §4.8 says so, but the 13-coin maximum implies
-   the holder may instead go alone and play it out. Only the plain reading is implemented.
+2. **A four-king holder who plays on and loses still collects the 4.** The choice itself is
+   confirmed; what the source does not say is whether the 4 survives a loss. Implemented as
+   yes, reading *"Per tindre es quatre reis, 4"* as an unconditional holding award like the
+   dengue - so a holder who goes alone and is blocked nets `4 - 5 = -1`.
 3. **The estutxe always scores the dengue too**, per the parenthetical in the source's own
    row rather than the number printed before it.
 4. **A losing side's payment is raised by its own primeres and estutxe**, which is the only

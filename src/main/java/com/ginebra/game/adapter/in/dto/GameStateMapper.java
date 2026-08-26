@@ -179,6 +179,7 @@ public class GameStateMapper {
             round.firstKingCalled(),
             soledadPasses,
             soledadPlayer,
+            round.fourKingHolder().map(p -> p.value().toString()).orElse(null),
             soledadDeadline
         );
     }

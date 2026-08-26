@@ -94,6 +94,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 return new PassSoledadResult.AlreadyPassed();
             }
 
+            final var balancesBefore = game.coinBalances();
             var updatedGame = game.passSoledad(playerId);
             final var updatedRound = updatedGame.currentRound().orElseThrow();
 
@@ -103,6 +104,12 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 .toList();
 
             eventPublisher.publishToGame(gameId, new GameEvent.SoledadPassed(playerId, remaining));
+
+            // A four-king holder who declines to play the hand out takes their 4 and ends it.
+            if (updatedRound.isComplete()) {
+                finishRound(gameId, updatedGame, balancesBefore);
+                return new PassSoledadResult.Success();
+            }
 
             // If all passed, transition to WAITING_FOR_TRUMP
             if (updatedRound.isWaitingForTrump()) {
@@ -267,7 +274,8 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
 
                 if (decided.isComplete()) {
                     // "Si es qui és mà li cau el rei s'acaba sa mà."
-                    return finishRound(gameId, game, preRoundBalances);
+                    finishRound(gameId, game, preRoundBalances);
+                    return new PlayCardResult.Success();
                 }
             }
 
@@ -289,7 +297,8 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
 
                 // Check if round ended
                 if (afterBasa.isComplete()) {
-                    return finishRound(gameId, game, preRoundBalances);
+                    finishRound(gameId, game, preRoundBalances);
+                    return new PlayCardResult.Success();
                 }
             }
 
@@ -304,7 +313,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
      * The round has already been priced against the posso by the aggregate; this only
      * reports what moved and advances the game.
      */
-    private PlayCardResult finishRound(
+    private void finishRound(
         GameId gameId,
         Game settled,
         Map<PlayerId, Integer> preRoundBalances
@@ -326,36 +335,12 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 game.coinBalances()
             ));
             gameRepository.save(game);
-            return new PlayCardResult.Success();
+            return;
         }
 
-        var balancesBefore = game.coinBalances();
         game = game.startNextRound(random, clock.instant());
 
-        // A four-king deal settles itself before anyone plays, so keep dealing until one
-        // of them is actually playable.
-        while (game.currentRound().orElseThrow().isComplete()) {
-            final var dealt = game.currentRound().orElseThrow();
-            eventPublisher.publishToGame(gameId, new GameEvent.RoundEnded(
-                dealt.roundNumber(),
-                dealt.result().orElseThrow(),
-                computeCoinDeltas(balancesBefore, game.coinBalances()),
-                game.coinBalances(),
-                game.posso()
-            ));
-            if (!game.isInProgress()) {
-                eventPublisher.publishToGame(gameId, new GameEvent.GameEnded(
-                    "PLAYER_OUT_OF_COINS",
-                    game.coinBalances()
-                ));
-                break;
-            }
-            balancesBefore = game.coinBalances();
-            game = game.startNextRound(random, clock.instant());
-        }
-
         gameRepository.save(game);
-        return new PlayCardResult.Success();
     }
 
     /**

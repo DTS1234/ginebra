@@ -217,8 +217,11 @@ opposing side wins by holding them to 4 or fewer, which it does the moment it ha
 - Cards are dealt **four at a time**
 - 8 cards × 5 players = 40 cards (entire deck is dealt)
 - Server shuffles deck before each round
-- **Four kings**: a player dealt all four kings collects 4 and the hand ends before anyone
-  plays. The deal also pre-empts a Soledad declaration — only that player could go alone
+- **Four kings**: a player dealt all four kings collects **4** whatever happens next, and
+  the choice is theirs — *"if you wanna try to win, then you go"*:
+    - **Take the 4** and the hand ends before anyone plays
+    - Or **go alone** and play it out, keeping the 4 on top of whatever the hand settles at
+  - Nobody else may declare Soledad against such a deal — only the four-king holder
 
 **First Round Start**
 - The player holding the Ace of Espadas (Espadilla) starts the first round only
@@ -466,7 +469,6 @@ set of **+1 increments**, and the same figure is collected on a win and paid on 
 | Helped: a King was put on you (each of the pair) | 2 |
 | You put your own King (*posar-se el rei*) | 4 |
 | You went alone (*anar a soles*) | 5 |
-| You were dealt the four kings | 4 |
 
 | Increment | |
 |---|---|
@@ -475,8 +477,11 @@ set of **+1 increments**, and the same figure is collected on a win and paid on 
 | *Dengue* — Espadilla + Basto in your dealt hand | +1 |
 | *Estutxe* — Espadilla + Manilla + Basto, on top of the dengue | +1 |
 
-Two items sit outside the ladder:
+Three items sit outside the ladder:
 
+- **The four kings are always worth 4** to whoever was dealt them, whether they take the 4
+  and end the hand or go alone and play it out. A holder who plays on and loses still
+  collects the 4 against the 5 they pay.
 - **The dengue is always collected** — *"El dengue sempre es cobra"* — win or lose, and on
   either side. It is the one item that never appears on the paying side.
 - **A forced King costs its owner 1** (*caure el rei*), whoever they are.
@@ -564,10 +569,8 @@ losing side's payment is raised by its **own** primeres and estutxe.*
 - [ ] Can players join/leave between rounds, or must the same 5 play the entire game?
 - [ ] Maximum game duration or number of rounds?
 - [ ] What a *missed* todo costs, if anything, once it has been called.
-- [ ] Whether a four-king holder may decline the 4 and play the hand out alone instead —
-      the source's 13-coin maximum implies they can, but §4.8 says the hand ends.
-- [ ] Whether the Ace outranks or falls below the Sota in a **non-trump** suit (D-6).
-- [ ] Whether the leader must change suit each basa until a King appears (D-17).
+- [ ] Whether a four-king holder who plays on and **loses** still keeps the 4 (implemented
+      as yes — it reads as a holding award like the dengue).
 
 ---
 

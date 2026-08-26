@@ -54,6 +54,7 @@ public final class Round {
     private final PlayerId soloPlayer;
     private final PlayerId forcedKingPlayer;
     private final boolean firstKingCalled;
+    private final PlayerId fourKingHolder;
 
     private Round(
         int roundNumber,
@@ -72,7 +73,8 @@ public final class Round {
         RoundMode mode,
         PlayerId soloPlayer,
         PlayerId forcedKingPlayer,
-        boolean firstKingCalled
+        boolean firstKingCalled,
+        PlayerId fourKingHolder
     ) {
         if (roundNumber < 1) {
             throw new IllegalArgumentException("roundNumber must be >= 1, got: " + roundNumber);
@@ -123,6 +125,7 @@ public final class Round {
         this.soloPlayer = soloPlayer;
         this.forcedKingPlayer = forcedKingPlayer;
         this.firstKingCalled = firstKingCalled;
+        this.fourKingHolder = fourKingHolder;
     }
 
     // === Factory Methods ===
@@ -130,8 +133,10 @@ public final class Round {
     /**
      * Creates a new round in the WAITING_FOR_SOLEDAD state.
      *
-     * A deal that hands one player all four kings ends the round on the spot: it is
-     * created already COMPLETE, with no Soledad window and no play (rules-source.md §4.8).
+     * A deal that hands one player all four kings is theirs to decide: they may take the 4
+     * and end the hand, or go alone and play it out, keeping the 4 either way. Nobody else
+     * may declare against such a deal - <i>"sols pot anar a soles es qui té es quatre
+     * reis"</i> (rules-source.md §4.8). The choice is made in the Soledad window.
      *
      * @param roundNumber the round number (1-based)
      * @param playerWhoGoes the player who is "mà" - who leads the first basa
@@ -187,15 +192,16 @@ public final class Round {
             null,
             hands,
             null,
-            fourKingHolder == null ? RoundStatus.WAITING_FOR_SOLEDAD : RoundStatus.COMPLETE,
-            fourKingHolder == null ? null : new RoundResult.FourKings(fourKingHolder),
+            RoundStatus.WAITING_FOR_SOLEDAD,
+            null,
             Set.of(),
             null,
-            fourKingHolder == null ? soledadDeadline : null,
-            fourKingHolder == null ? null : RoundMode.FOUR_KINGS,
-            fourKingHolder,
+            soledadDeadline,
             null,
-            false
+            null,
+            null,
+            false,
+            fourKingHolder
         );
     }
 
@@ -285,6 +291,14 @@ public final class Round {
      */
     public Optional<PlayerId> forcedKingPlayer() {
         return Optional.ofNullable(forcedKingPlayer);
+    }
+
+    /**
+     * The player dealt all four kings, if there was one. They collect 4 whatever they then
+     * decide, and they are the only player who may declare Soledad in this round.
+     */
+    public Optional<PlayerId> fourKingHolder() {
+        return Optional.ofNullable(fourKingHolder);
     }
 
     /**
@@ -483,6 +497,19 @@ public final class Round {
         final var newPasses = new HashSet<>(soledadPasses);
         newPasses.add(playerId);
 
+        // A four-king deal is nobody else's decision: once the holder declines to play it
+        // out, they take their 4 and the hand is over.
+        if (playerId.equals(fourKingHolder)) {
+            return copy()
+                .status(RoundStatus.COMPLETE)
+                .soledadPasses(newPasses)
+                .soledadDeadline(null)
+                .mode(RoundMode.FOUR_KINGS)
+                .soloPlayer(fourKingHolder)
+                .result(new RoundResult.FourKings(fourKingHolder))
+                .build();
+        }
+
         final var allPassed = newPasses.size() == PLAYER_COUNT;
         final var newStatus = allPassed ? RoundStatus.WAITING_FOR_TRUMP : RoundStatus.WAITING_FOR_SOLEDAD;
 
@@ -508,6 +535,12 @@ public final class Round {
 
         if (!playerOrder.contains(playerId)) {
             throw new IllegalArgumentException("Player not in round: " + playerId);
+        }
+
+        if (fourKingHolder != null && !playerId.equals(fourKingHolder)) {
+            throw new IllegalStateException(
+                "Only the player dealt the four kings may go alone this round: " + fourKingHolder
+            );
         }
 
         return copy()
@@ -829,6 +862,7 @@ public final class Round {
         private PlayerId soloPlayer;
         private PlayerId forcedKingPlayer;
         private boolean firstKingCalled;
+        private PlayerId fourKingHolder;
 
         private Builder(Round from) {
             this.roundNumber = from.roundNumber;
@@ -848,6 +882,7 @@ public final class Round {
             this.soloPlayer = from.soloPlayer;
             this.forcedKingPlayer = from.forcedKingPlayer;
             this.firstKingCalled = from.firstKingCalled;
+            this.fourKingHolder = from.fourKingHolder;
         }
 
         private Builder trumpSuit(Suit v) { this.trumpSuit = v; return this; }
@@ -869,7 +904,7 @@ public final class Round {
             return new Round(
                 roundNumber, trumpSuit, playerWhoGoes, playerOrder, completedBasas, currentBasa,
                 hands, teams, status, result, soledadPasses, soledadPlayer, soledadDeadline,
-                mode, soloPlayer, forcedKingPlayer, firstKingCalled
+                mode, soloPlayer, forcedKingPlayer, firstKingCalled, fourKingHolder
             );
         }
     }

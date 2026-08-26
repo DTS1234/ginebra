@@ -30,9 +30,11 @@ import java.util.Objects;
  * </pre>
  *
  * The same figure is collected on a win and paid on a loss, so holding the estutxe or
- * making primeres raises your stake in both directions. Two things sit outside the ladder:
- * the <b>dengue is always collected</b>, win or lose and on either side - <i>"El dengue
- * sempre es cobra"</i> - and a <b>forced king costs its owner 1</b>.
+ * making primeres raises your stake in both directions. Three things sit outside the
+ * ladder: the <b>dengue is always collected</b>, win or lose and on either side - <i>"El
+ * dengue sempre es cobra"</i> - the <b>four kings are always worth 4</b> to whoever was
+ * dealt them, whether they take the 4 and end the hand or go alone and play it out, and a
+ * <b>forced king costs its owner 1</b>.
  *
  * The opposing side collects a flat 1 when the going side fails, or 2 if the going side
  * was held under four basas. It pays nothing when the going side wins: the source lists no
@@ -87,9 +89,7 @@ public class SettlementCalculator {
             deltas.put(player, 0);
         }
 
-        if (result instanceof RoundResult.FourKings fourKings) {
-            deltas.merge(fourKings.holder(), FOUR_KINGS_AWARD, Integer::sum);
-        } else if (result instanceof RoundResult.GoingSideWon won) {
+        if (result instanceof RoundResult.GoingSideWon won) {
             for (final var player : won.goingSide()) {
                 deltas.merge(player, stakeOf(round, player, dealSnapshot), Integer::sum);
             }
@@ -104,7 +104,14 @@ public class SettlementCalculator {
                 deltas.merge(player, award, Integer::sum);
             }
         }
-        // RoundResult.KingFell settles on the forced-king penalty alone.
+        // RoundResult.FourKings settles on the four-kings award alone, and
+        // RoundResult.KingFell on the forced-king penalty alone.
+
+        // "Per tindre es quatre reis, 4" - unconditional, like the dengue. A holder who
+        // goes alone keeps it on top of whatever the hand then settles at.
+        round.fourKingHolder().ifPresent(
+            player -> deltas.merge(player, FOUR_KINGS_AWARD, Integer::sum)
+        );
 
         round.forcedKingPlayer().ifPresent(
             player -> deltas.merge(player, -FORCED_KING_PENALTY, Integer::sum)
@@ -147,7 +154,7 @@ public class SettlementCalculator {
             case HELPED -> BASE_HELPED;
             case SELF_KING -> BASE_SELF_KING;
             case SOLEDAD -> BASE_SOLEDAD;
-            case FOUR_KINGS -> FOUR_KINGS_AWARD;
+            case FOUR_KINGS -> 0;  // awarded separately, see settle()
             case KING_FELL -> 0;
         };
     }

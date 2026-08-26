@@ -88,14 +88,50 @@ class SettlementCalculatorTest {
         }
 
         @Test
-        void fourKingsShouldCollectFourWithNoPlay() {
+        void fourKingsShouldCollectFourWhenTheHolderDeclinesToPlay() {
             final var hands = fourKingDeal();
-            final var round = Round.start(1, ma(), players, hands, DEADLINE);
+            final var round = Round.start(1, ma(), players, hands, DEADLINE)
+                .withSoledadPass(opponent());
 
             final var deltas = calculator.settle(round, hands).playerDeltas();
 
-            assertThat(round.isComplete()).as("the hand ends at the deal").isTrue();
+            assertThat(round.isComplete()).as("declining ends the hand").isTrue();
             assertThat(deltas.get(opponent())).isEqualTo(SettlementCalculator.FOUR_KINGS_AWARD);
+            assertThat(deltas.get(ma())).isZero();
+        }
+
+        @Test
+        void fourKingsShouldStackOnTheSoledadRateWhenTheHolderPlaysItOut() {
+            final var hands = fourKingDeal();
+            var round = Round.start(1, ma(), players, hands, DEADLINE)
+                .withSoledadDeclared(opponent())
+                .withTrump(TRUMP);
+            final var scenario = new Scenario(round);
+
+            final var deltas = calculator
+                .settle(scenario.goingSideWinsFive().round(), hands).playerDeltas();
+
+            // "5 d'anar a soles, 4 des 4 reis" - the source's own arithmetic.
+            assertThat(deltas.get(opponent())).isEqualTo(
+                SettlementCalculator.BASE_SOLEDAD + SettlementCalculator.FOUR_KINGS_AWARD
+            );
+        }
+
+        @Test
+        void fourKingsShouldStillBeCollectedWhenTheHolderPlaysOnAndLoses() {
+            final var hands = fourKingDeal();
+            var round = Round.start(1, ma(), players, hands, DEADLINE)
+                .withSoledadDeclared(opponent())
+                .withTrump(TRUMP);
+            final var scenario = new Scenario(round);
+
+            final var deltas = calculator
+                .settle(scenario.opposingSideBlocks().round(), hands).playerDeltas();
+
+            // The 4 is a holding award like the dengue, so it survives the loss: -5 + 4.
+            assertThat(deltas.get(opponent())).isEqualTo(
+                SettlementCalculator.FOUR_KINGS_AWARD - SettlementCalculator.BASE_SOLEDAD
+            );
         }
     }
 
@@ -370,7 +406,7 @@ class SettlementCalculatorTest {
 
         /** An opponent takes the first, killing "todo", then the going side takes five. */
         private Scenario goingSideWinsFive() {
-            award(opponent());
+            award(opposingPlayer());
             for (var i = 0; i < 5; i++) {
                 award(goingPlayer());
             }
@@ -382,7 +418,7 @@ class SettlementCalculatorTest {
             for (var i = 0; i < 4; i++) {
                 award(goingPlayer());
             }
-            award(opponent());
+            award(opposingPlayer());
             award(goingPlayer());
             return this;
         }
@@ -396,7 +432,7 @@ class SettlementCalculatorTest {
 
         private Scenario opposingSideBlocks() {
             for (var i = 0; i < Round.BASAS_TO_BLOCK; i++) {
-                award(opponent());
+                award(opposingPlayer());
             }
             return this;
         }
@@ -405,13 +441,18 @@ class SettlementCalculatorTest {
         private Scenario fourAllThenBlocked() {
             for (var i = 0; i < 4; i++) {
                 award(goingPlayer());
-                award(opponent());
+                award(opposingPlayer());
             }
             return this;
         }
 
         private PlayerId goingPlayer() {
             return round.goingSide().iterator().next();
+        }
+
+        /** Someone actually on the other side, whoever the going side turns out to be. */
+        private PlayerId opposingPlayer() {
+            return round.opposingSide().iterator().next();
         }
 
         private void award(PlayerId winner) {

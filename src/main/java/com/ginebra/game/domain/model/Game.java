@@ -125,7 +125,7 @@ public final class Game {
         final var soledadDeadline = now.plus(SOLEDAD_TIMEOUT);
         final var round = Round.start(1, playerWhoGoes, players, hands, soledadDeadline);
 
-        final var game = new Game(
+        return new Game(
             gameId,
             players,
             List.of(),
@@ -135,9 +135,6 @@ public final class Game {
             GameStatus.IN_PROGRESS,
             hands
         );
-
-        // A deal of four kings ends the round before anyone plays.
-        return round.isComplete() ? game.settleCurrentRound() : game;
     }
 
     // === Query Methods ===
@@ -208,7 +205,11 @@ public final class Game {
         requireInProgress();
         requireCurrentRound();
 
-        return withCurrentRound(currentRound.withSoledadPass(playerId));
+        final var updatedRound = currentRound.withSoledadPass(playerId);
+        final var updated = withCurrentRound(updatedRound);
+
+        // The four-king holder declining to play the hand out ends it there.
+        return updatedRound.isComplete() ? updated.settleCurrentRound() : updated;
     }
 
     /**
@@ -323,7 +324,7 @@ public final class Game {
         final var soledadDeadline = now.plus(SOLEDAD_TIMEOUT);
         final var nextRound = Round.start(nextRoundNumber, nextStarter, players, hands, soledadDeadline);
 
-        final var game = new Game(
+        return new Game(
             gameId,
             players,
             newCompletedRounds,
@@ -333,8 +334,6 @@ public final class Game {
             GameStatus.IN_PROGRESS,
             hands
         );
-
-        return nextRound.isComplete() ? game.settleCurrentRound() : game;
     }
 
     // === Settlement ===

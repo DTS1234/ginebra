@@ -43,6 +43,7 @@ public record GameStatePayload(
         boolean firstKingCalled,
         List<String> soledadPasses,
         String soledadPlayer,
+        String fourKingHolder,
         String soledadDeadline
     ) {}
 
