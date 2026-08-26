@@ -11,6 +11,7 @@ import com.ginebra.game.domain.model.Suit;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
+import com.ginebra.game.port.in.TodoUseCase;
 import com.ginebra.identity.adapter.in.PlayerAuthentication;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
@@ -30,6 +31,7 @@ public class GameWebSocketController {
     private final PlayCardUseCase playCardUseCase;
     private final SelectTrumpUseCase selectTrumpUseCase;
     private final SoledadUseCase soledadUseCase;
+    private final TodoUseCase todoUseCase;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameStateMapper gameStateMapper;
 
@@ -37,12 +39,14 @@ public class GameWebSocketController {
         PlayCardUseCase playCardUseCase,
         SelectTrumpUseCase selectTrumpUseCase,
         SoledadUseCase soledadUseCase,
+        TodoUseCase todoUseCase,
         SimpMessagingTemplate messagingTemplate,
         GameStateMapper gameStateMapper
     ) {
         this.playCardUseCase = Objects.requireNonNull(playCardUseCase);
         this.selectTrumpUseCase = Objects.requireNonNull(selectTrumpUseCase);
         this.soledadUseCase = Objects.requireNonNull(soledadUseCase);
+        this.todoUseCase = Objects.requireNonNull(todoUseCase);
         this.messagingTemplate = Objects.requireNonNull(messagingTemplate);
         this.gameStateMapper = Objects.requireNonNull(gameStateMapper);
     }
@@ -114,6 +118,33 @@ public class GameWebSocketController {
         } else if (result instanceof SoledadUseCase.PassSoledadResult.InvalidGameState invalid) {
             sendError(playerId, "INVALID_GAME_STATE", invalid.message());
         } else if (result instanceof SoledadUseCase.PassSoledadResult.GameNotFound) {
+            sendError(playerId, "GAME_NOT_FOUND", "Game not found");
+        }
+    }
+
+    @MessageMapping("/game/{gameId}/call-todo")
+    public void callTodo(@DestinationVariable String gameId, Principal principal) {
+        decideTodo(gameId, principal, true);
+    }
+
+    @MessageMapping("/game/{gameId}/decline-todo")
+    public void declineTodo(@DestinationVariable String gameId, Principal principal) {
+        decideTodo(gameId, principal, false);
+    }
+
+    private void decideTodo(String gameId, Principal principal, boolean call) {
+        final var playerId = extractPlayerId(principal);
+        final var parsedGameId = new GameId(UUID.fromString(gameId));
+
+        final var result = todoUseCase.decideTodo(
+            new TodoUseCase.TodoCommand(parsedGameId, playerId), call
+        );
+
+        if (result instanceof TodoUseCase.TodoResult.NotYourCall) {
+            sendError(playerId, "NOT_YOUR_CALL", "Todo is not yours to call");
+        } else if (result instanceof TodoUseCase.TodoResult.InvalidGameState invalid) {
+            sendError(playerId, "INVALID_GAME_STATE", invalid.message());
+        } else if (result instanceof TodoUseCase.TodoResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
     }

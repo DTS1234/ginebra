@@ -5,11 +5,11 @@ import com.ginebra.game.domain.model.*;
 import com.ginebra.game.domain.service.BasaResolver;
 import com.ginebra.game.domain.service.MoveValidation;
 import com.ginebra.game.domain.service.MoveValidator;
-import com.ginebra.game.domain.service.TeamResolver;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
 import com.ginebra.game.port.in.StartGameUseCase;
+import com.ginebra.game.port.in.TodoUseCase;
 import com.ginebra.game.port.out.GameEventPublisher;
 import com.ginebra.game.port.out.GameRepository;
 import com.ginebra.identity.domain.PlayerId;
@@ -27,13 +27,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * Thread safety: synchronizes on per-game locks to ensure atomic read-modify-write cycles.
  */
 @Service
-public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase {
+public class GameService
+    implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase, TodoUseCase {
 
     private final GameRepository gameRepository;
     private final GameEventPublisher eventPublisher;
     private final MoveValidator moveValidator;
     private final BasaResolver basaResolver;
-    private final TeamResolver teamResolver;
     private final Clock clock;
     private final Random random;
     private final ConcurrentHashMap<GameId, Object> gameLocks = new ConcurrentHashMap<>();
@@ -43,7 +43,6 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
         GameEventPublisher eventPublisher,
         MoveValidator moveValidator,
         BasaResolver basaResolver,
-        TeamResolver teamResolver,
         Clock clock,
         Random random
     ) {
@@ -51,7 +50,6 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
         this.moveValidator = Objects.requireNonNull(moveValidator, "moveValidator must not be null");
         this.basaResolver = Objects.requireNonNull(basaResolver, "basaResolver must not be null");
-        this.teamResolver = Objects.requireNonNull(teamResolver, "teamResolver must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.random = Objects.requireNonNull(random, "random must not be null");
     }
@@ -98,6 +96,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 return new PassSoledadResult.AlreadyPassed();
             }
 
+            final var balancesBefore = game.coinBalances();
             var updatedGame = game.passSoledad(playerId);
             final var updatedRound = updatedGame.currentRound().orElseThrow();
 
@@ -108,11 +107,17 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
 
             eventPublisher.publishToGame(gameId, new GameEvent.SoledadPassed(playerId, remaining));
 
+            // A four-king holder who declines to play the hand out takes their 4 and ends it.
+            if (updatedRound.isComplete()) {
+                finishRound(gameId, updatedGame, balancesBefore);
+                return new PassSoledadResult.Success();
+            }
+
             // If all passed, transition to WAITING_FOR_TRUMP
             if (updatedRound.isWaitingForTrump()) {
                 eventPublisher.publishToGame(gameId, new GameEvent.SoledadWindowClosed(
                     false,
-                    updatedRound.playerWhoGoes()
+                    updatedRound.trumpChooser()
                 ));
             }
 
@@ -149,7 +154,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
             eventPublisher.publishToGame(gameId, new GameEvent.SoledadDeclared(playerId));
             eventPublisher.publishToGame(gameId, new GameEvent.SoledadWindowClosed(
                 true,
-                updatedRound.playerWhoGoes()
+                updatedRound.trumpChooser()
             ));
 
             gameRepository.save(updatedGame);
@@ -174,7 +179,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 return new SelectTrumpResult.InvalidGameState("Game is not waiting for trump selection");
             }
 
-            if (!round.playerWhoGoes().equals(command.playerId())) {
+            if (!round.trumpChooser().equals(command.playerId())) {
                 return new SelectTrumpResult.NotYourTurn();
             }
 
@@ -228,10 +233,19 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 ? Optional.<Card>empty()
                 : Optional.of(basa.cardsPlayed().get(0).card());
 
-            final var validation = moveValidator.validate(hand, card, trumpSuit, firstCard);
+            final var leadContext = new MoveValidator.LeadContext(
+                round.ledSuits(), round.sideDecided()
+            );
+
+            final var validation = moveValidator.validate(hand, card, trumpSuit, firstCard, leadContext);
             if (validation instanceof MoveValidation.Invalid invalid) {
                 return new PlayCardResult.InvalidCard(invalid.code(), invalid.message());
             }
+
+            // "Et cau el rei": a king with no legal alternative is put unintentionally,
+            // and costs its owner 1. Decided against the hand as it stands before the play.
+            final var kingWasForced = card.isKing()
+                && noOtherLegalCard(hand, card, trumpSuit, firstCard, leadContext);
 
             // Capture pre-round balances before playing card (for coin delta calculation)
             final var preRoundBalances = game.coinBalances();
@@ -246,22 +260,24 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
             final var nextTurn = updatedRound.currentPlayer().orElse(null);
             eventPublisher.publishToGame(gameId, new GameEvent.CardPlayed(playerId, card, nextTurn));
 
-            // Check team formation (first King triggers teams)
-            if (updatedRound.teams().isEmpty()) {
-                final var teamsOpt = teamResolver.resolveTeams(
-                    card,
+            // A king decides the shape of the round - who goes with whom, or alone.
+            if (card.isKing() && updatedRound.mode().isEmpty()) {
+                game = game.resolveKing(playerId, kingWasForced);
+                final var decided = game.currentRound().orElseThrow();
+
+                eventPublisher.publishToGame(gameId, new GameEvent.SideDecided(
+                    decided.mode().orElseThrow(),
+                    decided.goingSide(),
+                    decided.opposingSide(),
                     playerId,
-                    updatedRound.playerWhoGoes(),
-                    new HashSet<>(game.players())
-                );
-                if (teamsOpt.isPresent()) {
-                    game = game.setTeams(teamsOpt.get());
-                    final var teams = teamsOpt.get();
-                    eventPublisher.publishToGame(gameId, new GameEvent.TeamsRevealed(
-                        teams.teamOfTwo(),
-                        teams.teamOfThree(),
-                        card
-                    ));
+                    card,
+                    kingWasForced
+                ));
+
+                if (decided.isComplete()) {
+                    // "Si es qui és mà li cau el rei s'acaba sa mà."
+                    finishRound(gameId, game, preRoundBalances);
+                    return new PlayCardResult.Success();
                 }
             }
 
@@ -283,33 +299,105 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
 
                 // Check if round ended
                 if (afterBasa.isComplete()) {
-                    final var result = afterBasa.result().orElseThrow();
-
-                    // Compute coin deltas: newBalance - preRoundBalance
-                    final var coinDeltas = computeCoinDeltas(preRoundBalances, game.coinBalances());
-
-                    eventPublisher.publishToGame(gameId, new GameEvent.RoundEnded(
-                        afterBasa.roundNumber(),
-                        result,
-                        coinDeltas,
-                        game.coinBalances()
-                    ));
-
-                    // Check if game ended
-                    if (game.isEnded()) {
-                        eventPublisher.publishToGame(gameId, new GameEvent.GameEnded(
-                            "PLAYER_BANKRUPT",
-                            game.coinBalances()
-                        ));
-                    } else {
-                        // Start next round automatically
-                        game = game.startNextRound(random, clock.instant());
-                    }
+                    finishRound(gameId, game, preRoundBalances);
+                    return new PlayCardResult.Success();
                 }
             }
 
             gameRepository.save(game);
             return new PlayCardResult.Success();
+        }
+    }
+
+    /**
+     * Announces a settled round, ends the game or deals the next one, and saves.
+     *
+     * The round has already been priced against the posso by the aggregate; this only
+     * reports what moved and advances the game.
+     */
+    private void finishRound(
+        GameId gameId,
+        Game settled,
+        Map<PlayerId, Integer> preRoundBalances
+    ) {
+        var game = settled;
+        final var round = game.currentRound().orElseThrow();
+
+        eventPublisher.publishToGame(gameId, new GameEvent.RoundEnded(
+            round.roundNumber(),
+            round.result().orElseThrow(),
+            computeCoinDeltas(preRoundBalances, game.coinBalances()),
+            game.coinBalances(),
+            game.posso()
+        ));
+
+        if (game.isEnded()) {
+            eventPublisher.publishToGame(gameId, new GameEvent.GameEnded(
+                "PLAYER_OUT_OF_COINS",
+                game.coinBalances()
+            ));
+            gameRepository.save(game);
+            return;
+        }
+
+        game = game.startNextRound(random, clock.instant());
+
+        gameRepository.save(game);
+    }
+
+    /**
+     * Whether every other card in the hand would be rejected, leaving this one forced.
+     */
+    private boolean noOtherLegalCard(
+        List<Card> hand,
+        Card card,
+        Suit trumpSuit,
+        Optional<Card> firstCardInBasa,
+        MoveValidator.LeadContext leadContext
+    ) {
+        return hand.stream()
+            .filter(c -> !c.equals(card))
+            .noneMatch(c -> moveValidator.validate(hand, c, trumpSuit, firstCardInBasa, leadContext)
+                instanceof MoveValidation.Valid);
+    }
+
+    @Override
+    public TodoResult decideTodo(TodoCommand command, boolean call) {
+        final var gameId = command.gameId();
+        final var playerId = command.playerId();
+        final var lock = gameLocks.computeIfAbsent(gameId, k -> new Object());
+
+        synchronized (lock) {
+            final var gameOpt = gameRepository.findById(gameId);
+            if (gameOpt.isEmpty()) {
+                return new TodoResult.GameNotFound();
+            }
+
+            final var game = gameOpt.get();
+            final var round = game.currentRound().orElse(null);
+            if (round == null || !round.isWaitingForTodo()) {
+                return new TodoResult.InvalidGameState("Not waiting for a todo decision");
+            }
+            if (!round.todoCaller().map(playerId::equals).orElse(false)) {
+                return new TodoResult.NotYourCall();
+            }
+
+            final var balancesBefore = game.coinBalances();
+            final var updatedGame = game.decideTodo(playerId, call);
+            final var updatedRound = updatedGame.currentRound().orElseThrow();
+
+            eventPublisher.publishToGame(gameId, new GameEvent.TodoDecided(
+                playerId,
+                call,
+                updatedRound.currentPlayer().orElse(null)
+            ));
+
+            if (updatedRound.isComplete()) {
+                finishRound(gameId, updatedGame, balancesBefore);
+            } else {
+                gameRepository.save(updatedGame);
+            }
+            return new TodoResult.Success();
         }
     }
 

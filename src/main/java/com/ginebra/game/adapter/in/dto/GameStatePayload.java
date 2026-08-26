@@ -13,6 +13,7 @@ public record GameStatePayload(
     String status,
     List<PlayerDto> players,
     Map<String, Integer> coinBalances,
+    int posso,
     RoundPayload currentRound
 ) {
     public GameStatePayload {
@@ -29,13 +30,22 @@ public record GameStatePayload(
         String status,
         String trumpSuit,
         String playerWhoGoes,
+        String trumpChooser,
         List<CardDto> yourHand,
         String currentTurn,
         Map<String, Integer> basasWon,
         BasaPayload currentBasa,
         TeamsPayload teams,
+        String mode,
+        List<String> ledSuits,
+        List<String> goingSide,
+        List<String> opposingSide,
+        boolean firstKingCalled,
+        String todoCaller,
+        boolean todoCalled,
         List<String> soledadPasses,
         String soledadPlayer,
+        String fourKingHolder,
         String soledadDeadline
     ) {}
 

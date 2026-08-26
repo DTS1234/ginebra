@@ -21,7 +21,13 @@ public enum RoundStatus {
     IN_PROGRESS,
 
     /**
-     * Round is complete - a team won or it's a draw.
+     * The going side has reached 5 basas with a clean sweep, so "fer todo" is still
+     * reachable and theirs to call. Play is paused on that decision.
+     */
+    WAITING_FOR_TODO,
+
+    /**
+     * Round is complete.
      */
     COMPLETE
 }

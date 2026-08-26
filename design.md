@@ -377,7 +377,8 @@ Game (Aggregate Root)
 ├── rounds: List<Round>
 ├── currentRound: Round (nullable, null before first round)
 ├── status: GameStatus (WAITING_FOR_TRUMP | IN_PROGRESS | ENDED)
-└── coinBalances: Map<PlayerId, Integer>
+├── coinBalances: Map<PlayerId, Integer>
+└── posso: int (the pot in the middle of the table)
 
 Round
 ├── roundNumber: int
@@ -389,11 +390,20 @@ Round
 ├── basas: List<Basa>
 ├── currentBasa: Basa (nullable)
 ├── hands: Map<PlayerId, List<Card>> (private to each player)
-├── teams: Teams (nullable until first King played)
+├── teams: Teams (nullable; the 2-v-3 case only)
+├── mode: RoundMode (HELPED | SELF_KING | SOLEDAD | FOUR_KINGS | KING_FELL, nullable
+│                    until a King is played or Soledad is declared)
+├── soloPlayer: PlayerId (nullable; the one against four)
+├── forcedKingPlayer: PlayerId (nullable; "et cau el rei", pays 1)
+├── firstKingCalled: boolean ("es primer rei aida")
 ├── status: RoundStatus
-└── result: RoundResult (WIN | DRAW, nullable until round ends)
+└── result: RoundResult (nullable until round ends)
 
-Note: Round ends when either team reaches 5 basas (WIN) or all 8 basas played with 4-4 score (DRAW).
+RoundResult: GoingSideWon | GoingSideFailed | FourKings | KingFell. There is no draw.
+
+The going side needs 5 basas; the opposing side needs only 4 to put that out of reach, and
+the round ends the moment it has them. A going side that reaches 5 having won every basa so
+far plays on, because "fer todo" is still worth a point.
 
 RoundStatus: WAITING_FOR_SOLEDAD → WAITING_FOR_TRUMP → IN_PROGRESS → COMPLETE
 
@@ -429,8 +439,8 @@ SoledadDeclared { gameId, roundNumber, byPlayer }
 TrumpSelected { gameId, roundNumber, suit, byPlayer }
 CardPlayed { gameId, roundNumber, basaNumber, playerId, card }
 BasaWon { gameId, roundNumber, basaNumber, winner, cards }
-TeamsRevealed { gameId, roundNumber, teamOfTwo, teamOfThree, revealingCard }
-RoundEnded { gameId, roundNumber, result (WIN|DRAW), winningTeam (null if draw), coinChanges, bonuses }
+SideDecided { gameId, roundNumber, mode, goingSide, opposingSide, byPlayer, king, forced }
+RoundEnded { gameId, roundNumber, result, coinChanges, newBalances, posso }
 GameEnded { gameId, reason, finalCoinBalances }
 PlayerDisconnected { gameId, playerId, timestamp }
 PlayerReconnected { gameId, playerId, timestamp }
@@ -460,9 +470,15 @@ PlayerReconnected { gameId, playerId, timestamp }
 - Determines winner of a basa
 - Accounts for trump, led suit, special cards
 
-**TeamResolver**
-- Detects when first King is played
-- Assigns teams based on "goes" player + King player
+**Round.withKingPlayed** (replaced the former TeamResolver)
+- The first King decides the round's shape, all three cases together:
+  another player aids (HELPED), the mà puts their own King (SELF_KING),
+  or the mà's King is forced out and the hand ends (KING_FELL)
+- A forced King is recorded against its owner, who pays 1
+
+**SettlementCalculator**
+- Prices a completed round as one base plus +1 increments
+- Collections and payments run against the posso, and do not balance
 
 ---
 

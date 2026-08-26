@@ -3,6 +3,7 @@ package com.ginebra.game.domain.model;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
 import com.ginebra.support.LegalMoves;
+import com.ginebra.game.domain.service.SettlementCalculator;
 import com.ginebra.support.TestDeal;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -24,10 +25,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Rules for a Soledad round (spec 2.5 and 2.6): one player declares, chooses trump and
  * plays alone against the other four.
  *
- * The declaration window itself works today and is covered by the enabled tests below.
- * What follows the declaration does not: the round is still resolved as an ordinary
- * 2-vs-3 game. Those tests are disabled and act as the acceptance criteria for the fix -
- * enable them as each behaviour lands.
+ * The declarer names trumps but does not take over the lead: the mà still leads the first
+ * basa, which is what reconciles rules-source.md §4.1 with the glossary's "Ser mà [...] És
+ * es primer en jugar".
  */
 @DisplayName("Soledad round rules")
 class SoledadRoundRulesTest {
@@ -168,9 +168,6 @@ class SoledadRoundRulesTest {
     class TurnOrder {
 
         @Test
-        @Disabled("GAP: withSoledadDeclared overwrites playerWhoGoes with the declarer. "
-            + "Spec 2.5: the declarer chooses trump but the round still starts with the "
-            + "player whose turn it is by normal rotation.")
         void shouldKeepNormalRotationStarterWhenSoledadIsDeclared() {
             // Act
             final var round = newRound().withSoledadDeclared(declarer());
@@ -181,8 +178,16 @@ class SoledadRoundRulesTest {
         }
 
         @Test
-        @Disabled("GAP: the first basa is started by the declarer instead of the normal "
-            + "rotation starter. See spec 2.5.")
+        void shouldMakeTheDeclarerNameTrumpsWithoutMakingThemMa() {
+            // Act
+            final var round = newRound().withSoledadDeclared(declarer());
+
+            // Assert
+            assertThat(round.trumpChooser()).isEqualTo(declarer());
+            assertThat(round.playerWhoGoes()).isEqualTo(starter());
+        }
+
+        @Test
         void shouldStartFirstBasaWithNormalRotationStarter() {
             // Act
             final var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
@@ -198,8 +203,6 @@ class SoledadRoundRulesTest {
     class NoTeams {
 
         @Test
-        @Disabled("GAP: a Soledad round still forms a 2-vs-3 partnership on the first King, "
-            + "giving the Soledad player a partner. A Soledad round must stay 1-vs-4.")
         void shouldRejectTeamFormationInSoledadRound() {
             // Arrange
             final var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
@@ -212,14 +215,33 @@ class SoledadRoundRulesTest {
     }
 
     @Nested
-    @DisplayName("Round result (spec 2.5)")
+    @DisplayName("Round result: five alone, or the other four take it")
     class RoundOutcome {
 
         @Test
-        @Disabled("GAP: Round.checkForRoundEnd only understands 2-vs-3 teams, so a Soledad "
-            + "round never ends on the Soledad player's fifth basa.")
         void shouldEndRoundWhenSoledadPlayerWinsFiveBasas() {
-            // Arrange: the declarer takes every basa
+            // Arrange: an opponent takes the first, so "todo" is off the table
+            var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
+
+            // Act
+            round = playBasasWonBy(round, List.of(
+                opponents().get(0),
+                declarer(), declarer(), declarer(), declarer(), declarer()
+            ));
+
+            // Assert
+            assertThat(round.isComplete()).isTrue();
+            assertThat(round.result()).contains(new RoundResult.GoingSideWon(
+                Set.of(declarer()), Set.copyOf(opponents()), 5
+            ));
+            assertThat(round.completedBasas())
+                .as("round stops as soon as the fifth basa is won")
+                .hasSize(6);
+        }
+
+        @Test
+        void shouldPlayOnPastFiveWhileTodoIsStillLive() {
+            // Arrange: the declarer takes every basa, so "fer todo" stays reachable
             var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
 
             // Act
@@ -228,90 +250,108 @@ class SoledadRoundRulesTest {
             ));
 
             // Assert
-            assertThat(round.isComplete()).isTrue();
-            assertThat(round.result()).contains(new RoundResult.Win(Set.of(declarer())));
-            assertThat(round.completedBasas())
-                .as("round stops as soon as the fifth basa is won")
-                .hasSize(5);
+            assertThat(round.isComplete()).as("five is not the end when todo is live").isFalse();
+            assertThat(round.goingSideBasas()).isEqualTo(5);
         }
 
         @Test
-        @Disabled("GAP: with fewer than five basas the other four players must win the round; "
-            + "today the round is scored as an ordinary 2-vs-3 game or a draw.")
-        void shouldEndRoundInFavourOfTheOtherFourWhenSoledadPlayerFallsShort() {
+        void shouldEndRoundInFavourOfTheOtherFourOnTheirFourthBasa() {
             // Arrange: the declarer takes nothing
             var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
-            final var opponents = players.stream()
-                .filter(player -> !player.equals(declarer()))
-                .toList();
 
             // Act
             round = playBasasWonBy(round, List.of(
-                opponents.get(0), opponents.get(1), opponents.get(2), opponents.get(3),
-                opponents.get(0), opponents.get(1), opponents.get(2), opponents.get(3)
+                opponents().get(0), opponents().get(1), opponents().get(2), opponents().get(3),
+                opponents().get(0), opponents().get(1), opponents().get(2), opponents().get(3)
             ));
 
             // Assert
             assertThat(round.isComplete()).isTrue();
-            assertThat(round.result()).contains(new RoundResult.Win(Set.copyOf(opponents)));
+            assertThat(round.result()).contains(new RoundResult.GoingSideFailed(
+                Set.of(declarer()), Set.copyOf(opponents()), 0
+            ));
+            assertThat(round.completedBasas())
+                .as("four basas already put five out of reach")
+                .hasSize(4);
         }
     }
 
     @Nested
-    @DisplayName("Coins (spec 2.6)")
+    @DisplayName("Coins: anar a soles settles at 5 against the posso")
     class Scoring {
 
-        private static final int SOLEDAD_STAKE_PER_OPPONENT = 3;
-        private static final int SOLEDAD_TOTAL = SOLEDAD_STAKE_PER_OPPONENT * 4;
+        private static final int SOLEDAD_STAKE = SettlementCalculator.BASE_SOLEDAD;
+
+        private final SettlementCalculator calculator = new SettlementCalculator();
 
         @Test
-        @Disabled("GAP: Game.calculateCoinChanges has no Soledad branch - it pays the flat "
-            + "+/-2 team rate. Spec 2.6: the Soledad player wins 3 coins from each of the "
-            + "other four (12 in total).")
-        void shouldPaySoledadWinnerThreeCoinsFromEachOpponent() {
+        void shouldPaySoledadWinnerFiveFromThePosso() {
             // Arrange
-            final var game = newGame();
-            final var round = completedSoledadRoundWonBy(declarer());
+            final var round = completedSoledadRoundWonByDeclarer();
 
             // Act
-            final var changes = game.calculateCoinChanges(round, handsOf(round));
+            final var settlement = calculator.settle(round, dealtHands());
 
             // Assert
-            assertThat(changes.get(declarer())).isEqualTo(SOLEDAD_TOTAL);
+            assertThat(settlement.playerDeltas().get(declarer())).isEqualTo(SOLEDAD_STAKE);
             for (final var opponent : opponents()) {
-                assertThat(changes.get(opponent))
-                    .as("opponent %s pays the Soledad stake", opponent)
-                    .isEqualTo(-SOLEDAD_STAKE_PER_OPPONENT);
+                assertThat(settlement.playerDeltas().get(opponent))
+                    .as("a losing opponent neither collects nor pays")
+                    .isZero();
             }
-            assertThat(changes.values().stream().mapToInt(Integer::intValue).sum())
-                .as("coins are only moved between players, never created")
-                .isZero();
+            assertThat(settlement.possoDelta())
+                .as("the pot funds the win")
+                .isEqualTo(-SOLEDAD_STAKE);
         }
 
         @Test
-        @Disabled("GAP: see shouldPaySoledadWinnerThreeCoinsFromEachOpponent. A losing "
-            + "Soledad player pays 3 coins to each of the other four.")
-        void shouldChargeSoledadLoserThreeCoinsForEachOpponent() {
-            // Arrange
-            final var game = newGame();
-            final var round = completedSoledadRoundWonBy(opponents());
+        void shouldChargeSoledadLoserFiveAndPayTheOthersOne() {
+            // Arrange: the declarer is held to nothing
+            final var round = completedSoledadRoundWonByOpponents();
 
             // Act
-            final var changes = game.calculateCoinChanges(round, handsOf(round));
+            final var settlement = calculator.settle(round, dealtHands());
 
             // Assert
-            assertThat(changes.get(declarer())).isEqualTo(-SOLEDAD_TOTAL);
+            assertThat(settlement.playerDeltas().get(declarer())).isEqualTo(-SOLEDAD_STAKE);
             for (final var opponent : opponents()) {
-                assertThat(changes.get(opponent)).isEqualTo(SOLEDAD_STAKE_PER_OPPONENT);
+                assertThat(settlement.playerDeltas().get(opponent))
+                    .as("held under four basas, so each opponent collects 2")
+                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
             }
-            assertThat(changes.values().stream().mapToInt(Integer::intValue).sum()).isZero();
+        }
+
+        @Test
+        void shouldNotBalanceBecauseThePotAbsorbsTheDifference() {
+            // Arrange
+            final var round = completedSoledadRoundWonByOpponents();
+
+            // Act
+            final var settlement = calculator.settle(round, dealtHands());
+
+            // Assert: 5 in from the declarer, 8 out to the four opponents
+            assertThat(settlement.possoDelta())
+                .as("the pot pays out more than it takes, which is what it is for")
+                .isEqualTo(SOLEDAD_STAKE - 4 * SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
         }
     }
 
     // === Helpers ===
 
     private Round newRound() {
-        return Round.start(1, starter(), players, TestDeal.forPlayers(players).hands(), DEADLINE);
+        return Round.start(1, starter(), players, deal(), DEADLINE);
+    }
+
+    /**
+     * Espadilla, Basto and Manilla go to three different players, so nobody holds the
+     * dengue and the settlement figures stay the base rates.
+     */
+    private Map<PlayerId, List<Card>> deal() {
+        return TestDeal.forPlayers(players)
+            .give(players.get(0), Card.espadilla())
+            .give(players.get(1), Card.basto())
+            .give(players.get(3), new Card(TRUMP, Rank.SIETE))
+            .hands();
     }
 
     private Game newGame() {
@@ -354,23 +394,27 @@ class SoledadRoundRulesTest {
         return round;
     }
 
-    private Round completedSoledadRoundWonBy(PlayerId winner) {
-        return completedSoledadRoundWonBy(List.of(winner, winner, winner, winner, winner));
+    /** An opponent takes the first basa, then the declarer takes five. */
+    private Round completedSoledadRoundWonByDeclarer() {
+        final var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
+        return playBasasWonBy(round, List.of(
+            opponents().get(0),
+            declarer(), declarer(), declarer(), declarer(), declarer()
+        ));
     }
 
-    private Round completedSoledadRoundWonBy(List<PlayerId> basaWinners) {
+    /** The declarer is held to nothing at all. */
+    private Round completedSoledadRoundWonByOpponents() {
         final var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
-        final var winners = new ArrayList<>(basaWinners);
-        while (winners.size() < Round.MAX_BASAS) {
-            winners.addAll(basaWinners);
-        }
-        return playBasasWonBy(round, winners.subList(0, Round.MAX_BASAS));
+        return playBasasWonBy(round, List.of(
+            opponents().get(0), opponents().get(1), opponents().get(2), opponents().get(3)
+        ));
     }
 
     /**
-     * The hands as they were dealt, which is what coin bonuses are calculated from.
+     * The hands as they were dealt, which is what the dengue and estutxe are read from.
      */
-    private Map<PlayerId, List<Card>> handsOf(Round round) {
-        return TestDeal.forPlayers(round.playerOrder()).hands();
+    private Map<PlayerId, List<Card>> dealtHands() {
+        return deal();
     }
 }

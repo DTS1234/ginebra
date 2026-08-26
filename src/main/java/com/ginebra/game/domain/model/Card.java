@@ -80,6 +80,29 @@ public record Card(Suit suit, Rank rank) {
     // === Query Methods ===
 
     /**
+     * Checks if this card is a trump for the given trump suit.
+     *
+     * The Espadilla and the Basto are trumps whatever the trump suit is - the source lists
+     * them in the trump order of all four suits. Everything else is a trump only when its
+     * suit is the trump suit, which covers the Manilla.
+     */
+    public boolean isTrump(Suit trumpSuit) {
+        Objects.requireNonNull(trumpSuit, "trumpSuit must not be null");
+        return isSpecial() || suit == trumpSuit;
+    }
+
+    /**
+     * Checks if this card counts as a member of the given suit when following it.
+     *
+     * The Espadilla and the Basto never do, even for Espadas and Bastos: they are trumps,
+     * so a player holding nothing else of the led suit is void and may discard or fallar.
+     */
+    public boolean followsSuit(Suit ledSuit) {
+        Objects.requireNonNull(ledSuit, "ledSuit must not be null");
+        return suit == ledSuit && !isSpecial();
+    }
+
+    /**
      * Checks if this card is a King. Kings are significant for team formation.
      * Playing the first King reveals the partnership.
      */

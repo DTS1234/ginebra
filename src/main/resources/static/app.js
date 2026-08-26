@@ -188,6 +188,16 @@ function isSpecial(card) {
     return card.rank === 'AS' && (card.suit === 'ESPADAS' || card.suit === 'BASTOS');
 }
 
+
+/** How the going side came about, for the sides panel. */
+const MODE_LABEL = {
+    HELPED: 'a king was put — two against three',
+    SELF_KING: 'put their own king — one against four',
+    SOLEDAD: 'went alone — one against four',
+    FOUR_KINGS: 'four kings dealt — hand over',
+    KING_FELL: 'the king fell — hand over'
+};
+
 // === Application state ===
 
 const state = {
@@ -201,7 +211,8 @@ const state = {
     trump: null,
     basa: [],           // { playerId, card } played so far in the current basa
     seats: new Map(),   // playerId -> seat label
-    coins: {}
+    coins: {},
+    posso: null         // what is in the middle of the table
 };
 
 const el = (id) => document.getElementById(id);
@@ -389,6 +400,7 @@ function onGameState(message) {
     }
     const payload = message.payload;
     state.coins = payload.coinBalances || {};
+    state.posso = payload.posso ?? null;
     payload.players.forEach((player) => {
         if (!state.seats.has(player.id)) {
             state.seats.set(player.id, 'seat ' + player.seatPosition);
@@ -473,18 +485,35 @@ function onServerMessage(message) {
             state.round = Object.assign({}, state.round, { basasWon: payload.basasWon });
             break;
 
-        case 'TEAMS_REVEALED':
-            log('Teams revealed by ' + cardName(payload.revealingCard) + ': [' +
-                payload.teamOfTwo.map(seatOf).join(', ') + '] vs [' +
-                payload.teamOfThree.map(seatOf).join(', ') + ']', 'good');
+        case 'SIDE_DECIDED':
+            log(seatOf(payload.byPlayer) + ' played ' + cardName(payload.king)
+                + (payload.forced ? ' (forced — pays 1)' : '')
+                + ': ' + (MODE_LABEL[payload.mode] || payload.mode)
+                + ' — [' + payload.goingSide.map(seatOf).join(', ') + '] vs ['
+                + payload.opposingSide.map(seatOf).join(', ') + ']', 'good');
             state.round = Object.assign({}, state.round, {
-                teams: { teamOfTwo: payload.teamOfTwo, teamOfThree: payload.teamOfThree }
+                mode: payload.mode,
+                goingSide: payload.goingSide,
+                opposingSide: payload.opposingSide
             });
             break;
 
+        case 'TODO_DECIDED':
+            log(seatOf(payload.byPlayer) + (payload.called
+                ? ' calls todo — playing on for all eight'
+                : ' banks the win'), 'good');
+            state.currentTurn = payload.currentTurn;
+            state.basa = [];
+            setTimeout(refreshState, 250);
+            break;
+
         case 'ROUND_ENDED':
-            log('Round ' + payload.roundNumber + ' ended: ' + payload.result, 'good');
+            log('Round ' + payload.roundNumber + ' ended: '
+                + payload.result.replace(/_/g, ' ').toLowerCase()
+                + (payload.winners.length ? ' — ' + payload.winners.map(seatOf).join(', ') : '')
+                + ' · posso ' + payload.posso, 'good');
             state.coins = payload.coinBalances;
+            state.posso = payload.posso;
             state.basa = [];
             // The next round is dealt server-side; ask for the new hand.
             setTimeout(refreshState, 250);
@@ -511,6 +540,10 @@ function passSoledad() {
     state.stomp.send('/app/game/' + state.gameId + '/soledad-pass', {});
 }
 
+function decideTodo(call) {
+    state.stomp.send('/app/game/' + state.gameId + '/' + (call ? 'call-todo' : 'decline-todo'), {});
+}
+
 function declareSoledad() {
     state.stomp.send('/app/game/' + state.gameId + '/declare-soledad', {});
 }
@@ -533,7 +566,7 @@ function render() {
 
     const myTurn = state.currentTurn === state.me.playerId;
     const iPickTrump = round.status === 'WAITING_FOR_TRUMP'
-        && round.playerWhoGoes === state.me.playerId;
+        && round.trumpChooser === state.me.playerId;
 
     el('phase').textContent = round.status.replace(/_/g, ' ').toLowerCase();
     el('trump').textContent = state.trump
@@ -541,10 +574,26 @@ function render() {
         : 'not chosen';
     el('round-number').textContent = round.roundNumber;
     el('coins').textContent = state.coins[state.me.playerId] ?? '-';
+    el('posso').textContent = state.posso ?? '-';
     el('turn').textContent = state.currentTurn ? seatOf(state.currentTurn) : '-';
     el('turn').className = myTurn ? 'highlight' : '';
 
-    el('soledad-actions').classList.toggle('hidden', round.status !== 'WAITING_FOR_SOLEDAD');
+    const todoOpen = round.status === 'WAITING_FOR_TODO';
+    const myTodoCall = todoOpen && round.todoCaller === state.me.playerId;
+    el('todo-actions').classList.toggle('hidden', !todoOpen);
+    if (todoOpen) {
+        el('todo-label').textContent = myTodoCall
+            ? 'Five basas, all of them yours — go for todo? Made is +1, called and missed is −1:'
+            : 'Waiting for ' + seatOf(round.todoCaller) + ' to decide on todo';
+        el('call-todo').disabled = !myTodoCall;
+        el('decline-todo').disabled = !myTodoCall;
+    }
+
+    const soledadOpen = round.status === 'WAITING_FOR_SOLEDAD';
+    el('soledad-actions').classList.toggle('hidden', !soledadOpen);
+    if (soledadOpen) {
+        renderSoledadWindow(round);
+    }
     el('trump-actions').classList.toggle('hidden', !iPickTrump);
 
     renderBasa();
@@ -577,15 +626,71 @@ function renderBasa() {
 }
 
 /**
- * The suit that must be followed in the current basa, or null if this player leads.
- * A special card leading makes trump the suit to follow.
+ * The Soledad window. A four-king deal narrows it to one player: only they may go alone,
+ * and their pass takes the 4 and ends the hand.
  */
-function ledSuit() {
-    if (state.basa.length === 0) {
-        return null;
+function renderSoledadWindow(round) {
+    const holder = round.fourKingHolder;
+    const mine = holder === state.me.playerId;
+
+    if (!holder) {
+        el('soledad-label').textContent = 'Soledad window open:';
+        el('pass-soledad').disabled = false;
+        el('declare-soledad').disabled = false;
+        el('declare-soledad').textContent = 'Declare Soledad';
+        return;
     }
-    const first = state.basa[0].card;
-    return isSpecial(first) ? state.trump : first.suit;
+
+    el('soledad-label').textContent = mine
+        ? 'Four kings! Take the 4, or play it out alone and keep the 4 as well:'
+        : seatOf(holder) + ' was dealt the four kings — only they may go alone';
+    el('pass-soledad').disabled = !mine;
+    el('declare-soledad').disabled = !mine;
+    el('declare-soledad').textContent = mine ? 'Go alone (keep the 4)' : 'Declare Soledad';
+    el('pass-soledad').textContent = mine ? 'Take the 4, end the hand' : 'Pass';
+}
+
+/** The card that opened the current basa, or null if this player leads. */
+function ledCard() {
+    return state.basa.length === 0 ? null : state.basa[0].card;
+}
+
+/** The Espadilla and the Basto are trumps whatever the trump suit is. */
+function isTrumpCard(card) {
+    return isSpecial(card) || card.suit === state.trump;
+}
+
+/** Position in the trump order, where 0, 1 and 2 are Espadilla, Manilla and Basto. */
+function trumpIndex(card) {
+    const key = cardKey(card);
+    return suitOrder(state.trump, state.trump).findIndex((entry) => cardKey(entry.card) === key);
+}
+
+/** The suit a card would lead: a special card leads trump, like everywhere else. */
+function suitLedBy(card) {
+    return isSpecial(card) ? state.trump : card.suit;
+}
+
+/**
+ * Opening a basa: while no King has appeared the leader must open with a suit not yet led
+ * this round, unless they hold nothing untouched. Mirrors MoveValidator.validateLead.
+ */
+function isPlayableAsLead(card) {
+    const round = state.round;
+    const led = (round && round.ledSuits) || [];
+    if (!round || round.mode || led.length === 0) {
+        return true;
+    }
+    if (!led.includes(suitLedBy(card))) {
+        return true;
+    }
+    return !state.hand.some((held) => !led.includes(suitLedBy(held)));
+}
+
+/** Only a special card outranking the card led may be kept back from a trump lead. */
+function mayWithhold(card, led) {
+    const index = trumpIndex(card);
+    return index >= 0 && index <= 2 && index < trumpIndex(led);
 }
 
 /**
@@ -593,12 +698,18 @@ function ledSuit() {
  * The server stays authoritative - this just avoids clicks it would reject.
  */
 function isPlayable(card) {
-    const led = ledSuit();
-    if (led === null || isSpecial(card)) {
-        return true;
+    const led = ledCard();
+    if (led === null) {
+        return isPlayableAsLead(card);
     }
-    const canFollow = state.hand.some((held) => !isSpecial(held) && held.suit === led);
-    return !canFollow || card.suit === led;
+    if (isTrumpCard(led)) {
+        // A trump was led: play a trump unless every trump held may be withheld.
+        return isTrumpCard(card)
+            || !state.hand.some((held) => isTrumpCard(held) && !mayWithhold(held, led));
+    }
+    // A plain suit was led: follow it if you hold it - the specials are trumps, not an escape.
+    const canFollow = state.hand.some((held) => !isSpecial(held) && held.suit === led.suit);
+    return !canFollow || (card.suit === led.suit && !isSpecial(card));
 }
 
 function renderHand(myTurn) {
@@ -613,10 +724,24 @@ function renderHand(myTurn) {
         container.innerHTML = '<p class="empty">Hand is empty.</p>';
     }
 
-    const led = ledSuit();
-    el('follow-hint').textContent = playing && led
-        ? 'Must follow ' + SUIT_SYMBOL[led] + ' ' + SUIT_LABEL[led] + ' if you can'
-        : '';
+    const led = ledCard();
+    if (!playing) {
+        el('follow-hint').textContent = '';
+    } else if (led === null) {
+        const round = state.round;
+        const untouched = ['COPAS', 'OROS', 'ESPADAS', 'BASTOS']
+            .filter((suit) => !(round.ledSuits || []).includes(suit));
+        el('follow-hint').textContent = (!round.mode && untouched.length > 0
+                && (round.ledSuits || []).length > 0)
+            ? 'You lead — a suit not led yet, until a King comes out: '
+                + untouched.map((suit) => SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit]).join(', ')
+            : '';
+    } else if (isTrumpCard(led)) {
+        el('follow-hint').textContent = 'Trump led - must play a trump if you can';
+    } else {
+        el('follow-hint').textContent =
+            'Must follow ' + SUIT_SYMBOL[led.suit] + ' ' + SUIT_LABEL[led.suit] + ' if you can';
+    }
 }
 
 function renderScores(round) {
@@ -704,22 +829,25 @@ function helpColumn(suit, trump) {
 
 function renderTeams(round) {
     const panel = el('teams-panel');
-    const teams = round.teams;
-    if (!teams) {
+    const going = round.goingSide || [];
+    if (!round.mode || going.length === 0) {
         panel.classList.add('hidden');
         return;
     }
     panel.classList.remove('hidden');
 
-    fillTeam(el('team-two'), teams.teamOfTwo, round);
-    fillTeam(el('team-three'), teams.teamOfThree, round);
+    const opposing = round.opposingSide || [];
+    el('teams-label').textContent = MODE_LABEL[round.mode] || round.mode;
+    fillTeam(el('team-two'), going, round);
+    fillTeam(el('team-three'), opposing, round);
 
     const basasWon = round.basasWon || {};
     const total = (side) => side.reduce((sum, id) => sum + (basasWon[id] || 0), 0);
-    const mine = teams.teamOfTwo.includes(state.me.playerId) ? 'the team of two' : 'the team of three';
+    const mine = going.includes(state.me.playerId) ? 'the side that goes' : 'the opposing side';
     el('teams-score').textContent =
-        'Basas: two ' + total(teams.teamOfTwo) + ' - ' + total(teams.teamOfThree) + ' three'
-        + ' · you are on ' + mine + ' · first to five together wins the round';
+        'Basas: goes ' + total(going) + ' - ' + total(opposing) + ' against'
+        + ' · you are on ' + mine
+        + ' · the side that goes needs 5, the other side blocks with 4';
 }
 
 function fillTeam(list, memberIds, round) {
@@ -766,6 +894,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     el('help-toggle').onclick = toggleHelp;
     el('pass-soledad').onclick = passSoledad;
     el('declare-soledad').onclick = declareSoledad;
+    el('call-todo').onclick = () => decideTodo(true);
+    el('decline-todo').onclick = () => decideTodo(false);
     for (const suit of Object.keys(SUIT_LABEL)) {
         const button = document.createElement('button');
         button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];

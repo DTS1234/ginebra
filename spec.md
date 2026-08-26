@@ -175,11 +175,19 @@
 
 ## 2. Functional Requirements - Game Rules (Ginebra)
 
+> **Source.** The rules come from Juan Monjo Soliveres, *«Es joc de ginebra»*, translated in
+> [`rules-source.md`](./rules-source.md). Where this section and that document disagree, the
+> source wins. [`rules-diff.md`](./rules-diff.md) tracks the differences still outstanding —
+> §2.1 to §2.7 have been reconciled with it; what is left is listed in section 3 of
+> that document.
+
 ### 2.1 Game Overview
 
 **Game Type**: Spanish card trick-taking game for exactly 5 players
 
-**Objective**: Be part of the team that wins 5 basas (tricks) first in a round
+**Objective**: The side that "goes" must win **5 basas** (tricks) in the round. The
+opposing side wins by holding them to 4 or fewer, which it does the moment it has taken
+**4** basas of the 8. There is no draw.
 
 **Deck**: Spanish deck (Baraja Española) - 40 cards
 - 4 suits: Copas (Cups), Oros (Coins), Espadas (Swords), Bastos (Clubs)
@@ -192,14 +200,28 @@
 - Players sit in a fixed circular order
 - Turn order proceeds clockwise (to the right)
 
-**Initial Coin Distribution**
-- Each player starts with 20 coins
-- Players contribute coins to the pot before each round (amount TBD)
+**The Posso (the pot)**
+- Before play begins each player contributes an **equal stake** into the *posso*, which
+  sits in the middle of the table
+- Rounds are settled **against the posso**: players *collect from* it and *pay into* it.
+  They never pay each other, and the two sides of a settlement need not balance — the pot
+  absorbs the difference
+- If the posso cannot cover a payout it is **topped up in equal parts** by every player
+- If a session runs long and the posso has grown large it may be **divided equally**
+- Implementation: each player brings 20 coins and antes 5 into the posso at the start; the
+  same ante is taken again whenever the pot runs short. The game ends when a player can no
+  longer cover what they owe or what they are asked to stake
 
 **Card Distribution**
 - Each player receives 8 cards at the start of each round
+- Cards are dealt **four at a time**
 - 8 cards × 5 players = 40 cards (entire deck is dealt)
 - Server shuffles deck before each round
+- **Four kings**: a player dealt all four kings collects **4** whatever happens next, and
+  the choice is theirs — *"if you wanna try to win, then you go"*:
+    - **Take the 4** and the hand ends before anyone plays
+    - Or **go alone** and play it out, keeping the 4 on top of whatever the hand settles at
+  - Nobody else may declare Soledad against such a deal — only the four-king holder
 
 **First Round Start**
 - The player holding the Ace of Espadas (Espadilla) starts the first round only
@@ -213,12 +235,24 @@
 - This player selects the trump suit (triumph) for the entire round
 - Trump suit determines card rankings and is the "leading color"
 
-**Team Formation (2 vs 3)**
-- Game starts with no revealed teams
-- Partnership is revealed when the first King (of any suit) is played during the round
-- Player who "goes" + player who plays first King = Team of 2
-- Remaining 3 players = Opposing team
-- **Special case**: If the player who "goes" plays the first King themselves, they can choose to stop the game
+**Sides: the king decides them**
+
+The round starts with no sides. The first King played decides them, and which of three
+things it decides depends on who played it and whether they had a choice.
+
+| The first King is played by | By choice | Result |
+|---|---|---|
+| Another player — *posar el rei* | either way | **HELPED**: they aid the one who goes. Two against three |
+| The one who goes — *posar-se el rei* | by choice | **SELF_KING**: they play alone. One against four |
+| The one who goes — *caure el rei* | forced | **KING_FELL**: the hand ends there, no side ever formed |
+
+- A player holding no King cannot form the partnership
+- **Caure el rei**: a King you are forced to play still forms the partnership — *"moltes
+  voltes poses el rei sense voler perquè et cau"* — and **costs its owner 1 coin**
+- When it is the **mà's own** King that is forced out the hand ends there: the mà pays 1,
+  **nobody else pays or collects**, and the cards are dealt again
+- **Es primer rei aida**: the one who goes, holding a bare King (*rei pelat*) that may be
+  forced out, may call for a King to be put on them as early as possible
 
 **Playing a Basa (Trick)**
 1. Starting player plays any card from their hand
@@ -229,20 +263,59 @@
 6. **The winner of the basa leads the next basa**
 
 **Card Following Rules**
-- **Must follow suit**: If a player has the suit that was led, they MUST play that suit
-- **Cannot follow suit**: If they don't have the led suit, they can:
+
+There are two obligations, and which one applies depends on whether the card that opened
+the basa was a trump. The Espadilla, the Manilla and the Basto are trumps, so leading any
+of them is a trump lead.
+
+*A plain (non-trump) suit is led:*
+- **Must follow suit**: If a player holds the suit that was led, they MUST play it
+- **Cannot follow suit**: If they hold none of it, they may:
     - Play any other suit
     - **Fallar**: Play a trump card (beats non-trump cards)
     - **Refallar**: Beat another player's trump card with a higher trump
-- **NOT required to "kill"**: Players can play a lower card of the same suit (don't have to beat previous cards)
-- These rules apply throughout the entire round (before and after first King)
+- **Fallar is only open to a player who is void** in the led suit. A player holding the led
+  suit may not trump it — the Espadilla and the Basto included
+
+*A trump is led:*
+- **Must play a trump** if the player holds one
+- **Except** that they may withhold a special card — Espadilla, Manilla or Basto — that
+  **outranks the card led**. An ordinary trump that happens to beat the card led carries no
+  such privilege
+- Which yields the four cases the source states directly:
+
+| Card led | Must play a trump | May withhold |
+|----------|-------------------|--------------|
+| Espadilla | everyone holding one | nothing |
+| Manilla | everyone holding one | Espadilla |
+| Basto | everyone holding one | Espadilla, Manilla |
+| Any other trump | everyone holding one | Espadilla, Manilla, Basto |
+
+- Withholding is a permission, not a ban: a player may always choose to play the special
+  card instead
+
+*Opening a basa, while no King has appeared:*
+- The leader **must lead a suit that has not been led yet this round** —
+  *"Després has de tirar un altre pal fins que isca o posen rei"*. This is how the King
+  gets smoked out. With oros and copas already led, the leader must go to espadas or bastos
+- The obligation **lapses** the moment a King decides the sides
+- It **yields to what is possible**: a leader holding nothing in an untouched suit may
+  repeat one. Once all four suits have been led it is spent, and the leader is free again
+
+*Both cases:*
+- **NOT required to "kill"**: Players can play a lower card (don't have to beat previous cards)
+- The following rules apply throughout the entire round; the change-of-suit obligation
+  applies only before the first King
 
 **Special Cards: Espadilla and Basto**
 - **Ace of Espadas (Espadilla)**: Universal high card, doesn't belong to Espadas suit for following purposes
 - **Ace of Bastos (Basto)**: Universal high card, doesn't belong to Bastos suit for following purposes
 - These two cards beat all other cards in the game
-- When played, they count as trump suit cards (the "leading color")
-- They can be played at any time (even when player has the led suit)
+- They are trump cards whatever the trump suit is, and a lead of either makes the basa a
+  trump lead (the "leading color")
+- Because they are trumps, they are **not** exempt from following a plain suit: a player
+  who can still follow the led suit must do so rather than play one. Their privilege is the
+  right to be withheld from a trump lead, described above
 
 ### 2.4 Card Ranking System
 
@@ -257,6 +330,20 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 - The low cards run in opposite directions by suit, trump or not: **Copas and Oros** rank 2 > 3 > 4 > 5 > 6 > 7, **Espadas and Bastos** rank 7 > 6 > 5 > 4 > 3 > 2
 
 **Note on Manilla**: When a card becomes the Manilla, it occupies position 2 in the ranking and doesn't appear again in its normal position.
+
+**Note on the Ace names**: the Ace of Oros is the ***Rovell***, the Ace of Copes the
+***Carabassa***.
+
+**Note on the Ace's two positions** (confirmed by Tàrbena players, 2026-08-26): the Ace
+moves depending on whether its suit is trump.
+
+| | Order, strongest first |
+|---|---|
+| Oros **not** trump | Rey, Caballo, Sota, **Rovell**, 2, 3, 4, 5, 6, 7 |
+| Oros **as** trump | *(Espadilla, Basto above)* 7 **manilla**, **Rovell**, Rey, Caballo, Sota, 2, 3, 4, 5, 6 |
+
+The same holds for Copas with the *Carabassa*. Espadas and Bastos have no ordinary Ace —
+theirs are the Espadilla and the Basto — and their low cards run 7 down to 2 instead.
 
 ---
 
@@ -286,7 +373,7 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 1 | Rei de Copes | **As d'Espases (espadilla)** | Rei d'Espases | Rei de Bastos |
 | 2 | Cavall de Copes | **7 d'Oros (manilla)** | Cavall d'Espases | Cavall de Bastos |
 | 3 | Sota de Copes | **As de Bastos (Basto)** | Sota d'Espases | Sota de Bastos |
-| 4 | As de Copes (Rovell) | **As d'Oros (Rovell)** | 7 d'Espases | 7 de Bastos |
+| 4 | As de Copes (Carabassa) | **As d'Oros (Rovell)** | 7 d'Espases | 7 de Bastos |
 | 5 | 2 de Copes | **Rei d'Oros** | 6 d'Espases | 6 de Bastos |
 | 6 | 3 de Copes | **Cavall d'Oros** | 5 d'Espases | 5 de Bastos |
 | 7 | 4 de Copes | **Sota d'Oros** | 4 d'Espases | 4 de Bastos |
@@ -305,7 +392,7 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 1 | Rei de Copes | Rei d'Oros | **As d'Espases (espadilla)** | Rei de Bastos |
 | 2 | Cavall de Copes | Cavall d'Oros | **2 d'Espases (manilla)** | Cavall de Bastos |
 | 3 | Sota de Copes | Sota d'Oros | **As de Bastos (Basto)** | Sota de Bastos |
-| 4 | As de Copes (Rovell) | As d'Oros (Rovell) | **Rei d'Espases** | 7 de Bastos |
+| 4 | As de Copes (Carabassa) | As d'Oros (Rovell) | **Rei d'Espases** | 7 de Bastos |
 | 5 | 2 de Copes | 2 d'Oros | **Cavall d'Espases** | 6 de Bastos |
 | 6 | 3 de Copes | 3 d'Oros | **Sota d'Espases** | 5 de Bastos |
 | 7 | 4 de Copes | 4 d'Oros | **7 d'Espases** | 4 de Bastos |
@@ -323,7 +410,7 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 | 1 | Rei de Copes | Rei d'Oros | Rei d'Espases | **As d'Espases (espadilla)** |
 | 2 | Cavall de Copes | Cavall d'Oros | Cavall d'Espases | **2 de Bastos (manilla)** |
 | 3 | Sota de Copes | Sota d'Oros | Sota d'Espases | **As de Bastos (Basto)** |
-| 4 | As de Copes (Rovell) | As d'Oros (Rovell) | 7 d'Espases | **Rei de Bastos** |
+| 4 | As de Copes (Carabassa) | As d'Oros (Rovell) | 7 d'Espases | **Rei de Bastos** |
 | 5 | 2 de Copes | 2 d'Oros | 6 d'Espases | **Cavall de Bastos** |
 | 6 | 3 de Copes | 3 d'Oros | 5 d'Espases | **Sota de Bastos** |
 | 7 | 4 de Copes | 4 d'Oros | 4 d'Espases | **7 de Bastos** |
@@ -340,7 +427,7 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 3. Non-trump suits have fewer cards in ranking (9 cards each) since their Aces are special
 4. The trump suit has all its cards ranked (13 positions for Copas/Oros, 11 for Espadas/Bastos after accounting for special cards)
 
-### 2.5 Special Game Mode: Soledad
+### 2.5 Special Game Mode: Soledad (*anar a soles*)
 
 **Declaration**
 - Before the round starts (after cards are dealt), any player can declare "SOLEDAD"
@@ -358,24 +445,81 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 ### 2.6 Scoring & Coins
 
 **Round End Condition**
-- Round ends immediately when one team wins 5 basas
-- Remaining cards/basas are not played
-- New round begins
 
-**Coin Distribution - Normal Game (2 vs 3)**
-- **Winning team**: Each player on winning team receives 2 coins
-- **Losing team**: Each player on losing team loses 2 coins
-- **Draw**: Each player receives 1 coin (unclear when draw occurs - TBD)
+The round is decided by whichever of these comes first:
 
-**Coin Distribution - Soledad**
-- **Soledad player wins**: Receives 3 coins from each of the 4 other players (12 coins total)
-- **Soledad player loses**: Pays 3 coins to each of the 4 other players (12 coins total)
+- The **going side reaches 5 basas** — unless *todo* is still reachable, in which case play
+  continues (see below)
+- The **opposing side reaches 4 basas**, which puts 5 out of the going side's reach
+- All 8 basas are played
+- The **mà's own King is forced out** (*caure el rei*), which ends the hand where it stands
+- A **four-king deal**, which ends the hand before anyone plays
 
-**Special Combinations Bonus** (awarded at end of round to winning team/player)
-- **Duende**: Having Ace of Espadas + Ace of Bastos in hand = +1 coin bonus
-- **Estuche**: Having Ace of Espadas + Ace of Bastos + Manilla in hand = +2 coins bonus
-- These bonuses are in addition to the regular win rewards
-- *Note: These values may be adjusted during development*
+**Fer todo**: winning *all eight* basas. When the going side reaches five **having won every
+basa so far**, play pauses and the decision is theirs — *"you lose 1 if you don't make it and
+you earn one if you make"*:
+
+- **Bank the win** and the round ends there
+- Or **call todo** and play on: `+1` if they take all eight, `-1` if they drop one
+
+The call belongs to the one who goes, or to the lone player when they go alone. Reaching
+five *without* a clean sweep ends the round immediately — todo is already out of reach, so
+there is nothing to decide.
+
+**Fer primeres**: winning the **first four basas in a row**. Worth a point to the going side,
+collected on a win and paid on a loss. The **opposing side's** primeres are worth nothing to
+them.
+
+**Settlement**
+
+All figures are collected from, or paid into, the **posso**. Each is one **base** plus a
+set of **+1 increments**, and the same figure is collected on a win and paid on a loss.
+
+| Base — mutually exclusive | |
+|---|---|
+| Helped: a King was put on you (each of the pair) | 2 |
+| You put your own King (*posar-se el rei*) | 4 |
+| You went alone (*anar a soles*) | 5 |
+
+| Added to the stake | |
+|---|---|
+| *Primeres* — the first four basas in a row, by the going side | +1 |
+
+Four items sit **outside** the stake — they are collected or charged as they stand, and are
+never negated by the outcome:
+
+- **Estutxe — `+1` to every player on the going side.** *"Si tens l'estutxe i vas"* — it pays
+  because you **went**, not because you won, and it pays the **whole side**. It is also
+  **held by the side, not by a player**: one partner's Espadilla and Basto together with the
+  other's Manilla is an estutxe just the same. It cannot be made up across opposing sides.
+- **Dengue — `+1` to whoever was dealt it**, win or lose and on either side: *"El dengue
+  sempre es cobra"*. **Personal to one hand** — never made up between partners.
+- **Todo — `+1` to every player on the going side if made, `-1` if called and missed.**
+- **Four kings — `+4`** to whoever was dealt them, whatever they then decide; and a **forced
+  King costs its owner 1** (*caure el rei*).
+
+**The opposing side** collects a flat **1** when the going side fails, or **2** if the going
+side was held under four basas. It pays nothing when the going side wins — the source lists
+no charge for losing defenders, and the pot covers the difference.
+
+Sanity check against the source's own maximum: `5 (alone) + 4 (four kings) + 1 (primeres) +
+1 (estutxe) + 1 (dengue) + 1 (todo) = 13`.
+
+These two shapes together explain the source's parenthetical. A side can hold the estutxe
+between them with **nobody** holding the dengue — one partner takes the Espadilla and
+Manilla, the other the Basto — so *"Per guanyar i tindre l'estutxe, 3 cadegú **(si n té el
+dengue, 4)**"* reads exactly as written: the dengue is a separate condition, not something
+the estutxe implies.
+
+**Worked example.** A goes, B put the king. A holds Espadilla + Basto; B holds the Manilla.
+They win. A collects `2 + 1 (estutxe) + 1 (dengue) = 4`; B collects `2 + 1 (estutxe) = 3`.
+
+> **One open discrepancy.** The source's *pay* table has *"Si perden i tenen l'estutxe, 3
+> cadegú"* and *"Si perden primeres i estutxe, 4 cadegú"* — as though the estutxe also
+> raised what a losing side pays. The players say the estutxe is simply collected for going,
+> win or lose, which is what is implemented (a losing pair with the estutxe nets `-2 + 1`).
+> Recorded in `rules-questions.md`; the settlement is otherwise exact against every other
+> printed row.
 
 ### 2.7 Complete Game Flow
 
@@ -383,12 +527,15 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 ┌─────────────────────────────────────┐
 │     NEW ROUND SETUP                 │
 ├─────────────────────────────────────┤
-│ 1. Deal 8 cards to each player      │
-│ 2. Determine starting player:       │
+│ 1. Deal 8 cards, four at a time     │
+│ 2. Four kings in one hand? Settle   │
+│    and re-deal                      │
+│ 3. Determine the ma:                │
 │    - First round: Espadilla holder  │
 │    - Subsequent: Clockwise rotation │
-│ 3. Soledad declaration (optional)   │
-│ 4. Player who "goes" selects trump  │
+│ 4. Soledad declaration (optional)   │
+│ 5. Trump chooser (the ma, or the    │
+│    Soledad declarer) selects trump  │
 └─────────────────────────────────────┘
            ↓
 ┌─────────────────────────────────────┐
@@ -397,21 +544,25 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 │ For each basa:                      │
 │ 1. Starting player plays card       │
 │ 2. Play continues clockwise         │
-│ 3. Players follow suit if possible  │
+│ 3. Follow suit; a trump lead compels│
+│    a trump (see 2.3)                │
 │ 4. Highest card wins basa           │
-│ 5. First King reveals partnership   │
+│ 5. First King decides the sides     │
 │ 6. Next basa: led by the winner     │
 │                                     │
-│ Continue until one team wins 5 basas│
+│ Ends when the going side makes 5,   │
+│ the other side takes 4, or the ma's │
+│ King is forced out                  │
 └─────────────────────────────────────┘
            ↓
 ┌─────────────────────────────────────┐
 │     ROUND END & SCORING             │
 ├─────────────────────────────────────┤
-│ 1. First team to 5 basas wins       │
-│ 2. Calculate coin distribution      │
-│ 3. Award special combination bonuses│
-│ 4. Update player coin totals        │
+│ 1. Determine the outcome            │
+│ 2. Price it: base + increments      │
+│ 3. Settle against the posso, topping│
+│    it up if it cannot cover         │
+│ 4. Update balances and the posso    │
 └─────────────────────────────────────┘
            ↓
 ┌─────────────────────────────────────┐
@@ -424,16 +575,26 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 
 ### 2.8 Open Questions (Game Rules)
 
-**Clarifications Needed:**
-- [ ] What happens when a player runs out of coins? (Can't play? Borrow? Auto-eliminated?)
-- [ ] Is there an overall game winner, or just continuous rounds until players quit?
-- [ ] Draw condition: When/how does a draw occur in a round?
+**Answered by the source** (`rules-source.md` §3, §4.1, §5):
+- [x] *What happens when a player runs out of coins?* — there are no player-to-player
+      balances. If the **posso** runs dry it is topped up in equal parts by agreement.
+- [x] *Is there an overall game winner?* — no. Play continues by agreement; when it ends,
+      or the posso has grown too large, it is divided equally.
+- [x] *Draw condition* — there is none. A 4-4 finish is the going side failing.
+- [x] *Initial pot contribution* — whatever the table agrees, equal for everyone, and
+      changeable mid-session by common agreement.
+
+**Still open — the source does not settle these:**
 - [ ] Exact timing of Soledad declaration - before or after trump selection?
-- [ ] Can multiple players declare Soledad? If yes, how to resolve?
-- [ ] What happens if the player who "goes" disconnects before choosing trump?
-- [ ] Initial pot contribution: How many coins does each player contribute at round start?
+- [ ] Can multiple players declare Soledad? If yes, how to resolve? (The source settles only
+      the four-king case: that deal pre-empts any declaration.)
+- [ ] What happens if the trump chooser disconnects before choosing?
 - [ ] Can players join/leave between rounds, or must the same 5 play the entire game?
 - [ ] Maximum game duration or number of rounds?
+- [ ] Whether a four-king holder who plays on and **loses** still keeps the 4 (implemented
+      as yes — it reads as a holding award like the dengue).
+- [ ] Why the source's pay table charges a losing side extra for the estutxe, when the
+      players say it is simply collected for going (`rules-questions.md`).
 
 ---
 

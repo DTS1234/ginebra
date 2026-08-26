@@ -3,6 +3,7 @@ package com.ginebra.support;
 import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Round;
 import com.ginebra.game.domain.model.Suit;
+import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidation;
 import com.ginebra.game.domain.service.MoveValidator;
 import com.ginebra.identity.domain.PlayerId;
@@ -19,7 +20,7 @@ import java.util.Optional;
  */
 public final class LegalMoves {
 
-    private static final MoveValidator VALIDATOR = new MoveValidator();
+    private static final MoveValidator VALIDATOR = new MoveValidator(new CardRankingService());
 
     private LegalMoves() {
     }
@@ -38,7 +39,19 @@ public final class LegalMoves {
             ? Optional.<Card>empty()
             : Optional.of(basa.cardsPlayed().get(0).card());
 
-        return fromHand(round.getHand(player), round.trumpSuit().orElseThrow(), firstCard);
+        final var leadContext = new MoveValidator.LeadContext(
+            round.ledSuits(), round.sideDecided()
+        );
+
+        final var hand = round.getHand(player);
+        final var trumpSuit = round.trumpSuit().orElseThrow();
+        for (final var card : hand) {
+            if (VALIDATOR.validate(hand, card, trumpSuit, firstCard, leadContext)
+                instanceof MoveValidation.Valid) {
+                return card;
+            }
+        }
+        throw new IllegalStateException("No legal card in hand: " + hand);
     }
 
     /**

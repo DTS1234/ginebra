@@ -70,12 +70,19 @@
             <span>Trump <b id="trump">-</b></span>
             <span>Turn <b id="turn">-</b></span>
             <span>Your coins <b id="coins">-</b></span>
+            <span>Posso <b id="posso">-</b></span>
         </div>
 
         <div id="soledad-actions" class="actions hidden">
-            <span class="actions-label">Soledad window open:</span>
+            <span id="soledad-label" class="actions-label">Soledad window open:</span>
             <button id="pass-soledad">Pass</button>
             <button id="declare-soledad" class="primary">Declare Soledad</button>
+        </div>
+
+        <div id="todo-actions" class="actions hidden">
+            <span id="todo-label" class="actions-label">Fer todo?</span>
+            <button id="call-todo" class="primary">Go for todo</button>
+            <button id="decline-todo">Bank the win</button>
         </div>
 
         <div id="trump-actions" class="actions hidden">
@@ -84,14 +91,14 @@
         </div>
 
         <div id="teams-panel" class="teams hidden">
-            <span class="teams-label">Teams revealed</span>
+            <span id="teams-label" class="teams-label">Sides decided</span>
             <div class="teams-sides">
                 <div class="team">
-                    <h3>Team of two</h3>
+                    <h3>Goes</h3>
                     <ul id="team-two"></ul>
                 </div>
                 <div class="team">
-                    <h3>Team of three</h3>
+                    <h3>Against</h3>
                     <ul id="team-three"></ul>
                 </div>
             </div>

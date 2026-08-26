@@ -1,5 +1,6 @@
 package com.ginebra.game.domain.model;
 
+import com.ginebra.game.domain.service.SettlementCalculator;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
 import org.junit.jupiter.api.Nested;
@@ -84,10 +85,63 @@ class GameTest {
         );
         game = game.setTeams(teams);
 
+        final var goingSide = game.currentRound().orElseThrow().goingSide();
+        if (goingSide.contains(basaWinner)) {
+            game = playAndCompleteBasa(game, opponentOf(game, players));
+        }
         for (var i = 0; i < basasToWin; i++) {
             game = playAndCompleteBasa(game, basaWinner);
         }
         return game;
+    }
+
+    /** Any player on the side opposing the one that goes. */
+    private PlayerId opponentOf(Game game, List<PlayerId> players) {
+        final var going = game.currentRound().orElseThrow().goingSide();
+        return players.stream().filter(p -> !going.contains(p)).findFirst().orElseThrow();
+    }
+
+    /**
+     * Sets up a 2-v-3 side and plays the round out with the going side taking five,
+     * after conceding one so that "todo" is off the table.
+     */
+    private Game playGoingSideWin(Game game, List<PlayerId> players) {
+        final var playerWhoGoes = game.currentRound().orElseThrow().playerWhoGoes();
+        final var teammate = players.stream()
+            .filter(p -> !p.equals(playerWhoGoes))
+            .findFirst().orElseThrow();
+        game = game.setTeams(Teams.of(playerWhoGoes, teammate, new HashSet<>(players)));
+
+        game = playAndCompleteBasa(game, opponentOf(game, players));
+        for (var i = 0; i < 5; i++) {
+            game = playAndCompleteBasa(game, playerWhoGoes);
+        }
+        return game;
+    }
+
+    /**
+     * Sets up a 2-v-3 side and has the opposing side block with its four basas.
+     */
+    private Game playGoingSideFailure(Game game, List<PlayerId> players) {
+        final var playerWhoGoes = game.currentRound().orElseThrow().playerWhoGoes();
+        final var teammate = players.stream()
+            .filter(p -> !p.equals(playerWhoGoes))
+            .findFirst().orElseThrow();
+        game = game.setTeams(Teams.of(playerWhoGoes, teammate, new HashSet<>(players)));
+
+        final var opponent = opponentOf(game, players);
+        for (var i = 0; i < 4; i++) {
+            game = playAndCompleteBasa(game, opponent);
+        }
+        return game;
+    }
+
+    /** Coins never leave the table: what the players hold plus the pot is constant. */
+    private void assertTableIsConserved(Game game, List<PlayerId> players) {
+        final var held = players.stream().mapToInt(game::getCoins).sum();
+        assertThat(held + game.posso())
+            .as("coins held plus the posso")
+            .isEqualTo(Game.INITIAL_COINS * 5);
     }
 
     /**
@@ -117,14 +171,15 @@ class GameTest {
         }
 
         @Test
-        void shouldInitializeFivePlayersWithTwentyCoinsEach() {
+        void shouldSeatFivePlayersWhoHaveEachAntedIntoThePosso() {
             final var players = createPlayers();
             final var game = createGame(players);
 
             for (final var player : players) {
-                assertThat(game.getCoins(player)).isEqualTo(20);
+                assertThat(game.getCoins(player)).isEqualTo(Game.INITIAL_COINS - Game.ANTE);
             }
             assertThat(game.coinBalances()).hasSize(5);
+            assertThat(game.posso()).isEqualTo(Game.ANTE * 5);
         }
 
         @Test
@@ -448,85 +503,62 @@ class GameTest {
         }
 
         @Test
-        void shouldEndRoundWhenTeamWinsFiveBasas() {
+        void shouldEndRoundWhenTheGoingSideMakesFiveBasas() {
             final var players = createPlayers();
-            var game = createGameWithTrump(players, Suit.COPAS);
-            final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
-            final var teammate = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes))
-                .findFirst().orElseThrow();
-            final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
-            game = game.setTeams(teams);
-
-            for (var i = 0; i < 5; i++) {
-                game = playAndCompleteBasa(game, playerWhoGoes);
-            }
+            var game = playGoingSideWin(createGameWithTrump(players, Suit.COPAS), players);
 
             assertThat(game.isRoundComplete()).isTrue();
             assertThat(game.currentRound().get().result()).isPresent();
-            assertThat(game.currentRound().get().result().get()).isInstanceOf(RoundResult.Win.class);
+            assertThat(game.currentRound().get().result().get())
+                .isInstanceOf(RoundResult.GoingSideWon.class);
         }
 
         @Test
-        void shouldCalculateCoinsOnRoundEndWin() {
+        void shouldEndRoundWhenTheOpposingSideBlocksWithFourBasas() {
             final var players = createPlayers();
-            var game = createGameWithTrump(players, Suit.COPAS);
-            final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
-            final var teammate = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes))
-                .findFirst().orElseThrow();
-            final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
-            game = game.setTeams(teams);
+            var game = playGoingSideFailure(createGameWithTrump(players, Suit.COPAS), players);
 
-            for (var i = 0; i < 5; i++) {
-                game = playAndCompleteBasa(game, playerWhoGoes);
-            }
-
-            // Winners (team of two) should have 20 + 2 = 22 (or more with bonuses)
-            assertThat(game.getCoins(playerWhoGoes)).isGreaterThanOrEqualTo(22);
-            assertThat(game.getCoins(teammate)).isGreaterThanOrEqualTo(22);
-
-            // Losers should have 20 - 2 = 18
-            final var losers = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes) && !p.equals(teammate))
-                .toList();
-            for (final var loser : losers) {
-                assertThat(game.getCoins(loser)).isEqualTo(18);
-            }
+            assertThat(game.isRoundComplete()).isTrue();
+            assertThat(game.currentRound().get().result().get())
+                .isInstanceOf(RoundResult.GoingSideFailed.class);
+            assertThat(game.currentRound().get().completedBasas()).hasSize(4);
         }
 
         @Test
-        void shouldCalculateCoinsOnRoundEndDraw() {
+        void shouldPayTheGoingSideOutOfThePossoOnAWin() {
             final var players = createPlayers();
-            var game = createGameWithTrump(players, Suit.COPAS);
+            final var before = createGameWithTrump(players, Suit.COPAS);
+            final var goingSide = playGoingSideWin(before, players)
+                .currentRound().orElseThrow().goingSide();
+            final var game = playGoingSideWin(before, players);
 
-            // Play 8 basas without teams — results in Draw
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
+            // The pot funds the win: every winner is up, and the posso is down by at least
+            // the base rate for each of them.
+            for (final var winner : goingSide) {
+                assertThat(game.getCoins(winner)).isGreaterThan(before.getCoins(winner));
             }
+            assertThat(game.posso()).isLessThan(before.posso());
+            assertTableIsConserved(game, players);
+        }
 
-            // All players should get +1 coin = 21
-            for (final var player : players) {
-                assertThat(game.getCoins(player)).isEqualTo(21);
+        @Test
+        void shouldTakeFromTheGoingSideAndPayTheOpponentsOnAFailure() {
+            final var players = createPlayers();
+            final var before = createGameWithTrump(players, Suit.COPAS);
+            final var game = playGoingSideFailure(before, players);
+            final var round = game.currentRound().orElseThrow();
+
+            for (final var loser : round.goingSide()) {
+                assertThat(game.getCoins(loser)).isLessThan(before.getCoins(loser));
             }
+            assertTableIsConserved(game, players);
         }
 
         @Test
         void shouldNotEndGameWhenAllPlayersHavePositiveCoins() {
             final var players = createPlayers();
-            var game = createGameWithTrump(players, Suit.COPAS);
-            final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
-            final var teammate = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes))
-                .findFirst().orElseThrow();
-            final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
-            game = game.setTeams(teams);
+            final var game = playGoingSideWin(createGameWithTrump(players, Suit.COPAS), players);
 
-            for (var i = 0; i < 5; i++) {
-                game = playAndCompleteBasa(game, playerWhoGoes);
-            }
-
-            // After one round losing, losers have 18 — still positive
             assertThat(game.isInProgress()).isTrue();
             assertThat(game.isEnded()).isFalse();
         }
@@ -646,122 +678,84 @@ class GameTest {
         }
     }
 
+    /**
+     * The posso, rather than the old player-to-player transfers. The exact ladder lives in
+     * SettlementCalculatorTest; these pin how the aggregate moves coins around it.
+     */
     @Nested
-    class CoinCalculation {
+    class Posso {
 
         @Test
-        void shouldGivePlusTwoToWinningTeam() {
+        void shouldFormThePossoFromEqualAntes() {
+            final var players = createPlayers();
+            final var game = createGame(players);
+
+            assertThat(game.posso()).isEqualTo(Game.ANTE * 5);
+            assertTableIsConserved(game, players);
+        }
+
+        @Test
+        void shouldConserveTheTableAcrossAWin() {
+            final var players = createPlayers();
+            final var game = playGoingSideWin(createGameWithTrump(players, Suit.COPAS), players);
+
+            assertTableIsConserved(game, players);
+        }
+
+        @Test
+        void shouldConserveTheTableAcrossAFailure() {
+            final var players = createPlayers();
+            final var game = playGoingSideFailure(createGameWithTrump(players, Suit.COPAS), players);
+
+            assertTableIsConserved(game, players);
+        }
+
+        @Test
+        void shouldConserveTheTableAcrossManyRounds() {
             final var players = createPlayers();
             var game = createGameWithTrump(players, Suit.COPAS);
-            final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
-            final var teammate = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes))
-                .findFirst().orElseThrow();
-            final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
-            game = game.setTeams(teams);
+            var seed = 500L;
 
-            for (var i = 0; i < 5; i++) {
-                game = playAndCompleteBasa(game, playerWhoGoes);
+            for (var i = 0; i < 6 && game.isInProgress(); i++) {
+                game = i % 2 == 0
+                    ? playGoingSideWin(game, players)
+                    : playGoingSideFailure(game, players);
+                assertTableIsConserved(game, players);
+
+                if (game.isInProgress()) {
+                    game = game.startNextRound(new Random(seed++), Instant.now());
+                    if (game.currentRound().orElseThrow().isWaitingForSoledad()) {
+                        game = passAllSoledad(game).selectTrump(Suit.COPAS);
+                    }
+                }
             }
-
-            // Base reward is +2, may have bonuses
-            assertThat(game.getCoins(playerWhoGoes)).isGreaterThanOrEqualTo(22);
-            assertThat(game.getCoins(teammate)).isGreaterThanOrEqualTo(22);
         }
 
         @Test
-        void shouldGiveMinusTwoToLosingTeam() {
+        void shouldTopThePossoUpInEqualPartsWhenItCannotCoverAPayout() {
             final var players = createPlayers();
             var game = createGameWithTrump(players, Suit.COPAS);
-            final var playerWhoGoes = game.currentRound().get().playerWhoGoes();
-            final var teammate = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes))
-                .findFirst().orElseThrow();
-            final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
-            game = game.setTeams(teams);
+            var seed = 700L;
+            var toppedUp = false;
 
-            for (var i = 0; i < 5; i++) {
-                game = playAndCompleteBasa(game, playerWhoGoes);
+            // The pot only ever drains on a going-side win, so keep paying them out.
+            for (var i = 0; i < 12 && game.isInProgress() && !toppedUp; i++) {
+                final var possoBefore = game.posso();
+                game = playGoingSideWin(game, players);
+                toppedUp = game.posso() > possoBefore;
+
+                assertTableIsConserved(game, players);
+                if (game.isInProgress()) {
+                    game = game.startNextRound(new Random(seed++), Instant.now());
+                    if (game.currentRound().orElseThrow().isWaitingForSoledad()) {
+                        game = passAllSoledad(game).selectTrump(Suit.COPAS);
+                    }
+                }
             }
 
-            final var losers = players.stream()
-                .filter(p -> !p.equals(playerWhoGoes) && !p.equals(teammate))
-                .toList();
-            for (final var loser : losers) {
-                assertThat(game.getCoins(loser)).isEqualTo(18);
-            }
-        }
-
-        @Test
-        void shouldGivePlusOneToAllOnDraw() {
-            final var players = createPlayers();
-            var game = createGameWithTrump(players, Suit.COPAS);
-
-            // No teams set — 8 basas leads to Draw
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
-            }
-
-            for (final var player : players) {
-                assertThat(game.getCoins(player)).isEqualTo(21);
-            }
-        }
-
-        @Test
-        void shouldNotGiveBonusOnDraw() {
-            final var players = createPlayers();
-            var game = createGameWithTrump(players, Suit.COPAS);
-
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
-            }
-
-            // Draw always gives exactly +1, no bonuses
-            for (final var player : players) {
-                assertThat(game.getCoins(player)).isEqualTo(21);
-            }
-        }
-    }
-
-    @Nested
-    class BonusCalculation {
-
-        @Test
-        void shouldDetectDuendeCorrectly() {
-            // Duende = Espadilla + Basto in hand
-            final var hand = List.of(
-                Card.espadilla(),
-                Card.basto(),
-                new Card(Suit.COPAS, Rank.REY),
-                new Card(Suit.COPAS, Rank.CABALLO),
-                new Card(Suit.OROS, Rank.TRES),
-                new Card(Suit.OROS, Rank.CUATRO),
-                new Card(Suit.OROS, Rank.CINCO),
-                new Card(Suit.OROS, Rank.SEIS)
-            );
-
-            assertThat(hand.stream().anyMatch(Card::isEspadilla)).isTrue();
-            assertThat(hand.stream().anyMatch(Card::isBasto)).isTrue();
-        }
-
-        @Test
-        void shouldDetectEstucheCorrectly() {
-            // Estuche = Espadilla + Basto + Manilla
-            // When trump is COPAS, Manilla is 7 of COPAS
-            final var hand = List.of(
-                Card.espadilla(),
-                Card.basto(),
-                new Card(Suit.COPAS, Rank.SIETE), // Manilla when COPAS is trump
-                new Card(Suit.COPAS, Rank.REY),
-                new Card(Suit.OROS, Rank.TRES),
-                new Card(Suit.OROS, Rank.CUATRO),
-                new Card(Suit.OROS, Rank.CINCO),
-                new Card(Suit.OROS, Rank.SEIS)
-            );
-
-            assertThat(hand.stream().anyMatch(Card::isEspadilla)).isTrue();
-            assertThat(hand.stream().anyMatch(Card::isBasto)).isTrue();
-            assertThat(hand.stream().anyMatch(c -> c.isManilla(Suit.COPAS))).isTrue();
+            assertThat(toppedUp)
+                .as("a pot that cannot cover the payout is renewed in equal parts")
+                .isTrue();
         }
     }
 
@@ -790,7 +784,7 @@ class GameTest {
             final var players = createPlayers();
             final var game = createGame(players);
 
-            assertThat(game.getCoins(players.get(0))).isEqualTo(20);
+            assertThat(game.getCoins(players.get(0))).isEqualTo(Game.INITIAL_COINS - Game.ANTE);
         }
 
         @Test
@@ -940,11 +934,9 @@ class GameTest {
             final var players = createPlayers();
             var game = createGame(players);
 
-            // Round 1: play to completion with draw (no teams)
+            // Round 1: play to completion
             game = passAllSoledad(game).selectTrump(Suit.COPAS);
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
-            }
+            game = playGoingSideFailure(game, players);
             assertThat(game.isRoundComplete()).isTrue();
 
             final var round1Starter = game.currentRound().get().playerWhoGoes();
@@ -957,40 +949,30 @@ class GameTest {
             assertThat(game.currentRound().get().playerWhoGoes()).isEqualTo(expectedRound2Starter);
             assertThat(game.completedRounds()).hasSize(1);
 
-            // Round 2: play to completion with draw
+            // Round 2: play to completion
             game = passAllSoledad(game).selectTrump(Suit.OROS);
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
-            }
+            game = playGoingSideFailure(game, players);
             assertThat(game.isRoundComplete()).isTrue();
             assertThat(game.roundNumber()).isEqualTo(2);
         }
 
         @Test
-        void shouldTrackCoinBalancesAcrossMultipleRounds() {
+        void shouldCarryCoinBalancesAcrossMultipleRounds() {
             final var players = createPlayers();
-            var game = createGame(players);
+            var game = passAllSoledad(createGame(players)).selectTrump(Suit.COPAS);
 
-            // Round 1: draw (+1 each)
-            game = passAllSoledad(game).selectTrump(Suit.COPAS);
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
-            }
+            game = playGoingSideFailure(game, players);
+            final var afterRoundOne = new HashMap<>(game.coinBalances());
+            assertTableIsConserved(game, players);
 
-            for (final var player : players) {
-                assertThat(game.getCoins(player)).isEqualTo(21);
-            }
-
-            // Round 2: draw (+1 each again)
             game = game.startNextRound(new Random(99L), Instant.now());
-            game = passAllSoledad(game).selectTrump(Suit.OROS);
-            for (var i = 0; i < 8; i++) {
-                game = playAndCompleteBasa(game, players.get(i % 5));
-            }
+            assertThat(game.coinBalances())
+                .as("a new deal moves no coins on its own")
+                .isEqualTo(afterRoundOne);
 
-            for (final var player : players) {
-                assertThat(game.getCoins(player)).isEqualTo(22);
-            }
+            game = passAllSoledad(game).selectTrump(Suit.OROS);
+            game = playGoingSideFailure(game, players);
+            assertTableIsConserved(game, players);
         }
 
         @Test
@@ -1009,7 +991,8 @@ class GameTest {
             final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
             game = game.setTeams(teams);
 
-            // Play 5 basas — team of two wins
+            // The opposing side takes one, then the going side takes five
+            game = playAndCompleteBasa(game, opponentOf(game, players));
             for (var i = 0; i < 5; i++) {
                 game = playAndCompleteBasa(game, playerWhoGoes);
             }
@@ -1017,13 +1000,16 @@ class GameTest {
             // Verify round is complete
             assertThat(game.isRoundComplete()).isTrue();
             assertThat(game.currentRound().get().result().get())
-                .isInstanceOf(RoundResult.Win.class);
+                .isInstanceOf(RoundResult.GoingSideWon.class);
 
-            // Verify coins updated
-            assertThat(game.getCoins(playerWhoGoes)).isGreaterThanOrEqualTo(22);
-            assertThat(game.getCoins(teammate)).isGreaterThanOrEqualTo(22);
+            // Verify the going side collected from the posso
+            assertThat(game.getCoins(playerWhoGoes))
+                .isGreaterThanOrEqualTo(Game.INITIAL_COINS - Game.ANTE + SettlementCalculator.BASE_HELPED);
+            assertThat(game.getCoins(teammate))
+                .isGreaterThanOrEqualTo(Game.INITIAL_COINS - Game.ANTE + SettlementCalculator.BASE_HELPED);
+            assertTableIsConserved(game, players);
 
-            // Game should still be in progress (no bankruptcy)
+            // Game should still be in progress
             assertThat(game.isInProgress()).isTrue();
         }
     }
@@ -1034,24 +1020,18 @@ class GameTest {
      * Creates a game where one round is complete (draw, no teams).
      */
     private Game completeOneRound(List<PlayerId> players) {
-        var game = createGameWithTrump(players, Suit.COPAS);
-        for (var i = 0; i < 8; i++) {
-            game = playAndCompleteBasa(game, players.get(i % 5));
-        }
-        return game;
+        return playGoingSideFailure(createGameWithTrump(players, Suit.COPAS), players);
     }
 
     /**
-     * Creates an ended game by playing many rounds until someone goes bankrupt.
-     * Uses a team-of-three winning repeatedly to drain team-of-two's coins.
+     * Plays rounds until a player can no longer cover what they owe and the game ends.
+     * The same pair goes and is blocked every round, so their stack drains fastest.
      */
     private Game createEndedGame(List<PlayerId> players) {
         var game = createGame(players);
         var seed = 100L;
 
-        // Each round, team of three wins → losers (team of two) lose 2 coins each
-        // After 10 rounds of losing, a player at 20 coins goes to 0 → bankrupt
-        for (var round = 0; round < 10; round++) {
+        for (var round = 0; round < 40; round++) {
             if (game.isEnded()) {
                 return game;
             }
@@ -1073,16 +1053,14 @@ class GameTest {
             final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
             game = game.setTeams(teams);
 
-            // Team of three wins (loser is on team of three)
-            for (var i = 0; i < 5; i++) {
+            // The opposing side blocks with four basas; the going pair pays.
+            for (var i = 0; i < 4; i++) {
                 game = playAndCompleteBasa(game, loser);
             }
         }
 
-        // If we get here without ENDED, force it by creating another scenario
-        // But with 10 rounds of losing 2 coins, someone at 20 should be at 0
         if (!game.isEnded()) {
-            throw new IllegalStateException("Failed to create ended game — unexpected coin state");
+            throw new IllegalStateException("Failed to create ended game - unexpected coin state");
         }
         return game;
     }

@@ -6,7 +6,6 @@ import com.ginebra.game.domain.model.*;
 import com.ginebra.game.domain.service.BasaResolver;
 import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidator;
-import com.ginebra.game.domain.service.TeamResolver;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.StartGameUseCase;
@@ -45,9 +44,8 @@ class GameServiceTest {
         gameService = new GameService(
             gameRepository,
             eventPublisher,
-            new MoveValidator(),
+            new MoveValidator(cardRankingService),
             new BasaResolver(cardRankingService),
-            new TeamResolver(),
             FIXED_CLOCK,
             FIXED_RANDOM
         );
@@ -267,6 +265,94 @@ class GameServiceTest {
     }
 
     /**
+     * The king rules driven through the real service, with the real MoveValidator deciding
+     * whether a king was played by choice or dragged out ("et cau el rei").
+     */
+    @Nested
+    class KingDecidesTheSide {
+
+        @Test
+        void shouldAnnounceTheSideExactlyOnceWhenTheFirstKingIsPlayed() {
+            final var gameId = startGameAndSelectTrump(Suit.COPAS);
+
+            playUntilSideDecided(gameId);
+
+            final var decided = eventPublisher.events.stream()
+                .filter(GameEvent.SideDecided.class::isInstance)
+                .map(GameEvent.SideDecided.class::cast)
+                .toList();
+
+            assertThat(decided).as("one king decides the round, and only one").hasSize(1);
+            final var event = decided.get(0);
+            assertThat(event.king().isKing()).isTrue();
+            assertThat(event.goingSide()).isNotEmpty();
+            assertThat(event.opposingSide()).doesNotContainAnyElementsOf(event.goingSide());
+        }
+
+        @Test
+        void shouldGiveTheRoundAModeMatchingTheAnnouncement() {
+            final var gameId = startGameAndSelectTrump(Suit.COPAS);
+
+            playUntilSideDecided(gameId);
+
+            final var event = eventPublisher.events.stream()
+                .filter(GameEvent.SideDecided.class::isInstance)
+                .map(GameEvent.SideDecided.class::cast)
+                .findFirst().orElseThrow();
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+
+            // A KING_FELL round ends the hand, so the next deal is already under way.
+            if (event.mode() != RoundMode.KING_FELL) {
+                assertThat(round.mode()).contains(event.mode());
+                assertThat(round.goingSide()).isEqualTo(event.goingSide());
+            }
+            assertThat(event.mode()).isIn(
+                RoundMode.HELPED, RoundMode.SELF_KING, RoundMode.KING_FELL
+            );
+        }
+
+        @Test
+        void shouldRecordAForcedKingOnlyWhenTheHandLeftNoChoice() {
+            final var gameId = startGameAndSelectTrump(Suit.COPAS);
+
+            playUntilSideDecided(gameId);
+
+            final var event = eventPublisher.events.stream()
+                .filter(GameEvent.SideDecided.class::isInstance)
+                .map(GameEvent.SideDecided.class::cast)
+                .findFirst().orElseThrow();
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+
+            if (event.forced() && event.mode() == RoundMode.HELPED) {
+                assertThat(round.forcedKingPlayer()).contains(event.byPlayer());
+            } else if (event.mode() == RoundMode.HELPED) {
+                assertThat(round.forcedKingPlayer()).isEmpty();
+            }
+        }
+
+        /** Plays legal cards until a king turns up and decides the round. */
+        private void playUntilSideDecided(GameId gameId) {
+            for (var i = 0; i < Round.MAX_BASAS * 5; i++) {
+                final var game = gameRepository.findById(gameId).orElseThrow();
+                final var round = game.currentRound().orElseThrow();
+                if (round.mode().isPresent() || !round.isInProgress()) {
+                    return;
+                }
+                final var current = round.currentPlayer().orElseThrow();
+                gameService.playCard(new PlayCardUseCase.PlayCardCommand(
+                    gameId, current, findPlayableCard(round, current)
+                ));
+                if (eventPublisher.events.stream().anyMatch(GameEvent.SideDecided.class::isInstance)) {
+                    return;
+                }
+            }
+            throw new IllegalStateException("No king was played in a whole round");
+        }
+    }
+
+    /**
      * Finds a card that can be legally played by the current player.
      * Tries each card in hand until one is valid.
      */
@@ -278,7 +364,7 @@ class GameServiceTest {
             ? Optional.<Card>empty()
             : Optional.of(basa.cardsPlayed().get(0).card());
 
-        final var validator = new MoveValidator();
+        final var validator = new MoveValidator(new CardRankingService());
         for (final var card : hand) {
             final var validation = validator.validate(hand, card, trumpSuit, firstCard);
             if (validation instanceof com.ginebra.game.domain.service.MoveValidation.Valid) {

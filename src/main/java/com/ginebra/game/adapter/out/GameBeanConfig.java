@@ -4,7 +4,6 @@ import com.ginebra.game.adapter.in.dto.GameStateMapper;
 import com.ginebra.game.domain.service.BasaResolver;
 import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidator;
-import com.ginebra.game.domain.service.TeamResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,7 +19,7 @@ public class GameBeanConfig {
 
     @Bean
     public MoveValidator moveValidator() {
-        return new MoveValidator();
+        return new MoveValidator(cardRankingService());
     }
 
     @Bean
@@ -28,10 +27,6 @@ public class GameBeanConfig {
         return new BasaResolver(cardRankingService);
     }
 
-    @Bean
-    public TeamResolver teamResolver() {
-        return new TeamResolver();
-    }
 
     @Bean
     public Random gameRandom() {
