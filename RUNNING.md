@@ -11,8 +11,9 @@ no database, no build step for the frontend, and nothing to configure.
 ./gradlew bootRun
 ```
 
-Then open **http://localhost:8080** in **five browser tabs**. Add `?name=` to label them,
-which makes the log readable:
+Then open **http://localhost:8080** in **five browser tabs**. Each tab asks for a name
+before it shows the lobby. Put `?name=` in the URL to fill it in and skip the box, which
+is what makes five tabs on one machine bearable:
 
 ```
 http://localhost:8080/?name=Ada

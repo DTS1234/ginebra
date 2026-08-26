@@ -118,6 +118,8 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 | Piece | Where |
 |-------|-------|
 | Page, styles, icon | `src/main/resources/static/` |
+| Name box before the lobby, remembered in `localStorage` | `#identity-gate`, `enterWithName` |
+| Card faces drawn as a baraja española | `cardFace` / `spriteMarkup` in `app.js` |
 | Help panel: full card order per trump, plus the rules in one screen | `? Help` in the header |
 | Teams panel: both sides, who goes, basas each, live team totals | appears when the first King reveals them |
 | Endpoints it needs are pinned by tests | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
@@ -125,7 +127,9 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 See `RUNNING.md` for how to start it, expose it for a remote play-test, and deploy it -
 there is a `Dockerfile` and a `fly.toml`, and the app reads `$PORT` so any container
 platform will take it. One instance only: games are in memory until Phase 5.
-Open one browser tab per player, `?name=Ada` to label a tab. One tab creates a room, the
+Open one browser tab per player. Each is asked for a name before the lobby appears, which
+is what the other four see on the seat; `?name=Ada` in the URL fills it in and skips the
+box, which is what makes five tabs on one machine practical. One tab creates a room, the
 other four join from the list, and the game starts when the fifth is in. Verified by
 driving five real Chromium tabs through a full basa: deal, Soledad window, trump, five
 cards, basa resolution, and an out-of-turn rejection reaching only the offending tab.
@@ -157,9 +161,23 @@ rather than restating them, so it shows what the engine actually does.
 The client mirrors `MoveValidator`'s follow-suit rule so it only offers legal cards; the
 server remains authoritative and still rejects anything illegal.
 
+### The cards
+
+The faces are drawn in SVG rather than fetched, so there is still nothing to install and
+no licence to honour. The four suits and the three figures are symbols in a hidden sprite,
+instantiated with `<use>`; a card is a frame, its pips and two indices. What makes them
+read as a *baraja española* rather than as generic cards is the numbering (1-7, 10, 11,
+12 - no 8 or 9), the pip layouts (2-3-2 for a seven), and the **pinta**: the break in the
+border that names the suit from a card only half out of the fan - none for Oros, one for
+Copas, two for Espadas, three for Bastos.
+
+Card names in the log and in tooltips are the Spanish ones (*Rey de Bastos*), and a
+tooltip adds the village name when a card has one - Espadilla, Manilla, Basto, Rovell,
+Carabassa - which depends on the trump in play.
+
 Not attempted: the React + TypeScript + Vite stack in spec §3.2, reconnection UI, a
-control for the *"es primer rei aida"* call, or any styling work beyond making the game
-readable. The page shows the posso, the round's mode and both sides.
+control for the *"es primer rei aida"* call. The page shows the posso, the round's mode
+and both sides.
 
 ---
 

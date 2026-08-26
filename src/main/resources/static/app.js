@@ -128,19 +128,40 @@ class Stomp {
 
 // === Cards ===
 
-const SUIT_SYMBOL = { COPAS: '🍷', OROS: '🪙', ESPADAS: '⚔️', BASTOS: '🌳' };
 const SUIT_LABEL = { COPAS: 'Copas', OROS: 'Oros', ESPADAS: 'Espadas', BASTOS: 'Bastos' };
-const RANK_LABEL = {
-    AS: 'A', DOS: '2', TRES: '3', CUATRO: '4', CINCO: '5',
-    SEIS: '6', SIETE: '7', SOTA: 'S', CABALLO: 'C', REY: 'R'
+
+/*
+ * A Spanish deck numbers its cards 1-7, 10 (sota), 11 (caballo), 12 (rey) - there is no
+ * 8 or 9, and the index printed in the corner is that number. RANK_NUMERAL is what goes
+ * on a face; RANK_NAME is for prose and tooltips.
+ */
+const RANK_NUMERAL = {
+    AS: '1', DOS: '2', TRES: '3', CUATRO: '4', CINCO: '5',
+    SEIS: '6', SIETE: '7', SOTA: '10', CABALLO: '11', REY: '12'
 };
+const RANK_NAME = {
+    AS: 'As', DOS: 'Dos', TRES: 'Tres', CUATRO: 'Cuatro', CINCO: 'Cinco',
+    SEIS: 'Seis', SIETE: 'Siete', SOTA: 'Sota', CABALLO: 'Caballo', REY: 'Rey'
+};
+const FIGURE_OF = { SOTA: 'sota', CABALLO: 'caballo', REY: 'rey' };
 
 function cardKey(card) {
     return card.suit + '-' + card.rank;
 }
 
 function cardName(card) {
-    return RANK_LABEL[card.rank] + ' ' + SUIT_LABEL[card.suit];
+    return RANK_NAME[card.rank] + ' de ' + SUIT_LABEL[card.suit];
+}
+
+/** The village name for a card that has one, which depends on the trump in play. */
+function specialName(card, trump) {
+    if (card.rank !== 'AS' && !(trump && card.suit === trump && card.rank === manillaRank(trump))) {
+        return null;
+    }
+    if (card.rank === 'AS') {
+        return { ESPADAS: 'Espadilla', BASTOS: 'Basto', OROS: 'Rovell', COPAS: 'Carabassa' }[card.suit];
+    }
+    return 'Manilla';
 }
 
 /*
@@ -186,6 +207,186 @@ function suitOrder(suit, trump) {
 /** Espadilla and Basto never count as their own suit when following. */
 function isSpecial(card) {
     return card.rank === 'AS' && (card.suit === 'ESPADAS' || card.suit === 'BASTOS');
+}
+
+// === Card graphics ===
+
+/*
+ * The faces are drawn, not fetched: the four suits and the three figures are SVG symbols
+ * placed once in a hidden sprite and instantiated with <use>, so a card face costs a
+ * handful of elements and no network.
+ *
+ * Two details are what make a card read as a baraja española rather than as a generic
+ * playing card. The first is the pip layout - a seven is 2-3-2, a six is 2-2-2, and so
+ * on. The second is the *pinta*: the break in the border frame that lets you name the
+ * suit from a card only half out of the fan. Oros has an unbroken frame, Copas one
+ * break on each long side, Espadas two, Bastos three.
+ */
+
+const CARD_W = 100;
+const CARD_H = 156;
+
+const PINTA_BREAKS = { OROS: 0, COPAS: 1, ESPADAS: 2, BASTOS: 3 };
+
+/** Where the breaks sit on the long edges, by how many there are. */
+const PINTA_AT = { 0: [], 1: [78], 2: [56, 100], 3: [46, 78, 110] };
+
+/** Pips per row for the number cards, and the y of each row. */
+const PIP_ROWS = {
+    DOS:    [[50], [50]],
+    TRES:   [[50], [50], [50]],
+    CUATRO: [[32, 68], [32, 68]],
+    CINCO:  [[32, 68], [50], [32, 68]],
+    SEIS:   [[32, 68], [32, 68], [32, 68]],
+    SIETE:  [[32, 68], [26, 50, 74], [32, 68]]
+};
+const ROW_Y = { 2: [54, 102], 3: [44, 78, 112] };
+
+/** An instance of a sprite symbol, centred on (cx, cy) and drawn `size` across. */
+function usePip(id, cx, cy, size) {
+    return '<use href="#' + id + '"'
+        + ' x="' + (cx - size / 2) + '" y="' + (cy - size / 2) + '"'
+        + ' width="' + size + '" height="' + size + '"/>';
+}
+
+/** The border frame, broken as many times as the suit's pinta calls for. */
+function pinta(suit) {
+    let gaps = '';
+    for (const y of PINTA_AT[PINTA_BREAKS[suit]]) {
+        gaps += '<rect class="pinta-gap" x="2" y="' + (y - 7) + '" width="9" height="14"/>'
+            + '<rect class="pinta-gap" x="89" y="' + (y - 7) + '" width="9" height="14"/>';
+    }
+    return '<rect class="pinta" x="6" y="6" width="88" height="144" rx="7"/>' + gaps;
+}
+
+/** The whole face of one card as SVG markup. */
+function cardFace(card) {
+    const suitId = 'suit-' + card.suit.toLowerCase();
+    let pips;
+
+    if (FIGURE_OF[card.rank]) {
+        pips = usePip('fig-' + FIGURE_OF[card.rank], 50, 96, 82)
+            + usePip(suitId, 50, 36, 30);
+    } else if (card.rank === 'AS') {
+        pips = usePip(suitId, 50, 80, 58);
+    } else {
+        const rows = PIP_ROWS[card.rank];
+        const ys = ROW_Y[rows.length];
+        const size = rows.length === 2 ? 35 : (card.rank === 'SIETE' ? 26 : 30);
+        pips = rows
+            .map((row, i) => row.map((x) => usePip(suitId, x, ys[i], size)).join(''))
+            .join('');
+    }
+
+    // The second index is the first one rotated about the middle of the card, which is
+    // how a real card carries it: readable whichever way round you are holding the fan.
+    const index = '<text class="card-index" x="11" y="23">' + RANK_NUMERAL[card.rank] + '</text>';
+
+    return '<svg class="card-face" viewBox="0 0 ' + CARD_W + ' ' + CARD_H + '" aria-hidden="true">'
+        + pinta(card.suit)
+        + pips
+        + index
+        + '<g transform="rotate(180 50 78)">' + index + '</g>'
+        + '</svg>';
+}
+
+/** A one-line suit mark for running text, buttons and headings. */
+function suitIcon(suit) {
+    return '<svg class="suit-icon suit-' + suit.toLowerCase() + '" viewBox="0 0 100 100"'
+        + ' aria-hidden="true"><use href="#suit-' + suit.toLowerCase() + '"'
+        + ' x="0" y="0" width="100" height="100"/></svg>';
+}
+
+function suitTag(suit) {
+    return suitIcon(suit) + ' ' + SUIT_LABEL[suit];
+}
+
+/** The rays around the middle of a coin, which are tedious to write out by hand. */
+function coinRays() {
+    let rays = '';
+    for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI) / 4;
+        const at = (r) => [
+            (50 + Math.cos(angle) * r).toFixed(1),
+            (50 + Math.sin(angle) * r).toFixed(1)
+        ];
+        const [x1, y1] = at(17);
+        const [x2, y2] = at(27);
+        rays += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"/>';
+    }
+    return '<g class="coin-rays">' + rays + '</g>';
+}
+
+/*
+ * The symbols themselves. Everything is drawn in a 100x100 box and painted in
+ * currentColor, so a card picks up its suit colour from one CSS rule.
+ */
+function spriteMarkup() {
+    return ''
+        + '<symbol id="suit-oros" viewBox="0 0 100 100">'
+        +   '<circle cx="50" cy="50" r="45" class="coin-face"/>'
+        +   '<circle cx="50" cy="50" r="45" class="coin-rim"/>'
+        +   '<circle cx="50" cy="50" r="33" class="coin-inner"/>'
+        +   coinRays()
+        +   '<circle cx="50" cy="50" r="10" fill="currentColor"/>'
+        + '</symbol>'
+
+        + '<symbol id="suit-copas" viewBox="0 0 100 100">'
+        +   '<circle cx="50" cy="10" r="7" fill="currentColor"/>'
+        +   '<rect x="47" y="14" width="6" height="8" fill="currentColor"/>'
+        +   '<path d="M20 22 H80 V33 C80 53 67 65 50 65 C33 65 20 53 20 33 Z" fill="currentColor"/>'
+        +   '<rect x="45" y="65" width="10" height="16" fill="currentColor"/>'
+        +   '<rect x="26" y="81" width="48" height="11" rx="5" fill="currentColor"/>'
+        + '</symbol>'
+
+        + '<symbol id="suit-espadas" viewBox="0 0 100 100">'
+        +   '<path d="M50 2 L62 30 L60 64 H40 L38 30 Z" fill="currentColor"/>'
+        +   '<path d="M14 68 C32 57 68 57 86 68 C68 80 32 80 14 68 Z" fill="currentColor"/>'
+        +   '<rect x="44" y="78" width="12" height="12" fill="currentColor"/>'
+        +   '<circle cx="50" cy="94" r="8" fill="currentColor"/>'
+        + '</symbol>'
+
+        + '<symbol id="suit-bastos" viewBox="0 0 100 100">'
+        +   '<g transform="rotate(-22 50 50)">'
+        +     '<path d="M40 94 C40 98 60 98 60 94 L66 36 C68 16 60 6 50 6'
+        +          ' C40 6 32 16 34 36 Z" fill="currentColor"/>'
+        +     '<path d="M35 40 L13 29 L34 27 Z" fill="currentColor"/>'
+        +     '<path d="M58 66 L81 58 L58 53 Z" fill="currentColor"/>'
+        +     '<path d="M41 82 L21 77 L41 72 Z" fill="currentColor"/>'
+        +     '<path class="knot" d="M45 30 l8 6 -8 6 z"/>'
+        +     '<path class="knot" d="M56 58 l-8 6 8 6 z"/>'
+        +   '</g>'
+        + '</symbol>'
+
+        + '<symbol id="fig-rey" viewBox="0 0 100 100">'
+        +   '<path d="M22 43 L27 14 L38 29 L50 8 L62 29 L73 14 L78 43 Z" fill="currentColor"/>'
+        +   '<rect x="20" y="43" width="60" height="9" rx="3" fill="currentColor"/>'
+        +   '<circle cx="50" cy="69" r="15" fill="currentColor"/>'
+        +   '<path d="M16 100 C19 84 31 76 50 76 C69 76 81 84 84 100 Z" fill="currentColor"/>'
+        + '</symbol>'
+
+        + '<symbol id="fig-caballo" viewBox="0 0 100 100">'
+        +   '<path d="M86 40 C90 43 93 48 92 53 C91 57 88 59 83 59'
+        +        ' C75 60 70 60 66 62 C60 65 58 70 58 77 L60 100 L24 100'
+        +        ' C24 86 25 76 29 67 C32 58 34 54 36 48 L33 24 L47 40'
+        +        ' C53 33 59 30 67 31 C75 32 82 36 86 40 Z" fill="currentColor"/>'
+        +   '<circle cx="62" cy="45" r="3.6" class="eye"/>'
+        + '</symbol>'
+
+        + '<symbol id="fig-sota" viewBox="0 0 100 100">'
+        +   '<path d="M30 40 C30 20 39 11 50 11 C61 11 70 20 70 40 Z" fill="currentColor"/>'
+        +   '<rect x="24" y="40" width="52" height="8" rx="4" fill="currentColor"/>'
+        +   '<path d="M66 22 C80 6 92 10 88 26" class="plume"/>'
+        +   '<circle cx="50" cy="66" r="14" fill="currentColor"/>'
+        +   '<path d="M17 100 C20 85 32 78 50 78 C68 78 80 85 83 100 Z" fill="currentColor"/>'
+        + '</symbol>';
+}
+
+function installSprite() {
+    document.body.insertAdjacentHTML(
+        'afterbegin',
+        '<svg class="sprite" aria-hidden="true" focusable="false">' + spriteMarkup() + '</svg>'
+    );
 }
 
 
@@ -253,10 +454,81 @@ async function createIdentity(displayName) {
         headers: { 'Content-Type': 'application/json' },
         body: body
     });
+    if (!response.ok) {
+        throw new Error('could not sign in (' + response.status + ')');
+    }
     state.me = await response.json();
     sessionStorage.setItem('ginebra.me', JSON.stringify(state.me));
     el('whoami').textContent = state.me.displayName + ' (' + state.me.playerId.slice(0, 8) + ')';
     log('Playing as ' + state.me.displayName, 'good');
+}
+
+// === Name ===
+
+/*
+ * A player is nothing but a display name here, and it is what the other four see on the
+ * seat. It is asked for before anything else, remembered in localStorage for the next
+ * visit, and changeable right up until the room is joined - after that the identity is
+ * the one the server has, and a new name would be a new player.
+ */
+
+const NAME_KEY = 'ginebra.name';
+
+function rememberedName() {
+    try {
+        return localStorage.getItem(NAME_KEY) || '';
+    } catch (ignored) {
+        return '';   // private browsing, or storage turned off
+    }
+}
+
+function rememberName(name) {
+    try {
+        localStorage.setItem(NAME_KEY, name);
+    } catch (ignored) {
+        // Not being able to remember it is not worth interrupting anyone over.
+    }
+}
+
+function nameError(message) {
+    const box = el('name-error');
+    box.textContent = message || '';
+    box.classList.toggle('hidden', !message);
+}
+
+function showNameGate() {
+    el('identity-gate').classList.remove('hidden');
+    el('lobby').classList.add('hidden');
+    el('change-name').classList.add('hidden');
+    el('name-input').focus();
+    el('name-input').select();
+}
+
+/** Takes the name, gets an identity for it, and opens the lobby. */
+async function enterWithName(name) {
+    const chosen = (name || '').trim();
+    if (chosen.length === 0) {
+        nameError('Type a name first - it is what the others will see.');
+        el('name-input').focus();
+        return;
+    }
+
+    nameError('');
+    el('enter').disabled = true;
+    try {
+        await createIdentity(chosen);
+    } catch (error) {
+        nameError(error.message);
+        return;
+    } finally {
+        el('enter').disabled = false;
+    }
+
+    rememberName(chosen);
+    el('identity-gate').classList.add('hidden');
+    el('lobby').classList.remove('hidden');
+    el('change-name').classList.remove('hidden');
+    await refreshRooms();
 }
 
 async function refreshRooms() {
@@ -281,6 +553,7 @@ async function refreshRooms() {
 async function createRoom() {
     const response = await api('/api/rooms', { method: 'POST' });
     state.roomId = response.roomId;
+    el('change-name').classList.add('hidden');
     log('Created room ' + response.roomId.slice(0, 8) + ' - waiting for 4 more players', 'good');
     el('room-status').textContent = 'In room ' + response.roomId.slice(0, 8) + ' (1/5)';
     await refreshRooms();
@@ -290,6 +563,7 @@ async function createRoom() {
 async function joinRoom(roomId) {
     const response = await api('/api/rooms/' + roomId + '/join', { method: 'POST' });
     state.roomId = roomId;
+    el('change-name').classList.add('hidden');
     el('room-status').textContent =
         'In room ' + roomId.slice(0, 8) + ' (' + response.players.length + '/5)';
     log('Joined room ' + roomId.slice(0, 8) + ' - ' + response.players.length + '/5 players');
@@ -569,9 +843,7 @@ function render() {
         && round.trumpChooser === state.me.playerId;
 
     el('phase').textContent = round.status.replace(/_/g, ' ').toLowerCase();
-    el('trump').textContent = state.trump
-        ? SUIT_SYMBOL[state.trump] + ' ' + SUIT_LABEL[state.trump]
-        : 'not chosen';
+    el('trump').innerHTML = state.trump ? suitTag(state.trump) : 'not chosen';
     el('round-number').textContent = round.roundNumber;
     el('coins').textContent = state.coins[state.me.playerId] ?? '-';
     el('posso').textContent = state.posso ?? '-';
@@ -726,21 +998,20 @@ function renderHand(myTurn) {
 
     const led = ledCard();
     if (!playing) {
-        el('follow-hint').textContent = '';
+        el('follow-hint').innerHTML = '';
     } else if (led === null) {
         const round = state.round;
         const untouched = ['COPAS', 'OROS', 'ESPADAS', 'BASTOS']
             .filter((suit) => !(round.ledSuits || []).includes(suit));
-        el('follow-hint').textContent = (!round.mode && untouched.length > 0
+        el('follow-hint').innerHTML = (!round.mode && untouched.length > 0
                 && (round.ledSuits || []).length > 0)
             ? 'You lead — a suit not led yet, until a King comes out: '
-                + untouched.map((suit) => SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit]).join(', ')
+                + untouched.map(suitTag).join(', ')
             : '';
     } else if (isTrumpCard(led)) {
-        el('follow-hint').textContent = 'Trump led - must play a trump if you can';
+        el('follow-hint').innerHTML = 'Trump led - must play a trump if you can';
     } else {
-        el('follow-hint').textContent =
-            'Must follow ' + SUIT_SYMBOL[led.suit] + ' ' + SUIT_LABEL[led.suit] + ' if you can';
+        el('follow-hint').innerHTML = 'Must follow ' + suitTag(led.suit) + ' if you can';
     }
 }
 
@@ -782,7 +1053,7 @@ function renderHelp(trump) {
     for (const suit of Object.keys(SUIT_LABEL)) {
         const button = document.createElement('button');
         button.className = 'suit-chip' + (suit === trump ? ' selected' : '');
-        button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];
+        button.innerHTML = suitTag(suit);
         button.onclick = () => renderHelp(suit);
         picker.appendChild(button);
     }
@@ -801,7 +1072,7 @@ function helpColumn(suit, trump) {
     column.className = 'help-column' + (suit === trump ? ' is-trump' : '');
 
     const heading = document.createElement('h3');
-    heading.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit] + (suit === trump ? ' — trump' : '');
+    heading.innerHTML = suitTag(suit) + (suit === trump ? ' — trump' : '');
     column.appendChild(heading);
 
     const list = document.createElement('ol');
@@ -810,7 +1081,8 @@ function helpColumn(suit, trump) {
 
         const chip = document.createElement('span');
         chip.className = 'mini-card suit-' + entry.card.suit.toLowerCase();
-        chip.textContent = RANK_LABEL[entry.card.rank] + ' ' + SUIT_SYMBOL[entry.card.suit];
+        chip.innerHTML = '<span class="mini-index">' + RANK_NUMERAL[entry.card.rank] + '</span>'
+            + suitIcon(entry.card.suit);
         item.appendChild(chip);
 
         if (entry.note) {
@@ -876,10 +1148,9 @@ function cardElement(card, playable) {
     const node = document.createElement('button');
     node.className = 'card suit-' + card.suit.toLowerCase() + (playable ? ' playable' : '');
     node.disabled = !playable;
-    node.title = cardName(card);
-    node.innerHTML =
-        '<span class="rank">' + RANK_LABEL[card.rank] + '</span>' +
-        '<span class="suit">' + SUIT_SYMBOL[card.suit] + '</span>';
+    const special = specialName(card, state.trump);
+    node.title = cardName(card) + (special ? ' — ' + special : '');
+    node.innerHTML = cardFace(card);
     if (playable) {
         node.onclick = () => playCard(card);
     }
@@ -889,6 +1160,19 @@ function cardElement(card, playable) {
 // === Wiring ===
 
 window.addEventListener('DOMContentLoaded', async () => {
+    installSprite();
+
+    el('enter').onclick = () => enterWithName(el('name-input').value);
+    el('name-input').onkeydown = (event) => {
+        if (event.key === 'Enter') {
+            enterWithName(el('name-input').value);
+        }
+    };
+    el('change-name').onclick = () => {
+        el('name-input').value = state.me ? state.me.displayName : '';
+        showNameGate();
+    };
+
     el('create-room').onclick = () => createRoom().catch((e) => log(e.message, 'bad'));
     el('refresh-rooms').onclick = () => refreshRooms().catch((e) => log(e.message, 'bad'));
     el('help-toggle').onclick = toggleHelp;
@@ -898,13 +1182,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     el('decline-todo').onclick = () => decideTodo(false);
     for (const suit of Object.keys(SUIT_LABEL)) {
         const button = document.createElement('button');
-        button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];
+        button.innerHTML = suitTag(suit);
         button.onclick = () => selectTrump(suit);
         el('trump-buttons').appendChild(button);
     }
 
-    const name = new URLSearchParams(location.search).get('name')
-        || 'Player ' + Math.floor(Math.random() * 1000);
-    await createIdentity(name);
-    await refreshRooms();
+    // ?name= in the URL skips the box, which is what makes the five-tabs-on-one-machine
+    // test practical. Otherwise the last name used is offered back and waits for Enter.
+    const fromUrl = new URLSearchParams(location.search).get('name');
+    el('name-input').value = (fromUrl || rememberedName()).trim();
+
+    if (fromUrl && fromUrl.trim().length > 0) {
+        await enterWithName(fromUrl);
+    } else {
+        el('name-input').focus();
+    }
 });

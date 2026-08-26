@@ -5,12 +5,28 @@
     --ink: #e8f1ec;
     --muted: #91ab9f;
     --accent: #f0b429;
+    --paper: #f6f2e7;
+    --copas: #ab2f24;
+    --oros: #a2760a;
+    --espadas: #2a4d80;
+    --bastos: #3d6a32;
+    --copas-lit: #e0796d;
+    --oros-lit: #dfb03e;
+    --espadas-lit: #7ba7e6;
+    --bastos-lit: #7cbe69;
     --good: #6fd08c;
     --bad: #e2726e;
 }
 
 * {
     box-sizing: border-box;
+}
+
+.sprite {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
 }
 
 body {
@@ -110,6 +126,40 @@ button.primary {
     font-weight: 600;
 }
 
+#name-input {
+    background: #0f231c;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.45rem 0.7rem;
+    font: inherit;
+    min-width: 14rem;
+}
+
+#name-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.name-error {
+    margin: 0;
+    color: var(--bad);
+    font-size: 0.85rem;
+}
+
+.link-button {
+    padding: 0 0.3rem;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 0.85rem;
+    text-decoration: underline;
+}
+
+.link-button:hover {
+    border: none;
+}
+
 #rooms {
     list-style: none;
     padding: 0;
@@ -136,8 +186,8 @@ button.primary {
     letter-spacing: normal;
 }
 
-.card:disabled {
-    filter: grayscale(0.6) brightness(0.8);
+.hand-area .card:disabled {
+    filter: grayscale(0.55) brightness(0.94);
 }
 
 .empty {
@@ -190,13 +240,22 @@ button.primary {
     flex-wrap: wrap;
 }
 
+/* Buttons and headings that carry a suit mark next to their label. */
+#trump-buttons button,
+#help-trump-buttons button,
+.help-column h3 {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
 .table-area,
 .hand-area {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
     align-items: flex-end;
-    min-height: 6.5rem;
+    min-height: 8.2rem;
     padding: 0.75rem;
     background: var(--panel);
     border: 1px solid var(--line);
@@ -204,28 +263,19 @@ button.primary {
 }
 
 .card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.15rem;
-    width: 3.4rem;
-    height: 4.8rem;
+    width: 4.1rem;
+    height: 6.4rem;
     padding: 0;
-    background: #f6f2e7;
-    color: #1c1a14;
+    background: var(--paper);
     border: 1px solid #cdc4ad;
     border-radius: 7px;
+    overflow: hidden;
 }
 
-.card .rank {
-    font-size: 1.35rem;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.card .suit {
-    font-size: 1.05rem;
+.card-face {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 .card.playable {
@@ -241,10 +291,74 @@ button.primary {
     opacity: 1;
 }
 
-.card.suit-copas .rank { color: #a3341f; }
-.card.suit-oros .rank { color: #9a7400; }
-.card.suit-espadas .rank { color: #2a4d80; }
-.card.suit-bastos .rank { color: #3f6b34; }
+/* === The card faces === */
+
+/*
+ * Everything inside a face is painted in currentColor, so the suit colour is set once
+ * here and the symbols, the index and the pinta all follow it.
+ */
+.suit-copas { color: var(--copas); }
+.suit-oros { color: var(--oros); }
+.suit-espadas { color: var(--espadas); }
+.suit-bastos { color: var(--bastos); }
+
+.card-index {
+    fill: currentColor;
+    font: 700 21px/1 "Iowan Old Style", Georgia, "Times New Roman", serif;
+}
+
+/* The frame, and the pieces of paper that break it into the suit's pinta. */
+.pinta {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    opacity: 0.6;
+}
+
+.pinta-gap {
+    fill: var(--paper);
+}
+
+.coin-face { fill: currentColor; opacity: 0.13; }
+.coin-rim { fill: none; stroke: currentColor; stroke-width: 6; }
+.coin-inner { fill: none; stroke: currentColor; stroke-width: 3; }
+.coin-rays line { stroke: currentColor; stroke-width: 4.5; stroke-linecap: round; }
+
+.eye,
+.knot { fill: var(--paper); }
+
+.plume {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 6;
+    stroke-linecap: round;
+}
+
+/*
+ * A suit mark the size of the surrounding text. Outside a card it sits on the dark
+ * table, where the ink colours of the deck go muddy, so it takes a lighter shade -
+ * except in the help panel's little cards, which are paper like a real card.
+ */
+.suit-icon {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.15em;
+}
+
+.suit-icon.suit-copas { color: var(--copas-lit); }
+.suit-icon.suit-oros { color: var(--oros-lit); }
+.suit-icon.suit-espadas { color: var(--espadas-lit); }
+.suit-icon.suit-bastos { color: var(--bastos-lit); }
+
+.mini-card .suit-icon.suit-copas { color: var(--copas); }
+.mini-card .suit-icon.suit-oros { color: var(--oros); }
+.mini-card .suit-icon.suit-espadas { color: var(--espadas); }
+.mini-card .suit-icon.suit-bastos { color: var(--bastos); }
+
+.suit-chip.selected .suit-icon,
+.primary .suit-icon {
+    color: #241a00;
+}
 
 .played {
     display: flex;
@@ -402,20 +516,21 @@ button.primary {
 }
 
 .mini-card {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.3rem;
     min-width: 3.1rem;
-    padding: 0 0.35rem;
-    background: #f6f2e7;
-    color: #1c1a14;
+    padding: 0.05rem 0.4rem;
+    background: var(--paper);
     border-radius: 4px;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.8rem;
 }
 
-.mini-card.suit-copas { color: #a3341f; }
-.mini-card.suit-oros { color: #9a7400; }
-.mini-card.suit-espadas { color: #2a4d80; }
-.mini-card.suit-bastos { color: #3f6b34; }
+.mini-index {
+    font-variant-numeric: tabular-nums;
+}
 
 .mini-note {
     margin-left: 0.4rem;
