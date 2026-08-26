@@ -9,12 +9,27 @@ examples, in case the short one gets a "depende".
 
 ---
 
-## D-6 — ¿Dónde va el as en un palo que **no** es triunfo?
+## D-6 — ¿Dónde va el as en un palo que **no** es triunfo? · ✅ RESPONDIDA (2026-08-26)
 
-**What we need.** The book gives the order *within the trump suit*, where the ace beats the
-king. It never says the order inside a suit that is not trump. Our engine currently puts the
-ace **below the sota** there, and we have no evidence either way. It only matters for **oros
+> **La respuesta.** El as **cambia de sitio** según si su palo es triunfo o no.
+>
+> | | Orden, de mayor a menor |
+> |---|---|
+> | Oros **sin** ser triunfo | Rey, Caballo, Sota, **Rovell**, 2, 3, 4, 5, 6, 7 |
+> | Oros **de** triunfo | *(Espadilla y Basto por encima)* 7 **manilla**, **Rovell**, Rey, Caballo, Sota, 2, 3, 4, 5, 6 |
+>
+> Igual para copas con la *carabassa*. Espadas y bastos no tienen as propio — son la
+> espadilla y el basto — y sus cartas bajas van del 7 al 2.
+>
+> Coincide con lo que ya hacía el motor, así que no hubo que cambiar nada; queda fijado en
+> `SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt`.
+
+**What we needed.** The book gives the order *within the trump suit*, where the ace beats
+the king, but never the order inside a suit that is not trump. It only matters for **oros
 and copas**, since the aces of espadas and bastos are the espadilla and the basto.
+
+*The question as it was asked is kept below, both because the answer is easier to check
+against the question that produced it, and as a template for the ones still open.*
 
 ### Versión corta
 
@@ -68,22 +83,18 @@ Si es más natural preguntarlo en la lengua del pueblo:
 >
 > És a dir: l'as d'un pal que no és trumfo, **va en ses altes o va en ses baixes?**
 
-### Cómo registrar la respuesta
+### La respuesta que dieron
 
-Cualquiera de estas tres respuestas nos sirve, no hace falta más:
-
-| Respuesta | Qué significa para el código |
-|---|---|
-| "El as manda igual, sea triunfo o no" | El as sube: rey > caballo > sota pasa a as > rey > caballo > sota |
-| "Fuera de triunfo el as no vale nada / va con las bajas" | Se queda como está ahora |
-| "Depende de la casa / cada uno lo juega a su manera" | Lo dejamos como está y lo anotamos como variante local |
+La segunda opción, y además con el detalle de que en triunfo el as sube por encima del rey:
+el as tiene **dos posiciones** según si su palo es triunfo o no. Es lo que ya hacía el
+motor, así que no hubo que tocar código — solo fijarlo con un test.
 
 ---
 
 ## Otras dudas, por si sale la conversación
 
-Menos urgentes — la implementación ya toma una decisión en cada una, pero confirmarlas nos
-ahorraría suposiciones. Están detalladas en `rules-diff.md` §3.3.
+Estas siguen abiertas. La implementación ya toma una decisión en cada una, pero confirmarlas
+nos ahorraría suposiciones. Están detalladas en `rules-diff.md` §3.3.
 
 1. **Fer todo.** El libro dice que se pide al llegar a cinco basas. Si se pide y luego
    **no** se hace, ¿pasa algo? ¿Se pierde solo el punto del todo, o se paga algo más?
@@ -94,6 +105,7 @@ ahorraría suposiciones. Están detalladas en `rules-diff.md` §3.3.
    ello? ¿O lo que sube el pago son las primeras del **contrario**?
 4. **Cuando al que es mano le cae el rey y se acaba la mano**, ¿qué se paga exactamente?
    ¿Solo el 1 del rey caído, o algo más?
-5. **Cambiar de palo hasta que salga el rey.** El que sale, ¿tiene que cambiar de palo
-   respecto al **palo anterior**, o respecto a **todos los que ya se han jugado**?
-   (Implementado como lo primero — lo segundo se vuelve imposible pasadas cuatro basas.)
+5. **Cambiar de palo hasta que salga el rey.** Ya está confirmado que es obligatorio. Lo
+   que falta: el que sale, ¿tiene que cambiar de palo respecto al **palo anterior**, o
+   respecto a **todos los que ya se han jugado**? (Implementado como lo primero — lo
+   segundo se vuelve imposible pasadas cuatro basas.)

@@ -26,6 +26,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Two things the spec's tables get wrong on their own terms and that are corrected here,
  * per its own "Note on Manilla": the Manilla appears once, at position 2, and does not
  * reappear at the bottom of the trump column.
+ *
+ * The second test transcribes the order as Tàrbena players stated it (2026-08-26), which
+ * settled D-6 - where the Ace ranks in a suit that is not trump. It is deliberately a
+ * separate authority from the spec tables above: if the two ever disagree, both fail and
+ * the players win.
  */
 @DisplayName("Card order matches spec 2.4")
 class SpecCardOrderTest {
@@ -95,6 +100,69 @@ class SpecCardOrderTest {
                 .as("%s should still beat %s when played second", stronger, weaker)
                 .isEqualTo(stronger);
         }
+    }
+
+    /**
+     * The order dictated by the players, for a suit whose Ace is an ordinary card.
+     *
+     * Not trump:  Rey, Caballo, Sota, <b>Rovell</b>, 2, 3, 4, 5, 6, 7
+     * Trump:      7 (manilla), <b>Rovell</b>, Rey, Caballo, Sota, 2, 3, 4, 5, 6
+     *
+     * So the Ace changes place: below the Sota in a plain suit, above the King in trump.
+     * That asymmetry is the whole of D-6, and it is real.
+     */
+    static Stream<Arguments> playerConfirmedColumns() {
+        return Stream.of(
+            // "SERÍA: Rey de oros, Caballo, Sota, Rovell, 2, 3, 4, 5, 6, 7 de oros"
+            column(BASTOS, OROS, List.of(
+                card(OROS, REY), card(OROS, CABALLO), card(OROS, SOTA), card(OROS, AS),
+                card(OROS, DOS), card(OROS, TRES), card(OROS, CUATRO),
+                card(OROS, CINCO), card(OROS, SEIS), card(OROS, SIETE))),
+
+            // "y cuando es triunfo: 7 de oros, Rovell, Rey, Caballo, Sota, 2, 3, 4, 5, 6"
+            // (the Espadilla and Basto sit above, being trumps from other suits)
+            column(OROS, OROS, List.of(
+                card(OROS, SIETE), card(OROS, AS), card(OROS, REY),
+                card(OROS, CABALLO), card(OROS, SOTA),
+                card(OROS, DOS), card(OROS, TRES), card(OROS, CUATRO),
+                card(OROS, CINCO), card(OROS, SEIS))),
+
+            // "this goes for all the colors" - Copas has an ordinary Ace too, the Carabassa
+            column(BASTOS, COPAS, List.of(
+                card(COPAS, REY), card(COPAS, CABALLO), card(COPAS, SOTA), card(COPAS, AS),
+                card(COPAS, DOS), card(COPAS, TRES), card(COPAS, CUATRO),
+                card(COPAS, CINCO), card(COPAS, SEIS), card(COPAS, SIETE))),
+            column(COPAS, COPAS, List.of(
+                card(COPAS, SIETE), card(COPAS, AS), card(COPAS, REY),
+                card(COPAS, CABALLO), card(COPAS, SOTA),
+                card(COPAS, DOS), card(COPAS, TRES), card(COPAS, CUATRO),
+                card(COPAS, CINCO), card(COPAS, SEIS))),
+
+            // "but with different ordering for bastos and espadas" - no Ace of their own,
+            // and the low cards run the other way
+            column(OROS, ESPADAS, List.of(
+                card(ESPADAS, REY), card(ESPADAS, CABALLO), card(ESPADAS, SOTA),
+                card(ESPADAS, SIETE), card(ESPADAS, SEIS), card(ESPADAS, CINCO),
+                card(ESPADAS, CUATRO), card(ESPADAS, TRES), card(ESPADAS, DOS))),
+            column(ESPADAS, ESPADAS, List.of(
+                card(ESPADAS, DOS), card(ESPADAS, REY), card(ESPADAS, CABALLO),
+                card(ESPADAS, SOTA), card(ESPADAS, SIETE), card(ESPADAS, SEIS),
+                card(ESPADAS, CINCO), card(ESPADAS, CUATRO), card(ESPADAS, TRES))),
+            column(OROS, BASTOS, List.of(
+                card(BASTOS, REY), card(BASTOS, CABALLO), card(BASTOS, SOTA),
+                card(BASTOS, SIETE), card(BASTOS, SEIS), card(BASTOS, CINCO),
+                card(BASTOS, CUATRO), card(BASTOS, TRES), card(BASTOS, DOS))),
+            column(BASTOS, BASTOS, List.of(
+                card(BASTOS, DOS), card(BASTOS, REY), card(BASTOS, CABALLO),
+                card(BASTOS, SOTA), card(BASTOS, SIETE), card(BASTOS, SEIS),
+                card(BASTOS, CINCO), card(BASTOS, CUATRO), card(BASTOS, TRES)))
+        );
+    }
+
+    @ParameterizedTest(name = "{1} when {0} is trump, as the players stated it")
+    @MethodSource("playerConfirmedColumns")
+    void shouldRankEveryColumnAsThePlayersStatedIt(Suit trump, Suit suit, List<Card> strongestFirst) {
+        shouldRankEveryColumnAsTheSpecTablesDo(trump, suit, strongestFirst);
     }
 
     /** Copas and Oros keep their Ace (Rovell) and run 2 down to 7. */

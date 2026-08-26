@@ -328,9 +328,16 @@ The ranking system depends entirely on which suit is selected as trump. The tabl
 **Note on the Ace names**: the Ace of Oros is the ***Rovell***, the Ace of Copes the
 ***Carabassa***.
 
-**Unverified**: the source gives the order *within the trump suit only*, where the Ace sits
-above the King. The position of the Ace in a **non-trump** suit — below the Sota in the
-tables here — is neither confirmed nor contradicted by it. See D-6 in `rules-diff.md`.
+**Note on the Ace's two positions** (confirmed by Tàrbena players, 2026-08-26): the Ace
+moves depending on whether its suit is trump.
+
+| | Order, strongest first |
+|---|---|
+| Oros **not** trump | Rey, Caballo, Sota, **Rovell**, 2, 3, 4, 5, 6, 7 |
+| Oros **as** trump | *(Espadilla, Basto above)* 7 **manilla**, **Rovell**, Rey, Caballo, Sota, 2, 3, 4, 5, 6 |
+
+The same holds for Copas with the *Carabassa*. Espadas and Bastos have no ordinary Ace —
+theirs are the Espadilla and the Basto — and their low cards run 7 down to 2 instead.
 
 ---
 

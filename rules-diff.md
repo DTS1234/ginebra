@@ -141,7 +141,7 @@ in the client's `isPlayable`. New rejection code: `MUST_PLAY_TRUMP`.
 
 ---
 
-### D-6 — The rank of a plain suit's ace is unverified · **info**
+### D-6 — The rank of a plain suit's ace · **info** · ✅ confirmed, no change needed
 
 **Source.** §2 gives the order **within the trump suit only**. There the ace sits *above*
 the king: `… Basto, Rovell (as), Rei, Cavall, Sota …`.
@@ -149,7 +149,21 @@ the king: `… Basto, Rovell (as), Rei, Cavall, Sota …`.
 **Spec.** §2.4 puts the ace *below* the sota in non-trump suits: *"King > Horse > Sota >
 Ace (if present)"*, and the four tables agree.
 
-**Status.** The source neither confirms nor contradicts this. The asymmetry — ace above the
+**Confirmed by the players** (Tàrbena, 2026-08-26). The spec and the engine were already
+right, and the odd-looking asymmetry is real: the ace has **two positions** depending on
+whether its suit is trump.
+
+| | Order, strongest first |
+|---|---|
+| Oros **not** trump | Rey, Caballo, Sota, **Rovell**, 2, 3, 4, 5, 6, 7 |
+| Oros **as** trump | *(Espadilla, Basto above)* 7 **manilla**, **Rovell**, Rey, Caballo, Sota, 2, 3, 4, 5, 6 |
+
+The same for Copas with the *Carabassa*; Espadas and Bastos have no ordinary ace and their
+low cards run 7 down to 2. `SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt`
+transcribes all eight columns as the players gave them, kept separate from the spec tables
+so that if the two ever disagree both fail and the players win.
+
+**Original status, for the record.** The source neither confirmed nor contradicted this. The asymmetry — ace above the
 king in trump, below the sota outside it — is unusual enough to be worth checking with a
 player before it is treated as settled. **No change proposed**; flagged so it is not
 mistaken for verified.
@@ -414,6 +428,7 @@ implements them.
 | D-4, D-11 todo | `Round.madeTodo`, and `checkForRoundEnd` playing on past five while todo is live |
 | D-5, D-7 following rules | `MoveValidator`, `Card.isTrump`, `Card.followsSuit` |
 | D-17 change of suit before the King | `MoveValidator.validateLead` and `LeadContext`, fed by `Round.previousLedSuit` / `Round.sideDecided` |
+| D-6 the ace's two positions | `CardRankingService` - already correct; now pinned by `SpecCardOrderTest.shouldRankEveryColumnAsThePlayersStatedIt` |
 | D-8, D-9, D-18 settlement ladder | `SettlementCalculator` — base plus +1 increments, the dengue always collected |
 | D-10 primeres | `Round.madePrimeres` |
 | D-12 four kings | `Round.start` completing the round at the deal; `GameService` re-deals |
@@ -429,10 +444,12 @@ Known Gap #1 acceptance tests all pass.
 
 ### 3.2 Deliberately not done
 
+Nothing is left on this list: D-6 was confirmed by the players and needed no change, and
+D-17 was confirmed and implemented.
+
 | Finding | Why |
 |---|---|
-| D-6 non-trump ace | The source neither confirms nor contradicts the spec. A question for the locals is drafted in `rules-questions.md`. |
-| D-16 "es primer rei aida" | The domain records the call (`Round.withFirstKingCalled`) and the state payload carries it, but no client control or STOMP message is wired up yet. |
+| D-16 "es primer rei aida" | Not a rules question - the domain records the call (`Round.withFirstKingCalled`) and the state payload carries it, but no client control or STOMP message is wired up yet. |
 
 ### 3.3 Choices the source forced, which need a player's confirmation
 

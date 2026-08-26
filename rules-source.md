@@ -95,8 +95,12 @@ Note the two suit-specific names for the ace: **rovell** is the ace of *oros*,
 **carabassa** is the ace of *copes*.
 
 **What this list does and does not settle.** It gives the order *within the trump suit*.
-The source never states the order within a non-trump suit, so the position of the ace in a
-plain suit is **[uncertain]** — see finding D-6 in `rules-diff.md`.
+The source never states the order within a non-trump suit.
+
+**Filled in by the players** (Tàrbena, 2026-08-26): outside trump the ace drops to just
+below the sota — *Rei, Cavall, Sota, **Rovell**, 2, 3, 4, 5, 6, 7* — while in trump it sits
+above the king, as the list above shows. The ace therefore has two positions depending on
+whether its suit is trump. See D-6 in `rules-diff.md`.
 
 ---
 
@@ -448,7 +452,6 @@ be, of this game that is such good entertainment and has given us so many fine e
 
 Do not read silence here as agreement with `spec.md`.
 
-- The order of cards **within a non-trump suit** — only the trump-suit order is given.
 - The **direction of play** around the table, and how the *mà* passes between hands.
 - Whether the espadilla and basto may be played **out of suit** when you could follow.
   (Settled by decision, not by the source — see D-7 in `rules-diff.md`: they may not.)
