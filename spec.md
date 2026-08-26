@@ -289,9 +289,17 @@ of them is a trump lead.
 - Withholding is a permission, not a ban: a player may always choose to play the special
   card instead
 
+*Opening a basa, while no King has appeared:*
+- The leader **must lead a different suit** from the one they led in the previous basa —
+  *"Després has de tirar un altre pal fins que isca o posen rei"*. This is how the King
+  gets smoked out
+- The obligation **lapses** the moment a King decides the sides
+- It **yields to what is possible**: a leader holding nothing outside that suit leads it
+
 *Both cases:*
 - **NOT required to "kill"**: Players can play a lower card (don't have to beat previous cards)
-- These rules apply throughout the entire round (before and after first King)
+- The following rules apply throughout the entire round; the change-of-suit obligation
+  applies only before the first King
 
 **Special Cards: Espadilla and Basto**
 - **Ace of Espadas (Espadilla)**: Universal high card, doesn't belong to Espadas suit for following purposes

@@ -173,6 +173,7 @@ public class GameStateMapper {
             basaPayload,
             teamsPayload,
             round.mode().map(Enum::name).orElse(null),
+            round.previousLedSuit().map(Suit::name).orElse(null),
             round.goingSide().stream().map(p -> p.value().toString()).toList(),
             round.opposingSide().stream().map(p -> p.value().toString()).toList(),
             round.firstKingCalled(),

@@ -312,7 +312,7 @@ possible.
 
 ---
 
-### D-17 — The leader may be obliged to change suit until a king appears · **low, [uncertain]**
+### D-17 — The leader must change suit until a king appears · **low** · ✅ resolved
 
 **Source.** §4.4: *"Després has de tirar un altre pal fins que isca o posen rei."*
 
@@ -320,7 +320,21 @@ possible.
 partnership is revealed — flushing out the king. It could also be read as a restatement of
 the discard option when void.
 
-**Spec.** No mention. Do not implement without confirmation; it constrains legal moves.
+**Spec.** Had no mention of it.
+
+**Resolved.** Confirmed by the project owner on 2026-08-26 and implemented. `spec.md` §2.3
+states the obligation; `MoveValidator.validateLead` enforces it, driven by a `LeadContext`
+carrying the previous basa's effective led suit and whether a King has appeared. Two limits
+the source does not state but the rule needs: it **lapses** once a King decides the sides
+(that is what *"fins que isca o posen rei"* means), and it **yields** when the leader holds
+nothing outside that suit — a duty to change suit cannot be allowed to make a hand
+unplayable. A special card counts as leading trump, consistently with the rest of the
+engine. New rejection code: `MUST_CHANGE_SUIT`, covered by
+`MoveValidatorTest.LeadingBeforeTheKing`, and mirrored in the client's `isPlayable`.
+
+**Still open**: whether *"un altre pal"* means *different from the last suit led* (what is
+implemented) or *any suit not yet led*. The latter becomes impossible after four basas, so
+the former is the only workable reading — but it is a reading.
 
 ---
 
@@ -399,6 +413,7 @@ implements them.
 | D-2 no draw, D-3 blocked at four | `RoundResult` (`GoingSideWon`/`GoingSideFailed`/`FourKings`/`KingFell`), `Round.checkForRoundEnd`, `Round.BASAS_TO_BLOCK` |
 | D-4, D-11 todo | `Round.madeTodo`, and `checkForRoundEnd` playing on past five while todo is live |
 | D-5, D-7 following rules | `MoveValidator`, `Card.isTrump`, `Card.followsSuit` |
+| D-17 change of suit before the King | `MoveValidator.validateLead` and `LeadContext`, fed by `Round.previousLedSuit` / `Round.sideDecided` |
 | D-8, D-9, D-18 settlement ladder | `SettlementCalculator` — base plus +1 increments, the dengue always collected |
 | D-10 primeres | `Round.madePrimeres` |
 | D-12 four kings | `Round.start` completing the round at the deal; `GameService` re-deals |
@@ -416,8 +431,7 @@ Known Gap #1 acceptance tests all pass.
 
 | Finding | Why |
 |---|---|
-| D-6 non-trump ace | The source neither confirms nor contradicts the spec. No change until someone confirms. |
-| D-17 leader changing suit | Would reject moves that are legal today, on an inference from one ambiguous sentence. |
+| D-6 non-trump ace | The source neither confirms nor contradicts the spec. A question for the locals is drafted in `rules-questions.md`. |
 | D-16 "es primer rei aida" | The domain records the call (`Round.withFirstKingCalled`) and the state payload carries it, but no client control or STOMP message is wired up yet. |
 
 ### 3.3 Choices the source forced, which need a player's confirmation

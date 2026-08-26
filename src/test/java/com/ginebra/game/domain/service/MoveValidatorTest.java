@@ -367,6 +367,85 @@ class MoveValidatorTest {
         }
     }
 
+    /**
+     * rules-source.md §4.4: <i>"Després has de tirar un altre pal fins que isca o posen
+     * rei"</i> - while no King has appeared, the leader must change suit each basa.
+     */
+    @Nested
+    class LeadingBeforeTheKing {
+
+        private static final Suit TRUMP = Suit.COPAS;
+
+        private MoveValidation lead(Card cardToPlay, Suit previouslyLed, boolean sideDecided, Card... hand) {
+            return validator.validate(
+                List.of(hand), cardToPlay, TRUMP, Optional.empty(),
+                new MoveValidator.LeadContext(Optional.ofNullable(previouslyLed), sideDecided)
+            );
+        }
+
+        @Test
+        void shouldAllowAnythingOnTheFirstBasa() {
+            final var hand = new Card[]{card(Suit.OROS, Rank.TRES), card(Suit.COPAS, Rank.CINCO)};
+
+            assertThat(lead(hand[0], null, false, hand)).isInstanceOf(MoveValidation.Valid.class);
+            assertThat(lead(hand[1], null, false, hand)).isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldRejectRepeatingTheSuitLedLastBasa() {
+            final var repeat = card(Suit.OROS, Rank.CINCO);
+            final var result = lead(repeat, Suit.OROS, false, repeat, card(Suit.ESPADAS, Rank.TRES));
+
+            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_CHANGE_SUIT");
+        }
+
+        @Test
+        void shouldAllowAnyOtherSuit() {
+            final var other = card(Suit.ESPADAS, Rank.TRES);
+
+            assertThat(lead(other, Suit.OROS, false, card(Suit.OROS, Rank.CINCO), other))
+                .isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldLapseOnceAKingHasDecidedTheSide() {
+            final var repeat = card(Suit.OROS, Rank.CINCO);
+
+            assertThat(lead(repeat, Suit.OROS, true, repeat, card(Suit.ESPADAS, Rank.TRES)))
+                .as("the obligation only lasts until a King comes out")
+                .isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldYieldWhenTheLeaderHoldsNothingElse() {
+            final var only = card(Suit.OROS, Rank.CINCO);
+
+            assertThat(lead(only, Suit.OROS, false, only, card(Suit.OROS, Rank.TRES)))
+                .as("a duty to change suit cannot make a hand unplayable")
+                .isInstanceOf(MoveValidation.Valid.class);
+        }
+
+        @Test
+        void shouldTreatASpecialCardAsLeadingTrump() {
+            // Trump is COPAS, so the Basto opens a trump lead - blocked after a COPAS lead.
+            final var result = lead(Card.basto(), Suit.COPAS, false,
+                Card.basto(), card(Suit.OROS, Rank.TRES));
+
+            assertThat(result).isInstanceOf(MoveValidation.Invalid.class);
+            assertThat(((MoveValidation.Invalid) result).code()).isEqualTo("MUST_CHANGE_SUIT");
+        }
+
+        @Test
+        void shouldLeaveTheFourArgumentOverloadUnconstrained() {
+            final var repeat = card(Suit.OROS, Rank.CINCO);
+            final var hand = List.of(repeat, card(Suit.ESPADAS, Rank.TRES));
+
+            assertThat(validator.validate(hand, repeat, TRUMP, Optional.empty()))
+                .isInstanceOf(MoveValidation.Valid.class);
+        }
+    }
+
     @Nested
     class CardNotInHand {
 

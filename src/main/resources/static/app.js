@@ -613,6 +613,26 @@ function trumpIndex(card) {
     return suitOrder(state.trump, state.trump).findIndex((entry) => cardKey(entry.card) === key);
 }
 
+/** The suit a card would lead: a special card leads trump, like everywhere else. */
+function suitLedBy(card) {
+    return isSpecial(card) ? state.trump : card.suit;
+}
+
+/**
+ * Opening a basa: while no King has appeared the leader must change suit, unless they
+ * hold nothing else. Mirrors MoveValidator.validateLead.
+ */
+function isPlayableAsLead(card) {
+    const round = state.round;
+    if (!round || round.mode || !round.previousLedSuit) {
+        return true;
+    }
+    if (suitLedBy(card) !== round.previousLedSuit) {
+        return true;
+    }
+    return !state.hand.some((held) => suitLedBy(held) !== round.previousLedSuit);
+}
+
 /** Only a special card outranking the card led may be kept back from a trump lead. */
 function mayWithhold(card, led) {
     const index = trumpIndex(card);
@@ -626,7 +646,7 @@ function mayWithhold(card, led) {
 function isPlayable(card) {
     const led = ledCard();
     if (led === null) {
-        return true;
+        return isPlayableAsLead(card);
     }
     if (isTrumpCard(led)) {
         // A trump was led: play a trump unless every trump held may be withheld.
@@ -651,8 +671,14 @@ function renderHand(myTurn) {
     }
 
     const led = ledCard();
-    if (!playing || led === null) {
+    if (!playing) {
         el('follow-hint').textContent = '';
+    } else if (led === null) {
+        const round = state.round;
+        el('follow-hint').textContent = (!round.mode && round.previousLedSuit)
+            ? 'You lead — change suit from ' + SUIT_SYMBOL[round.previousLedSuit] + ' '
+                + SUIT_LABEL[round.previousLedSuit] + ' until a King comes out'
+            : '';
     } else if (isTrumpCard(led)) {
         el('follow-hint').textContent = 'Trump led - must play a trump if you can';
     } else {

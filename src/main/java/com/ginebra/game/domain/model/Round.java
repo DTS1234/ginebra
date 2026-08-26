@@ -426,6 +426,29 @@ public final class Round {
     }
 
     /**
+     * The effective suit led in the previous basa, or empty if this is the first.
+     *
+     * A special card leading counts as leading trump, the same way it does everywhere else.
+     * This is what the leader must lead away from while no King has appeared.
+     */
+    public Optional<Suit> previousLedSuit() {
+        if (completedBasas.isEmpty() || trumpSuit == null) {
+            return Optional.empty();
+        }
+        final var previous = completedBasas.get(completedBasas.size() - 1);
+        return previous.cardsPlayed().stream().findFirst()
+            .map(played -> com.ginebra.game.domain.service.MoveValidator
+                .effectiveLedSuit(played.card(), trumpSuit));
+    }
+
+    /**
+     * Whether a King has appeared and settled who goes with whom.
+     */
+    public boolean sideDecided() {
+        return mode != null;
+    }
+
+    /**
      * Returns the player who should start the next basa.
      * The winner of a basa leads the next one; the first basa is led by the player who goes.
      *

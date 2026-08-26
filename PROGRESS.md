@@ -122,6 +122,7 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 | Teams panel: both sides, who goes, basas each, live team totals | appears when the first King reveals them |
 | Endpoints it needs are pinned by tests | `lobby/adapter/in/PlayClientEndpointsIntegrationTest` |
 
+See `RUNNING.md` for how to start it and how to expose it for a remote play-test.
 Open one browser tab per player, `?name=Ada` to label a tab. One tab creates a room, the
 other four join from the list, and the game starts when the fifth is in. Verified by
 driving five real Chromium tabs through a full basa: deal, Soledad window, trump, five
@@ -214,8 +215,9 @@ test that was `@Disabled` for this now runs and passes.
 
 Six readings the source leaves open are implemented one way and listed in `rules-diff.md`
 §3.3 - most notably that **todo is auto-detected rather than called**, because there is no
-timeout infrastructure to back a blocking decision window. Two findings (D-6, D-17) are
-deliberately not implemented pending confirmation from a player.
+timeout infrastructure to back a blocking decision window. D-17 (the leader must change suit until a King appears) is now implemented too. D-6 - where
+the ace ranks in a non-trump suit - is the one rule still unconfirmed; a question for the
+Tàrbena players is drafted in `rules-questions.md`.
 
 Not wired to the client: the *"es primer rei aida"* call exists in the domain and the state
 payload but has no control or message.

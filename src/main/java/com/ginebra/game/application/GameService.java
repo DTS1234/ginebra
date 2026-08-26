@@ -224,7 +224,11 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
                 ? Optional.<Card>empty()
                 : Optional.of(basa.cardsPlayed().get(0).card());
 
-            final var validation = moveValidator.validate(hand, card, trumpSuit, firstCard);
+            final var leadContext = new MoveValidator.LeadContext(
+                round.previousLedSuit(), round.sideDecided()
+            );
+
+            final var validation = moveValidator.validate(hand, card, trumpSuit, firstCard, leadContext);
             if (validation instanceof MoveValidation.Invalid invalid) {
                 return new PlayCardResult.InvalidCard(invalid.code(), invalid.message());
             }
@@ -232,7 +236,7 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
             // "Et cau el rei": a king with no legal alternative is put unintentionally,
             // and costs its owner 1. Decided against the hand as it stands before the play.
             final var kingWasForced = card.isKing()
-                && noOtherLegalCard(hand, card, trumpSuit, firstCard);
+                && noOtherLegalCard(hand, card, trumpSuit, firstCard, leadContext);
 
             // Capture pre-round balances before playing card (for coin delta calculation)
             final var preRoundBalances = game.coinBalances();
@@ -361,11 +365,12 @@ public class GameService implements StartGameUseCase, SelectTrumpUseCase, PlayCa
         List<Card> hand,
         Card card,
         Suit trumpSuit,
-        Optional<Card> firstCardInBasa
+        Optional<Card> firstCardInBasa,
+        MoveValidator.LeadContext leadContext
     ) {
         return hand.stream()
             .filter(c -> !c.equals(card))
-            .noneMatch(c -> moveValidator.validate(hand, c, trumpSuit, firstCardInBasa)
+            .noneMatch(c -> moveValidator.validate(hand, c, trumpSuit, firstCardInBasa, leadContext)
                 instanceof MoveValidation.Valid);
     }
 

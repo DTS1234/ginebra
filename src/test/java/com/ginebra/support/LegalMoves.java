@@ -39,7 +39,19 @@ public final class LegalMoves {
             ? Optional.<Card>empty()
             : Optional.of(basa.cardsPlayed().get(0).card());
 
-        return fromHand(round.getHand(player), round.trumpSuit().orElseThrow(), firstCard);
+        final var leadContext = new MoveValidator.LeadContext(
+            round.previousLedSuit(), round.sideDecided()
+        );
+
+        final var hand = round.getHand(player);
+        final var trumpSuit = round.trumpSuit().orElseThrow();
+        for (final var card : hand) {
+            if (VALIDATOR.validate(hand, card, trumpSuit, firstCard, leadContext)
+                instanceof MoveValidation.Valid) {
+                return card;
+            }
+        }
+        throw new IllegalStateException("No legal card in hand: " + hand);
     }
 
     /**

@@ -23,6 +23,12 @@ import java.util.Optional;
  *   from an Espadilla lead, the Espadilla is exempt from a Manilla lead, the Espadilla and
  *   Manilla from a Basto lead, and all three from any other trump.
  *
+ * A third rule constrains the player who <i>opens</i> a basa, while no King has appeared:
+ * <i>"Després has de tirar un altre pal fins que isca o posen rei"</i> (§4.4) - they must
+ * lead a <b>different suit</b> from the one they led last time, which is how the King gets
+ * smoked out. It lapses the moment a King decides the side, and yields if the leader holds
+ * nothing else.
+ *
  * Players are never required to "kill" - playing under the current best card is legal.
  */
 public class MoveValidator {
@@ -39,13 +45,10 @@ public class MoveValidator {
     }
 
     /**
-     * Validates whether a card play is legal.
+     * Validates a play in a basa that is already under way, or a lead with no
+     * change-of-suit obligation to honour.
      *
-     * @param hand the player's current hand
-     * @param cardToPlay the card the player wants to play
-     * @param trumpSuit the trump suit for this round
-     * @param firstCardInBasa the first card played in the current basa, or empty if this is the first card
-     * @return Valid if the play is legal, Invalid with error code and message otherwise
+     * @see #validate(List, Card, Suit, Optional, LeadContext)
      */
     public MoveValidation validate(
         List<Card> hand,
@@ -53,18 +56,57 @@ public class MoveValidator {
         Suit trumpSuit,
         Optional<Card> firstCardInBasa
     ) {
+        return validate(hand, cardToPlay, trumpSuit, firstCardInBasa, LeadContext.unconstrained());
+    }
+
+    /**
+     * What the leader of a basa needs to know beyond their own hand: the suit they led last
+     * time, and whether a King has already decided the side.
+     *
+     * @param previousLedSuit the effective suit led in the previous basa, empty on the first
+     * @param sideDecided whether a King has appeared, which lifts the obligation
+     */
+    public record LeadContext(Optional<Suit> previousLedSuit, boolean sideDecided) {
+
+        public LeadContext {
+            Objects.requireNonNull(previousLedSuit, "previousLedSuit must not be null");
+        }
+
+        /** No obligation to honour - the first basa, or a round whose side is settled. */
+        public static LeadContext unconstrained() {
+            return new LeadContext(Optional.empty(), true);
+        }
+    }
+
+    /**
+     * Validates whether a card play is legal.
+     *
+     * @param hand the player's current hand
+     * @param cardToPlay the card the player wants to play
+     * @param trumpSuit the trump suit for this round
+     * @param firstCardInBasa the first card played in the current basa, or empty if this is the first card
+     * @param leadContext what the leader must change suit away from, if anything
+     * @return Valid if the play is legal, Invalid with error code and message otherwise
+     */
+    public MoveValidation validate(
+        List<Card> hand,
+        Card cardToPlay,
+        Suit trumpSuit,
+        Optional<Card> firstCardInBasa,
+        LeadContext leadContext
+    ) {
         Objects.requireNonNull(hand, "hand must not be null");
         Objects.requireNonNull(cardToPlay, "cardToPlay must not be null");
         Objects.requireNonNull(trumpSuit, "trumpSuit must not be null");
         Objects.requireNonNull(firstCardInBasa, "firstCardInBasa must not be null");
+        Objects.requireNonNull(leadContext, "leadContext must not be null");
 
         if (!hand.contains(cardToPlay)) {
             return new MoveValidation.Invalid("INVALID_CARD", "Card not in player's hand: " + cardToPlay);
         }
 
-        // First card of basa: any card is valid
         if (firstCardInBasa.isEmpty()) {
-            return new MoveValidation.Valid();
+            return validateLead(hand, cardToPlay, trumpSuit, leadContext);
         }
 
         final var ledCard = firstCardInBasa.get();
@@ -73,6 +115,41 @@ public class MoveValidator {
             return validateTrumpLead(hand, cardToPlay, trumpSuit, ledCard);
         }
         return validatePlainSuitLead(hand, cardToPlay, ledCard.suit());
+    }
+
+    /**
+     * Opening a basa: free, except that while no King has appeared the leader must lead a
+     * different suit from the one they led last time (rules-source.md §4.4).
+     *
+     * The obligation yields to what is possible - a leader holding nothing outside that
+     * suit leads it - because the source states a duty, not a way to make a hand unplayable.
+     */
+    private MoveValidation validateLead(
+        List<Card> hand,
+        Card cardToPlay,
+        Suit trumpSuit,
+        LeadContext leadContext
+    ) {
+        if (leadContext.sideDecided() || leadContext.previousLedSuit().isEmpty()) {
+            return new MoveValidation.Valid();
+        }
+
+        final var previous = leadContext.previousLedSuit().get();
+        if (effectiveLedSuit(cardToPlay, trumpSuit) != previous) {
+            return new MoveValidation.Valid();
+        }
+
+        final var canChange = hand.stream()
+            .anyMatch(c -> effectiveLedSuit(c, trumpSuit) != previous);
+
+        if (canChange) {
+            return new MoveValidation.Invalid(
+                "MUST_CHANGE_SUIT",
+                "Must lead a suit other than " + previous + " until a King comes out"
+            );
+        }
+
+        return new MoveValidation.Valid();
     }
 
     /**

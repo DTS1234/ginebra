@@ -37,6 +37,7 @@ public record GameStatePayload(
         BasaPayload currentBasa,
         TeamsPayload teams,
         String mode,
+        String previousLedSuit,
         List<String> goingSide,
         List<String> opposingSide,
         boolean firstKingCalled,
