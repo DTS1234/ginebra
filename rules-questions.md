@@ -151,8 +151,16 @@ motor, así que no hubo que tocar código — solo fijarlo con un test.
 > entonces se cobra **tanto si ganas como si pierdes** — y lo cobran **los dos** jugadores
 > del bando que va, no solo el que lo lleva.
 >
+> **Y el estuche es del bando, no de un jugador.** Puede formarse **entre los dos**: uno
+> lleva el dengue (espadilla + basto) y el otro la manilla. En ese caso el primero cobra el
+> **dengue él solo**, y el estuche lo cobran **los dos**.
+>
+> El dengue, en cambio, es **de una sola mano**: nunca se junta entre compañeros.
+>
 > Con eso, la línea del libro *«Per guanyar i tindre l'estutxe, 3 cadegú (si n té el dengue,
-> 4)»* sale exacta: 2 de base + 1 del estuche cada uno, y el que además lleva el dengue, 4.
+> 4)»* sale exacta — y además se entiende **por qué** lleva ese paréntesis: el bando puede
+> tener el estuche sin que **nadie** tenga el dengue (uno lleva espadilla y manilla, el otro
+> el basto).
 
 ---
 

@@ -92,9 +92,19 @@ A player **has the *estutxe*** when they hold the espadilla, the manilla and the
 the same time.
 
 **Clarified by the players (2026-08-26):** the estutxe pays **only if you go** — *"si vas"* —
-and then it pays **whether you win or lose**, to **both** players of the going side, not just
-the one holding it. The dengue, by contrast, is personal to whoever holds it and is
-collected by anyone, on either side.
+and then it pays **whether you win or lose**, to **both** players of the going side.
+
+It is also **the side's, not a player's**: *"el estuche is shared, so can be a connection of
+both cards of two players"*. One partner's dengue plus the other's manilla is an estutxe.
+In that case the first player collects the dengue **on their own**, and **both** collect the
+estutxe.
+
+The dengue, by contrast, is **personal to one hand** — never made up between partners — and
+is collected by anyone holding it, on either side.
+
+This is what makes the source's own parenthetical necessary. A side can hold the estutxe
+between them with nobody holding the dengue, so *"Per guanyar i tindre l'estutxe, 3 cadegú
+**(si n té el dengue, 4)**"* is a genuine extra condition rather than a redundancy.
 
 Note the two suit-specific names for the ace: **rovell** is the ace of *oros*,
 **carabassa** is the ace of *copes*.

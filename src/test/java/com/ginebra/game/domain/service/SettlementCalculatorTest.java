@@ -234,6 +234,79 @@ class SettlementCalculatorTest {
         }
 
         @Test
+        void estutxeShouldCountWhenItIsMadeUpBetweenPartners() {
+            // Confirmed 2026-08-26: the estutxe is shared, so it can be a connection of
+            // cards across both players. The ma holds the dengue, the aider the manilla.
+            final var deal = TestDeal.forPlayers(players)
+                .give(ma(), Card.espadilla(), Card.basto())
+                .give(aider(), MANILLA)
+                .hands();
+            final var round = helped().goingSideWinsFive().round();
+
+            final var deltas = calculator.settle(round, deal).playerDeltas();
+
+            assertThat(deltas.get(ma()))
+                .as("the dengue is personal, the estutxe is the side's: 2 + 1 + 1")
+                .isEqualTo(SettlementCalculator.BASE_HELPED + 2 * SettlementCalculator.INCREMENT);
+            assertThat(deltas.get(aider()))
+                .as("their partner collects the estutxe only: 2 + 1")
+                .isEqualTo(SettlementCalculator.BASE_HELPED + SettlementCalculator.INCREMENT);
+        }
+
+        @Test
+        void estutxeShouldCountEvenWhenNobodyHoldsTheDengue() {
+            // One partner takes the espadilla and manilla, the other the basto. The side
+            // has the estutxe; nobody has the dengue. This is exactly the case the source's
+            // "(si n té el dengue, 4)" is a parenthetical for.
+            final var deal = TestDeal.forPlayers(players)
+                .give(ma(), Card.espadilla(), MANILLA)
+                .give(aider(), Card.basto())
+                .hands();
+            final var round = helped().goingSideWinsFive().round();
+
+            final var deltas = calculator.settle(round, deal).playerDeltas();
+
+            assertThat(deltas.get(ma()))
+                .isEqualTo(SettlementCalculator.BASE_HELPED + SettlementCalculator.INCREMENT);
+            assertThat(deltas.get(aider()))
+                .as("both collect the estutxe, neither collects a dengue")
+                .isEqualTo(SettlementCalculator.BASE_HELPED + SettlementCalculator.INCREMENT);
+        }
+
+        @Test
+        void estutxeShouldNotBeMadeUpAcrossTheTwoSides() {
+            // The ma has the dengue, an opponent has the manilla. No estutxe for anyone.
+            final var deal = TestDeal.forPlayers(players)
+                .give(ma(), Card.espadilla(), Card.basto())
+                .give(opponent(), MANILLA)
+                .hands();
+            final var round = helped().goingSideWinsFive().round();
+
+            final var deltas = calculator.settle(round, deal).playerDeltas();
+
+            assertThat(deltas.get(ma()))
+                .as("the dengue only")
+                .isEqualTo(SettlementCalculator.BASE_HELPED + SettlementCalculator.INCREMENT);
+            assertThat(deltas.get(aider())).isEqualTo(SettlementCalculator.BASE_HELPED);
+        }
+
+        @Test
+        void dengueShouldNeverBeMadeUpBetweenPartners() {
+            // The ma has the espadilla, the aider the basto. Neither holds a dengue.
+            final var deal = TestDeal.forPlayers(players)
+                .give(ma(), Card.espadilla())
+                .give(aider(), Card.basto())
+                .give(players.get(4), MANILLA)
+                .hands();
+            final var round = helped().goingSideWinsFive().round();
+
+            final var deltas = calculator.settle(round, deal).playerDeltas();
+
+            assertThat(deltas.get(ma())).isEqualTo(SettlementCalculator.BASE_HELPED);
+            assertThat(deltas.get(aider())).isEqualTo(SettlementCalculator.BASE_HELPED);
+        }
+
+        @Test
         void estutxeShouldPayNothingToTheOpposingSide() {
             final var deal = dealWithEstutxe(opponent());
             final var round = helped().goingSideWinsFive().round();

@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Prices a completed round against the posso (rules-source.md §5 and §6).
@@ -36,11 +37,10 @@ import java.util.Objects;
  * <ul>
  *   <li><b>Estutxe, +1 to every player on the going side.</b> <i>"Si tens l'estutxe i
  *       vas"</i> - it pays because you went, not because you won, and it pays the whole
- *       side rather than just the holder. That is what makes the source's <i>"Per guanyar
- *       i tindre l'estutxe, 3 cadegú (si n té el dengue, 4)"</i> come out exactly: 2 base
- *       + 1 estutxe each, and the one who also holds the dengue takes 4.</li>
+ *       side. It is also <b>held by the side, not by a player</b>: one partner's espadilla
+ *       and basto with the other's manilla is an estutxe just the same.</li>
  *   <li><b>Dengue, +1 to whoever was dealt it</b>, win or lose and on either side -
- *       <i>"El dengue sempre es cobra"</i>. Personal to the holder, unlike the estutxe.</li>
+ *       <i>"El dengue sempre es cobra"</i>. Personal to one hand, unlike the estutxe.</li>
  *   <li><b>Todo, +1 to every player on the going side if made, -1 if called and missed.</b></li>
  *   <li><b>Four kings, +4</b> to whoever was dealt them, whatever they then decide, and a
  *       <b>forced king costs its owner 1</b>.</li>
@@ -49,6 +49,12 @@ import java.util.Objects;
  * The opposing side collects a flat 1 when the going side fails, or 2 if the going side
  * was held under four basas. It pays nothing when the going side wins: the source lists no
  * charge for losing defenders, and the pot covers the difference.
+ *
+ * <p>Those two shapes together are what make the source's <i>"Per guanyar i tindre
+ * l'estutxe, 3 cadegú <b>(si n té el dengue, 4)</b>"</i> read as written. A side can hold
+ * the estutxe between them with <b>nobody</b> holding the dengue - one partner takes the
+ * espadilla and manilla, the other the basto - so the dengue really is a separate
+ * condition worth a parenthetical, rather than something the estutxe always implies.
  */
 public class SettlementCalculator {
 
@@ -150,7 +156,7 @@ public class SettlementCalculator {
         var extras = 0;
 
         final var trump = round.trumpSuit().orElse(null);
-        if (trump != null && anyOnGoingSideHasEstutxe(round, dealSnapshot, trump)) {
+        if (trump != null && hasEstutxe(cardsDealtTo(round.goingSide(), dealSnapshot), trump)) {
             extras += INCREMENT;
         }
 
@@ -163,13 +169,16 @@ public class SettlementCalculator {
         return extras;
     }
 
-    private boolean anyOnGoingSideHasEstutxe(
-        Round round,
-        Map<PlayerId, List<Card>> dealSnapshot,
-        Suit trump
+    /** Everything the given players were dealt, pooled. */
+    private static List<Card> cardsDealtTo(
+        Set<PlayerId> players,
+        Map<PlayerId, List<Card>> dealSnapshot
     ) {
-        return round.goingSide().stream()
-            .anyMatch(player -> hasEstutxe(dealSnapshot.get(player), trump));
+        return players.stream()
+            .map(dealSnapshot::get)
+            .filter(Objects::nonNull)
+            .flatMap(List::stream)
+            .toList();
     }
 
     private int baseOf(Round round) {
@@ -185,7 +194,10 @@ public class SettlementCalculator {
         };
     }
 
-    /** Espadilla and Basto in the same hand. */
+    /**
+     * Espadilla and Basto in <b>one</b> hand. The dengue is personal - it is never made up
+     * between partners.
+     */
     public static boolean hasDengue(List<Card> hand) {
         if (hand == null) {
             return false;
@@ -194,11 +206,19 @@ public class SettlementCalculator {
             && hand.stream().anyMatch(Card::isBasto);
     }
 
-    /** Espadilla, Manilla and Basto in the same hand. */
-    public static boolean hasEstutxe(List<Card> hand, Suit trumpSuit) {
-        if (hand == null) {
+    /**
+     * Espadilla, Manilla and Basto <b>among the given cards</b>.
+     *
+     * Pass one hand to ask about a player, or a side's hands pooled to ask about the side -
+     * which is how it is actually scored, because an estutxe may be made up between
+     * partners: one holds the dengue, the other the manilla.
+     */
+    public static boolean hasEstutxe(List<Card> cards, Suit trumpSuit) {
+        if (cards == null) {
             return false;
         }
-        return hasDengue(hand) && hand.stream().anyMatch(c -> c.isManilla(trumpSuit));
+        return cards.stream().anyMatch(Card::isEspadilla)
+            && cards.stream().anyMatch(Card::isBasto)
+            && cards.stream().anyMatch(c -> c.isManilla(trumpSuit));
     }
 }

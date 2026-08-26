@@ -489,12 +489,11 @@ Four items sit **outside** the stake — they are collected or charged as they s
 never negated by the outcome:
 
 - **Estutxe — `+1` to every player on the going side.** *"Si tens l'estutxe i vas"* — it pays
-  because you **went**, not because you won, and it pays the **whole side**, not just the
-  holder. This is what makes the source's *"Per guanyar i tindre l'estutxe, 3 cadegú (si n
-  té el dengue, 4)"* come out exactly: 2 base + 1 estutxe each, and whoever also holds the
-  dengue takes 4.
+  because you **went**, not because you won, and it pays the **whole side**. It is also
+  **held by the side, not by a player**: one partner's Espadilla and Basto together with the
+  other's Manilla is an estutxe just the same. It cannot be made up across opposing sides.
 - **Dengue — `+1` to whoever was dealt it**, win or lose and on either side: *"El dengue
-  sempre es cobra"*. Personal to the holder, unlike the estutxe.
+  sempre es cobra"*. **Personal to one hand** — never made up between partners.
 - **Todo — `+1` to every player on the going side if made, `-1` if called and missed.**
 - **Four kings — `+4`** to whoever was dealt them, whatever they then decide; and a **forced
   King costs its owner 1** (*caure el rei*).
@@ -505,6 +504,15 @@ no charge for losing defenders, and the pot covers the difference.
 
 Sanity check against the source's own maximum: `5 (alone) + 4 (four kings) + 1 (primeres) +
 1 (estutxe) + 1 (dengue) + 1 (todo) = 13`.
+
+These two shapes together explain the source's parenthetical. A side can hold the estutxe
+between them with **nobody** holding the dengue — one partner takes the Espadilla and
+Manilla, the other the Basto — so *"Per guanyar i tindre l'estutxe, 3 cadegú **(si n té el
+dengue, 4)**"* reads exactly as written: the dengue is a separate condition, not something
+the estutxe implies.
+
+**Worked example.** A goes, B put the king. A holds Espadilla + Basto; B holds the Manilla.
+They win. A collects `2 + 1 (estutxe) + 1 (dengue) = 4`; B collects `2 + 1 (estutxe) = 3`.
 
 > **One open discrepancy.** The source's *pay* table has *"Si perden i tenen l'estutxe, 3
 > cadegú"* and *"Si perden primeres i estutxe, 4 cadegú"* — as though the estutxe also

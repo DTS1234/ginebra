@@ -474,9 +474,11 @@ questions in `rules-questions.md`; the rest have since been confirmed.
    yes, reading *"Per tindre es quatre reis, 4"* as an unconditional holding award like the
    dengue - so a holder who goes alone and is blocked nets `4 - 5 = -1`.
 3. ~~**The estutxe always scores the dengue too.**~~ **Superseded 2026-08-26**: the estutxe
-   pays `+1` to *every* player on the going side, win or lose, and the dengue is a separate
-   personal coin. That reading makes `"Per guanyar i tindre l'estutxe, 3 cadegú (si n té el
-   dengue, 4)"` exact rather than approximate.
+   pays `+1` to *every* player on the going side, win or lose, and is **held by the side** -
+   one partner's dengue with the other's manilla counts. The dengue stays personal to one
+   hand. Together those make `"Per guanyar i tindre l'estutxe, 3 cadegú (si n té el dengue,
+   4)"` exact *and* explain why the parenthetical is there at all: a side can hold the
+   estutxe with nobody holding the dengue.
 4. ~~**A losing side's payment is raised by its own primeres and estutxe.**~~ **Half
    confirmed 2026-08-26**: *primeres* yes, and only the going side's own - the opponents'
    primeres are worth nothing to them. *Estutxe* no: it is collected for going, not staked.
