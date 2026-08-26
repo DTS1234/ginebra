@@ -1,8 +1,14 @@
 server:
   # Hosting platforms hand the port in through $PORT; locally it is just 8080.
   port: ${PORT:8080}
+  # Let in-flight requests finish when the platform sends SIGTERM on a redeploy.
+  # Games still die with the process - they are in memory until Phase 5 - but a
+  # player mid-request gets an answer rather than a dropped connection.
+  shutdown: graceful
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   application:
     name: ginebra-online
 

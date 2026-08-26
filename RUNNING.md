@@ -116,13 +116,41 @@ fly secrets set JWT_SECRET="$(openssl rand -base64 48)"
 fly deploy
 ```
 
-### Render / Railway — git push and forget
+### Railway
 
-Point either at the repo; both detect the `Dockerfile`. Then:
+There is deliberately **no `railway.json`** in the repo: Railway detects the `Dockerfile`
+on its own, and every setting that matters is in the dashboard, where it cannot be wrong.
 
-- set **`JWT_SECRET`** to a long random string,
-- set instances/replicas to **1**,
-- leave `PORT` alone — the platform sets it.
+1. **New Project → Deploy from GitHub repo**, pick `dts1234/ginebra` and the branch.
+   It will find the `Dockerfile` and start building. The first build is slow — it resolves
+   the whole Gradle dependency tree.
+2. **Variables → New Variable**: `JWT_SECRET`, set to a long random string
+   (`openssl rand -base64 48`). Do this **before** you hand the URL to anyone: the default
+   in `application.yml` is a placeholder committed to this repo.
+   Do **not** set `PORT` — Railway injects it, and the app reads it.
+3. **Settings → Networking → Generate Domain.** That is the URL people open. WebSockets
+   work through it untouched.
+4. **Settings → Deploy → replicas: 1.** More than one and players would land on different
+   instances that cannot see each other's games.
+5. **Check the deploy strategy.** Railway's default is to bring the new instance up before
+   taking the old one down, which briefly runs two — the same problem as replicas. If there
+   is an overlap or health-check-before-switch option, turn it off, and treat every redeploy
+   as ending the games in progress either way.
+
+Health checks can point at **`/`**, which returns the page with a 200. There is no actuator
+dependency, so `/health` does not exist.
+
+To redeploy, push to the branch. To roll back, use Railway's deployment history — but both
+drop every game in progress, so do it when the table is empty.
+
+*Written from the Railway dashboard as it works generally; their docs are blocked from the
+machine this was written on, so treat the exact menu names as a guide rather than a
+transcript.*
+
+### Render
+
+Point it at the repo; it detects the `Dockerfile`. Then set **`JWT_SECRET`**, set instances
+to **1**, and leave `PORT` alone.
 
 ### A small VPS
 
