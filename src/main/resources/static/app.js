@@ -128,19 +128,33 @@ class Stomp {
 
 // === Cards ===
 
-const SUIT_SYMBOL = { COPAS: '🍷', OROS: '🪙', ESPADAS: '⚔️', BASTOS: '🌳' };
 const SUIT_LABEL = { COPAS: 'Copas', OROS: 'Oros', ESPADAS: 'Espadas', BASTOS: 'Bastos' };
-const RANK_LABEL = {
-    AS: 'A', DOS: '2', TRES: '3', CUATRO: '4', CINCO: '5',
-    SEIS: '6', SIETE: '7', SOTA: 'S', CABALLO: 'C', REY: 'R'
-};
 
+/*
+ * The names, for prose and tooltips. The numerals that go on a face, and the drawing of
+ * the faces themselves, live in cards.js.
+ */
+const RANK_NAME = {
+    AS: 'As', DOS: 'Dos', TRES: 'Tres', CUATRO: 'Cuatro', CINCO: 'Cinco',
+    SEIS: 'Seis', SIETE: 'Siete', SOTA: 'Sota', CABALLO: 'Caballo', REY: 'Rey'
+};
 function cardKey(card) {
     return card.suit + '-' + card.rank;
 }
 
 function cardName(card) {
-    return RANK_LABEL[card.rank] + ' ' + SUIT_LABEL[card.suit];
+    return RANK_NAME[card.rank] + ' de ' + SUIT_LABEL[card.suit];
+}
+
+/** The village name for a card that has one, which depends on the trump in play. */
+function specialName(card, trump) {
+    if (card.rank !== 'AS' && !(trump && card.suit === trump && card.rank === manillaRank(trump))) {
+        return null;
+    }
+    if (card.rank === 'AS') {
+        return { ESPADAS: 'Espadilla', BASTOS: 'Basto', OROS: 'Rovell', COPAS: 'Carabassa' }[card.suit];
+    }
+    return 'Manilla';
 }
 
 /*
@@ -187,7 +201,6 @@ function suitOrder(suit, trump) {
 function isSpecial(card) {
     return card.rank === 'AS' && (card.suit === 'ESPADAS' || card.suit === 'BASTOS');
 }
-
 
 /** How the going side came about, for the sides panel. */
 const MODE_LABEL = {
@@ -253,10 +266,81 @@ async function createIdentity(displayName) {
         headers: { 'Content-Type': 'application/json' },
         body: body
     });
+    if (!response.ok) {
+        throw new Error('could not sign in (' + response.status + ')');
+    }
     state.me = await response.json();
     sessionStorage.setItem('ginebra.me', JSON.stringify(state.me));
     el('whoami').textContent = state.me.displayName + ' (' + state.me.playerId.slice(0, 8) + ')';
     log('Playing as ' + state.me.displayName, 'good');
+}
+
+// === Name ===
+
+/*
+ * A player is nothing but a display name here, and it is what the other four see on the
+ * seat. It is asked for before anything else, remembered in localStorage for the next
+ * visit, and changeable right up until the room is joined - after that the identity is
+ * the one the server has, and a new name would be a new player.
+ */
+
+const NAME_KEY = 'ginebra.name';
+
+function rememberedName() {
+    try {
+        return localStorage.getItem(NAME_KEY) || '';
+    } catch (ignored) {
+        return '';   // private browsing, or storage turned off
+    }
+}
+
+function rememberName(name) {
+    try {
+        localStorage.setItem(NAME_KEY, name);
+    } catch (ignored) {
+        // Not being able to remember it is not worth interrupting anyone over.
+    }
+}
+
+function nameError(message) {
+    const box = el('name-error');
+    box.textContent = message || '';
+    box.classList.toggle('hidden', !message);
+}
+
+function showNameGate() {
+    el('identity-gate').classList.remove('hidden');
+    el('lobby').classList.add('hidden');
+    el('change-name').classList.add('hidden');
+    el('name-input').focus();
+    el('name-input').select();
+}
+
+/** Takes the name, gets an identity for it, and opens the lobby. */
+async function enterWithName(name) {
+    const chosen = (name || '').trim();
+    if (chosen.length === 0) {
+        nameError('Type a name first - it is what the others will see.');
+        el('name-input').focus();
+        return;
+    }
+
+    nameError('');
+    el('enter').disabled = true;
+    try {
+        await createIdentity(chosen);
+    } catch (error) {
+        nameError(error.message);
+        return;
+    } finally {
+        el('enter').disabled = false;
+    }
+
+    rememberName(chosen);
+    el('identity-gate').classList.add('hidden');
+    el('lobby').classList.remove('hidden');
+    el('change-name').classList.remove('hidden');
+    await refreshRooms();
 }
 
 async function refreshRooms() {
@@ -281,6 +365,7 @@ async function refreshRooms() {
 async function createRoom() {
     const response = await api('/api/rooms', { method: 'POST' });
     state.roomId = response.roomId;
+    el('change-name').classList.add('hidden');
     log('Created room ' + response.roomId.slice(0, 8) + ' - waiting for 4 more players', 'good');
     el('room-status').textContent = 'In room ' + response.roomId.slice(0, 8) + ' (1/5)';
     await refreshRooms();
@@ -290,6 +375,7 @@ async function createRoom() {
 async function joinRoom(roomId) {
     const response = await api('/api/rooms/' + roomId + '/join', { method: 'POST' });
     state.roomId = roomId;
+    el('change-name').classList.add('hidden');
     el('room-status').textContent =
         'In room ' + roomId.slice(0, 8) + ' (' + response.players.length + '/5)';
     log('Joined room ' + roomId.slice(0, 8) + ' - ' + response.players.length + '/5 players');
@@ -569,9 +655,7 @@ function render() {
         && round.trumpChooser === state.me.playerId;
 
     el('phase').textContent = round.status.replace(/_/g, ' ').toLowerCase();
-    el('trump').textContent = state.trump
-        ? SUIT_SYMBOL[state.trump] + ' ' + SUIT_LABEL[state.trump]
-        : 'not chosen';
+    el('trump').innerHTML = state.trump ? suitTag(state.trump) : 'not chosen';
     el('round-number').textContent = round.roundNumber;
     el('coins').textContent = state.coins[state.me.playerId] ?? '-';
     el('posso').textContent = state.posso ?? '-';
@@ -726,21 +810,20 @@ function renderHand(myTurn) {
 
     const led = ledCard();
     if (!playing) {
-        el('follow-hint').textContent = '';
+        el('follow-hint').innerHTML = '';
     } else if (led === null) {
         const round = state.round;
         const untouched = ['COPAS', 'OROS', 'ESPADAS', 'BASTOS']
             .filter((suit) => !(round.ledSuits || []).includes(suit));
-        el('follow-hint').textContent = (!round.mode && untouched.length > 0
+        el('follow-hint').innerHTML = (!round.mode && untouched.length > 0
                 && (round.ledSuits || []).length > 0)
             ? 'You lead — a suit not led yet, until a King comes out: '
-                + untouched.map((suit) => SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit]).join(', ')
+                + untouched.map(suitTag).join(', ')
             : '';
     } else if (isTrumpCard(led)) {
-        el('follow-hint').textContent = 'Trump led - must play a trump if you can';
+        el('follow-hint').innerHTML = 'Trump led - must play a trump if you can';
     } else {
-        el('follow-hint').textContent =
-            'Must follow ' + SUIT_SYMBOL[led.suit] + ' ' + SUIT_LABEL[led.suit] + ' if you can';
+        el('follow-hint').innerHTML = 'Must follow ' + suitTag(led.suit) + ' if you can';
     }
 }
 
@@ -782,7 +865,7 @@ function renderHelp(trump) {
     for (const suit of Object.keys(SUIT_LABEL)) {
         const button = document.createElement('button');
         button.className = 'suit-chip' + (suit === trump ? ' selected' : '');
-        button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];
+        button.innerHTML = suitTag(suit);
         button.onclick = () => renderHelp(suit);
         picker.appendChild(button);
     }
@@ -801,7 +884,7 @@ function helpColumn(suit, trump) {
     column.className = 'help-column' + (suit === trump ? ' is-trump' : '');
 
     const heading = document.createElement('h3');
-    heading.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit] + (suit === trump ? ' — trump' : '');
+    heading.innerHTML = suitTag(suit) + (suit === trump ? ' — trump' : '');
     column.appendChild(heading);
 
     const list = document.createElement('ol');
@@ -810,7 +893,8 @@ function helpColumn(suit, trump) {
 
         const chip = document.createElement('span');
         chip.className = 'mini-card suit-' + entry.card.suit.toLowerCase();
-        chip.textContent = RANK_LABEL[entry.card.rank] + ' ' + SUIT_SYMBOL[entry.card.suit];
+        chip.innerHTML = '<span class="mini-index">' + RANK_NUMERAL[entry.card.rank] + '</span>'
+            + suitIcon(entry.card.suit);
         item.appendChild(chip);
 
         if (entry.note) {
@@ -876,10 +960,9 @@ function cardElement(card, playable) {
     const node = document.createElement('button');
     node.className = 'card suit-' + card.suit.toLowerCase() + (playable ? ' playable' : '');
     node.disabled = !playable;
-    node.title = cardName(card);
-    node.innerHTML =
-        '<span class="rank">' + RANK_LABEL[card.rank] + '</span>' +
-        '<span class="suit">' + SUIT_SYMBOL[card.suit] + '</span>';
+    const special = specialName(card, state.trump);
+    node.title = cardName(card) + (special ? ' — ' + special : '');
+    node.innerHTML = cardFace(card);
     if (playable) {
         node.onclick = () => playCard(card);
     }
@@ -889,6 +972,19 @@ function cardElement(card, playable) {
 // === Wiring ===
 
 window.addEventListener('DOMContentLoaded', async () => {
+    installSprite();
+
+    el('enter').onclick = () => enterWithName(el('name-input').value);
+    el('name-input').onkeydown = (event) => {
+        if (event.key === 'Enter') {
+            enterWithName(el('name-input').value);
+        }
+    };
+    el('change-name').onclick = () => {
+        el('name-input').value = state.me ? state.me.displayName : '';
+        showNameGate();
+    };
+
     el('create-room').onclick = () => createRoom().catch((e) => log(e.message, 'bad'));
     el('refresh-rooms').onclick = () => refreshRooms().catch((e) => log(e.message, 'bad'));
     el('help-toggle').onclick = toggleHelp;
@@ -898,13 +994,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     el('decline-todo').onclick = () => decideTodo(false);
     for (const suit of Object.keys(SUIT_LABEL)) {
         const button = document.createElement('button');
-        button.textContent = SUIT_SYMBOL[suit] + ' ' + SUIT_LABEL[suit];
+        button.innerHTML = suitTag(suit);
         button.onclick = () => selectTrump(suit);
         el('trump-buttons').appendChild(button);
     }
 
-    const name = new URLSearchParams(location.search).get('name')
-        || 'Player ' + Math.floor(Math.random() * 1000);
-    await createIdentity(name);
-    await refreshRooms();
+    // ?name= in the URL skips the box, which is what makes the five-tabs-on-one-machine
+    // test practical. Otherwise the last name used is offered back and waits for Enter.
+    const fromUrl = new URLSearchParams(location.search).get('name');
+    el('name-input').value = (fromUrl || rememberedName()).trim();
+
+    if (fromUrl && fromUrl.trim().length > 0) {
+        await enterWithName(fromUrl);
+    } else {
+        el('name-input').focus();
+    }
 });

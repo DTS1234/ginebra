@@ -56,13 +56,15 @@ class PlayClientEndpointsIntegrationTest {
 
         // Assert
         assertThat(page.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(page.getBody()).contains("Ginebra").contains("/app.js");
+        assertThat(page.getBody()).contains("Ginebra").contains("/app.js").contains("/cards.js");
     }
 
     @Test
     void shouldServeTheClientAssetsWithoutAuthentication() {
         // Act & Assert
         assertThat(restTemplate.getForEntity("/app.js", String.class).getStatusCode())
+            .isEqualTo(HttpStatus.OK);
+        assertThat(restTemplate.getForEntity("/cards.js", String.class).getStatusCode())
             .isEqualTo(HttpStatus.OK);
         assertThat(restTemplate.getForEntity("/style.css", String.class).getStatusCode())
             .isEqualTo(HttpStatus.OK);
