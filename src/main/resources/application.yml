@@ -13,6 +13,11 @@ spring:
     name: ginebra-online
 
 ginebra:
+  bots:
+    # How long a bot waits before each move. Not for the bot's benefit - it decides
+    # instantly - but so a person can watch the cards land one at a time. Zero makes a
+    # basa resolve inside their own click.
+    move-delay: 800ms
   jwt:
     secret: ${JWT_SECRET:change-this-in-production-use-long-random-string-minimum-256-bits}
     expiration-hours: 24

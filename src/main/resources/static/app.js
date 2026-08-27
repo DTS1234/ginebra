@@ -368,8 +368,48 @@ async function createRoom() {
     el('change-name').classList.add('hidden');
     log('Created room ' + response.roomId.slice(0, 8) + ' - waiting for 4 more players', 'good');
     el('room-status').textContent = 'In room ' + response.roomId.slice(0, 8) + ' (1/5)';
+    showWaiting(1);
     await refreshRooms();
     pollForGameStart(response.roomId);
+    return response.roomId;
+}
+
+// === Bots ===
+
+/*
+ * Bots take the seats nobody is in. They are ordinary players to everything else here -
+ * they have names, they show in the seat list, they win and lose coins - and the server
+ * takes their turns for them a beat at a time, so the cards land at a readable pace.
+ */
+
+/** Fills every empty seat, which fills the room and starts the game. */
+async function fillWithBots(roomId) {
+    const response = await api('/api/rooms/' + roomId + '/bots', { method: 'POST' });
+    const bots = response.players.filter((p) => p.playerId !== state.me.playerId);
+    log('Bots took the empty seats: ' + bots.map((p) => p.displayName).join(', '), 'good');
+    el('room-status').textContent =
+        'In room ' + roomId.slice(0, 8) + ' (' + response.players.length + '/5)';
+
+    if (response.gameId) {
+        hideWaiting();
+        await enterGame(response.gameId, response.players);
+    }
+}
+
+/** One click from the lobby to a table: a room of your own, filled with bots. */
+async function playAgainstBots() {
+    const roomId = await createRoom();
+    await fillWithBots(roomId);
+}
+
+function showWaiting(playerCount) {
+    el('waiting').classList.remove('hidden');
+    el('waiting-label').textContent =
+        'Waiting for players — ' + playerCount + '/5 at the table.';
+}
+
+function hideWaiting() {
+    el('waiting').classList.add('hidden');
 }
 
 async function joinRoom(roomId) {
@@ -381,8 +421,10 @@ async function joinRoom(roomId) {
     log('Joined room ' + roomId.slice(0, 8) + ' - ' + response.players.length + '/5 players');
 
     if (response.gameId) {
+        hideWaiting();
         await enterGame(response.gameId, response.players);
     } else {
+        showWaiting(response.players.length);
         await refreshRooms();
         pollForGameStart(roomId);
     }
@@ -402,8 +444,10 @@ function pollForGameStart(roomId) {
             const room = await api('/api/rooms/' + roomId);
             el('room-status').textContent =
                 'In room ' + roomId.slice(0, 8) + ' (' + room.players.length + '/5)';
+            showWaiting(room.players.length);
             if (room.gameId) {
                 clearInterval(timer);
+                hideWaiting();
                 await enterGame(room.gameId, room.players);
             }
         } catch (error) {
@@ -986,6 +1030,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     };
 
     el('create-room').onclick = () => createRoom().catch((e) => log(e.message, 'bad'));
+    el('play-bots').onclick = () => playAgainstBots().catch((e) => log(e.message, 'bad'));
+    el('fill-bots').onclick = () => {
+        if (state.roomId) {
+            fillWithBots(state.roomId).catch((e) => log(e.message, 'bad'));
+        }
+    };
     el('refresh-rooms').onclick = () => refreshRooms().catch((e) => log(e.message, 'bad'));
     el('help-toggle').onclick = toggleHelp;
     el('pass-soledad').onclick = passSoledad;

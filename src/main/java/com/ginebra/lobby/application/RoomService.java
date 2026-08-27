@@ -6,10 +6,12 @@ import com.ginebra.lobby.domain.RemovePlayerResult;
 import com.ginebra.lobby.domain.Room;
 import com.ginebra.lobby.domain.RoomId;
 import com.ginebra.lobby.port.in.CreateRoomUseCase;
+import com.ginebra.lobby.port.in.FillWithBotsUseCase;
 import com.ginebra.lobby.port.in.GetRoomUseCase;
 import com.ginebra.lobby.port.in.JoinRoomUseCase;
 import com.ginebra.lobby.port.in.LeaveRoomUseCase;
 import com.ginebra.lobby.port.in.ListRoomsUseCase;
+import com.ginebra.lobby.port.out.BotSeats;
 import com.ginebra.lobby.port.out.GameStarter;
 import com.ginebra.lobby.port.out.RoomRepository;
 import org.springframework.stereotype.Service;
@@ -20,19 +22,22 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase, GetRoomUseCase {
+public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase, GetRoomUseCase, FillWithBotsUseCase {
 
     private final RoomRepository roomRepository;
     private final GameStarter gameStarter;
+    private final BotSeats botSeats;
     private final Clock clock;
 
     public RoomService(
         RoomRepository roomRepository,
         GameStarter gameStarter,
+        BotSeats botSeats,
         Clock clock
     ) {
         this.roomRepository = Objects.requireNonNull(roomRepository, "roomRepository must not be null");
         this.gameStarter = Objects.requireNonNull(gameStarter, "gameStarter must not be null");
+        this.botSeats = Objects.requireNonNull(botSeats, "botSeats must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -171,6 +176,67 @@ public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoo
         } else {
             throw new IllegalStateException("Unexpected result: " + addResult);
         }
+    }
+
+    @Override
+    public FillWithBotsResult fillWithBots(FillWithBotsCommand command) {
+        final var playerIdentity = SecurityContextHelper.requireCurrentPlayerIdentity();
+        final var roomId = new RoomId(UUID.fromString(command.roomId()));
+
+        final var roomOpt = roomRepository.findById(roomId);
+        if (roomOpt.isEmpty()) {
+            return new FillWithBotsResult.RoomNotFound();
+        }
+
+        final var room = roomOpt.get();
+        if (!room.hasPlayer(playerIdentity.playerId())) {
+            return new FillWithBotsResult.NotAMember();
+        }
+        if (!room.canJoin()) {
+            return new FillWithBotsResult.RoomNotWaiting(room.status().name());
+        }
+
+        final var now = clock.instant();
+        final var emptySeats = Room.MAX_PLAYERS - room.players().size();
+        com.ginebra.lobby.domain.GameId startedGame = null;
+
+        // Seated one at a time through the ordinary path, so the last one in fills the
+        // room and starts the game exactly as a fifth person arriving would.
+        for (final var seat : botSeats.create(emptySeats)) {
+            final var addResult = room.addPlayer(seat.playerId(), seat.displayName(), now);
+
+            if (addResult instanceof AddPlayerResult.RoomFull_GameShouldStart) {
+                final var playerIds = room.players().stream()
+                    .map(com.ginebra.lobby.domain.RoomPlayer::playerId)
+                    .toList();
+                final var gameResult = gameStarter.startGame(playerIds);
+                if (gameResult instanceof GameStarter.GameStartResult.Success success) {
+                    room.convertToGame(success.gameId());
+                    startedGame = success.gameId();
+                }
+            } else if (!(addResult instanceof AddPlayerResult.Success)) {
+                throw new IllegalStateException(
+                    "Failed to seat a bot: " + addResult.getClass().getSimpleName()
+                );
+            }
+        }
+
+        roomRepository.save(room);
+
+        final var players = room.players().stream()
+            .map(p -> new FillWithBotsUseCase.PlayerDto(
+                p.playerId().value().toString(),
+                p.displayName()
+            ))
+            .toList();
+
+        return new FillWithBotsResult.Success(
+            room.id().value().toString(),
+            players,
+            room.status().name(),
+            startedGame != null ? startedGame.value().toString() : null,
+            startedGame != null ? "/ws/game" : null
+        );
     }
 
     private JoinRoomResult.Success buildSuccessResponse(Room room) {

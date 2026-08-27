@@ -28,6 +28,16 @@ moment the fifth player is in.
 
 Stop with `Ctrl-C`.
 
+### On your own, against bots
+
+**Play against bots** in the lobby takes one tab straight to a table: it makes a room and
+sits a bot in the other four seats. If people are already waiting in a room, **Fill the
+empty seats with bots** tops it up to five and starts the game.
+
+They play a legal card at random and never go alone or call *todo*, which is enough to
+see a hand through and no more. They move at 800ms a card so you can watch the basa land -
+`ginebra.bots.move-delay` if that is too slow or too quick.
+
 ### If the build complains about Java
 
 `build.gradle.kts` pins the toolchain to **Java 17**. If you get

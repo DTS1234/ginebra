@@ -168,6 +168,20 @@ button.primary {
     border: none;
 }
 
+.waiting {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    max-width: 26rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
 #rooms {
     list-style: none;
     padding: 0;

@@ -83,6 +83,28 @@ public class MoveValidator {
     }
 
     /**
+     * Every card in the hand that may legally be played right now.
+     *
+     * The same question as {@link #validate}, asked of the whole hand at once. A hand is
+     * never without a legal card: each obligation yields when it cannot be honoured.
+     *
+     * @return the playable cards, in the order the hand holds them, never empty
+     */
+    public List<Card> legalCards(
+        List<Card> hand,
+        Suit trumpSuit,
+        Optional<Card> firstCardInBasa,
+        LeadContext leadContext
+    ) {
+        Objects.requireNonNull(hand, "hand must not be null");
+
+        return hand.stream()
+            .filter(card -> validate(hand, card, trumpSuit, firstCardInBasa, leadContext)
+                instanceof MoveValidation.Valid)
+            .toList();
+    }
+
+    /**
      * Validates whether a card play is legal.
      *
      * @param hand the player's current hand

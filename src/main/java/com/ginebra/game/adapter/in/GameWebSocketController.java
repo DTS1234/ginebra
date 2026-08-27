@@ -8,6 +8,7 @@ import com.ginebra.game.domain.event.GameEvent;
 import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Rank;
 import com.ginebra.game.domain.model.Suit;
+import com.ginebra.game.application.BotTurnDriver;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
@@ -34,6 +35,7 @@ public class GameWebSocketController {
     private final TodoUseCase todoUseCase;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameStateMapper gameStateMapper;
+    private final BotTurnDriver botTurnDriver;
 
     public GameWebSocketController(
         PlayCardUseCase playCardUseCase,
@@ -41,7 +43,8 @@ public class GameWebSocketController {
         SoledadUseCase soledadUseCase,
         TodoUseCase todoUseCase,
         SimpMessagingTemplate messagingTemplate,
-        GameStateMapper gameStateMapper
+        GameStateMapper gameStateMapper,
+        BotTurnDriver botTurnDriver
     ) {
         this.playCardUseCase = Objects.requireNonNull(playCardUseCase);
         this.selectTrumpUseCase = Objects.requireNonNull(selectTrumpUseCase);
@@ -49,6 +52,17 @@ public class GameWebSocketController {
         this.todoUseCase = Objects.requireNonNull(todoUseCase);
         this.messagingTemplate = Objects.requireNonNull(messagingTemplate);
         this.gameStateMapper = Objects.requireNonNull(gameStateMapper);
+        this.botTurnDriver = Objects.requireNonNull(botTurnDriver);
+    }
+
+    /**
+     * Hands over to any bots the move has left with something to do.
+     *
+     * Called after every move, successful or not: a rejected move leaves the game exactly
+     * as it was, and if a bot was due then it is still due.
+     */
+    private void handOverToBots(GameId gameId) {
+        botTurnDriver.drive(gameId);
     }
 
     @MessageMapping("/game/{gameId}/play-card")
@@ -74,6 +88,8 @@ public class GameWebSocketController {
         } else if (result instanceof PlayCardUseCase.PlayCardResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
+
+        handOverToBots(parsedGameId);
     }
 
     @MessageMapping("/game/{gameId}/select-trump")
@@ -97,6 +113,8 @@ public class GameWebSocketController {
         } else if (result instanceof SelectTrumpUseCase.SelectTrumpResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
+
+        handOverToBots(parsedGameId);
     }
 
     @MessageMapping("/game/{gameId}/soledad-pass")
@@ -120,6 +138,8 @@ public class GameWebSocketController {
         } else if (result instanceof SoledadUseCase.PassSoledadResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
+
+        handOverToBots(parsedGameId);
     }
 
     @MessageMapping("/game/{gameId}/call-todo")
@@ -147,6 +167,8 @@ public class GameWebSocketController {
         } else if (result instanceof TodoUseCase.TodoResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
+
+        handOverToBots(parsedGameId);
     }
 
     @MessageMapping("/game/{gameId}/declare-soledad")
@@ -168,6 +190,8 @@ public class GameWebSocketController {
         } else if (result instanceof SoledadUseCase.DeclareSoledadResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
+
+        handOverToBots(parsedGameId);
     }
 
     private PlayerId extractPlayerId(Principal principal) {
