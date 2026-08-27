@@ -223,6 +223,7 @@ const state = {
     currentTurn: null,
     trump: null,
     basa: [],           // { playerId, card } played so far in the current basa
+    basaNumber: 0,      // which basa that table belongs to, so a stray card is spotted
     seats: new Map(),   // playerId -> seat label
     coins: {},
     posso: null         // what is in the middle of the table
@@ -524,11 +525,61 @@ function refreshState() {
     setTimeout(() => state.stomp.unsubscribe(id), 500);
 }
 
+/*
+ * How far the game has got, as this client has seen it: round, then basa, then cards on
+ * the table. It only ever moves forward, and comparing it is how a snapshot that has been
+ * overtaken is recognised.
+ */
+function position(round, basaNumber, cardsOnTable) {
+    return [round || 0, basaNumber || 0, cardsOnTable || 0];
+}
+
+function isBehind(incoming, current) {
+    for (let i = 0; i < incoming.length; i++) {
+        if (incoming[i] !== current[i]) {
+            return incoming[i] < current[i];
+        }
+    }
+    return false;
+}
+
+function here() {
+    return position(
+        state.round && state.round.roundNumber,
+        state.basaNumber,
+        state.basa.length
+    );
+}
+
+/*
+ * GAME_STATE is a snapshot of the moment the server handled the subscription, and it
+ * arrives on the player's private queue while the play events arrive on the game topic.
+ * Nothing orders those two against each other, so a snapshot can land after the events
+ * that overtook it - and applying it then would rewind the table, put a played card back
+ * in the hand, and hand the turn back to someone who has already had it.
+ *
+ * A rewound table is not a cosmetic problem: the first card on it is what the client uses
+ * to decide which cards it may offer, so the page ends up offering a card the server will
+ * refuse.
+ */
 function onGameState(message) {
     if (message.type !== 'GAME_STATE') {
         return;
     }
     const payload = message.payload;
+
+    const round = payload.currentRound;
+    if (round && state.round) {
+        const snapshot = position(
+            round.roundNumber,
+            round.currentBasa && round.currentBasa.basaNumber,
+            round.currentBasa ? (round.currentBasa.cardsPlayed || []).length : 0
+        );
+        if (isBehind(snapshot, here())) {
+            log('Ignored a state snapshot that arrived out of order', 'muted');
+            return;
+        }
+    }
     state.coins = payload.coinBalances || {};
     state.posso = payload.posso ?? null;
     payload.players.forEach((player) => {
@@ -537,7 +588,6 @@ function onGameState(message) {
         }
     });
 
-    const round = payload.currentRound;
     if (!round) {
         return;
     }
@@ -545,6 +595,7 @@ function onGameState(message) {
     state.hand = round.yourHand || [];
     state.trump = round.trumpSuit;
     state.currentTurn = round.currentTurn;
+    state.basaNumber = (round.currentBasa && round.currentBasa.basaNumber) || 0;
     state.basa = (round.currentBasa?.cardsPlayed || []).map((played) => ({
         playerId: played.playerId,
         card: played.card
@@ -600,6 +651,13 @@ function onServerMessage(message) {
             break;
 
         case 'CARD_PLAYED':
+            // The card names its own basa, so a table left over from an earlier one -
+            // a BasaWon that never arrived, or arrived out of order - is cleared rather
+            // than built on.
+            if (payload.basaNumber && payload.basaNumber !== state.basaNumber) {
+                state.basa = [];
+                state.basaNumber = payload.basaNumber;
+            }
             state.basa.push({ playerId: payload.playerId, card: payload.card });
             state.currentTurn = payload.nextTurn;
             if (payload.playerId === state.me.playerId) {
@@ -611,6 +669,7 @@ function onServerMessage(message) {
         case 'BASA_WON':
             log('Basa ' + payload.basaNumber + ' won by ' + seatOf(payload.winner), 'good');
             state.basa = [];
+            state.basaNumber = payload.nextBasaNumber || 0;
             state.currentTurn = payload.nextStarter;
             state.round = Object.assign({}, state.round, { basasWon: payload.basasWon });
             break;
@@ -634,6 +693,7 @@ function onServerMessage(message) {
                 : ' banks the win'), 'good');
             state.currentTurn = payload.currentTurn;
             state.basa = [];
+            state.basaNumber = 0;
             setTimeout(refreshState, 250);
             break;
 
@@ -645,7 +705,13 @@ function onServerMessage(message) {
             state.coins = payload.coinBalances;
             state.posso = payload.posso;
             state.basa = [];
-            // The next round is dealt server-side; ask for the new hand.
+            // The next round is dealt server-side, and this client is now waiting on its
+            // first basa - which is also what stops a snapshot of the round that just
+            // ended from being applied over it.
+            state.round = Object.assign({}, state.round, {
+                roundNumber: payload.roundNumber + 1
+            });
+            state.basaNumber = 1;
             setTimeout(refreshState, 250);
             break;
 

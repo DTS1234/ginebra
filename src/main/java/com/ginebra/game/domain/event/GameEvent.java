@@ -19,10 +19,17 @@ public sealed interface GameEvent {
         PlayerId currentTurn
     ) implements GameEvent {}
 
+    /**
+     * @param basaNumber which basa the card went into. Without it a client cannot tell a
+     *                   card that belongs on the table it is showing from one that belongs
+     *                   to the next basa, and a missed or reordered BasaWon leaves it
+     *                   holding a table that never existed.
+     */
     record CardPlayed(
         PlayerId playerId,
         Card card,
-        PlayerId nextTurn
+        PlayerId nextTurn,
+        int basaNumber
     ) implements GameEvent {}
 
     record BasaWon(

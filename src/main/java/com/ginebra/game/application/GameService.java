@@ -258,7 +258,12 @@ public class GameService
 
             // Publish card played
             final var nextTurn = updatedRound.currentPlayer().orElse(null);
-            eventPublisher.publishToGame(gameId, new GameEvent.CardPlayed(playerId, card, nextTurn));
+            eventPublisher.publishToGame(gameId, new GameEvent.CardPlayed(
+                playerId,
+                card,
+                nextTurn,
+                updatedBasa != null ? updatedBasa.basaNumber() : 0
+            ));
 
             // A king decides the shape of the round - who goes with whom, or alone.
             if (card.isKing() && updatedRound.mode().isEmpty()) {

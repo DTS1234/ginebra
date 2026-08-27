@@ -184,6 +184,22 @@ cards, basa resolution, and an out-of-turn rejection reaching only the offending
 `SecurityConfig` now permits `GET /`, `/index.html`, `/app.js`, `/style.css` and the
 favicons. Everything else is unchanged - every API call the page makes still carries a JWT.
 
+**A state snapshot can arrive after the events that overtook it.** `GAME_STATE` is built
+when the server handles the subscription and goes to the player's private queue, while
+play events go to the game topic; nothing orders those two against each other. Applying a
+snapshot that has been overtaken rewinds the table, puts a played card back in the hand,
+and hands the turn back to someone who has already had it - and because the first card on
+the table is what decides which cards the page offers, the page ends up offering a card
+the server refuses (`MUST_PLAY_TRUMP` on a table whose real lead was something else).
+
+Bots made it visible: before them a client only ever re-subscribed at a moment when the
+table was idle, and now there is always something in flight.
+
+The client keeps its own position - round, then basa, then cards on the table - and
+ignores any snapshot behind it. `CardPlayed` now carries its `basaNumber` too, so a table
+left over from an earlier basa is cleared rather than built on, which also covers a
+`BasaWon` that never arrives.
+
 Two things the client works around rather than fixes:
 
 - **No state-refresh message.** The server only pushes `GAME_STATE` on SUBSCRIBE, so after

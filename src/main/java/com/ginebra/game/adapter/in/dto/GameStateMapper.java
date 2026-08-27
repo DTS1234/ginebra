@@ -73,6 +73,7 @@ public class GameStateMapper {
             payload.put("playerId", cp.playerId().value().toString());
             payload.put("card", toCardDto(cp.card()));
             payload.put("nextTurn", cp.nextTurn() != null ? cp.nextTurn().value().toString() : null);
+            payload.put("basaNumber", cp.basaNumber());
             return new ServerMessage("CARD_PLAYED", payload);
         } else if (event instanceof GameEvent.BasaWon bw) {
             final var payload = new HashMap<String, Object>();
