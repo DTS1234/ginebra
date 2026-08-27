@@ -33,7 +33,7 @@ class RoomServiceTest {
     void setUp() {
         roomRepository = new InMemoryRoomRepository();
         clock = Clock.fixed(Instant.parse("2026-01-15T10:00:00Z"), ZoneOffset.UTC);
-        roomService = new RoomService(roomRepository, NO_OP_GAME_STARTER, clock);
+        roomService = new RoomService(roomRepository, NO_OP_GAME_STARTER, new TestBotSeats(), clock);
 
         // Set up SecurityContext with authenticated player
         testPlayer = new PlayerIdentity(

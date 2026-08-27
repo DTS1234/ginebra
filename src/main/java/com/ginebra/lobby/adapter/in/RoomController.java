@@ -1,6 +1,7 @@
 package com.ginebra.lobby.adapter.in;
 
 import com.ginebra.lobby.port.in.CreateRoomUseCase;
+import com.ginebra.lobby.port.in.FillWithBotsUseCase;
 import com.ginebra.lobby.port.in.GetRoomUseCase;
 import com.ginebra.lobby.port.in.JoinRoomUseCase;
 import com.ginebra.lobby.port.in.LeaveRoomUseCase;
@@ -21,13 +22,15 @@ public class RoomController {
     private final JoinRoomUseCase joinRoomUseCase;
     private final LeaveRoomUseCase leaveRoomUseCase;
     private final GetRoomUseCase getRoomUseCase;
+    private final FillWithBotsUseCase fillWithBotsUseCase;
 
     public RoomController(
         CreateRoomUseCase createRoomUseCase,
         ListRoomsUseCase listRoomsUseCase,
         JoinRoomUseCase joinRoomUseCase,
         LeaveRoomUseCase leaveRoomUseCase,
-        GetRoomUseCase getRoomUseCase
+        GetRoomUseCase getRoomUseCase,
+        FillWithBotsUseCase fillWithBotsUseCase
     ) {
         this.createRoomUseCase = Objects.requireNonNull(
             createRoomUseCase,
@@ -48,6 +51,10 @@ public class RoomController {
         this.getRoomUseCase = Objects.requireNonNull(
             getRoomUseCase,
             "getRoomUseCase must not be null"
+        );
+        this.fillWithBotsUseCase = Objects.requireNonNull(
+            fillWithBotsUseCase,
+            "fillWithBotsUseCase must not be null"
         );
     }
 
@@ -135,6 +142,36 @@ public class RoomController {
         } else if (result instanceof JoinRoomUseCase.JoinRoomResult.PlayerAlreadyInRoom) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponseDto("PLAYER_ALREADY_IN_ROOM", "You are already in this room"));
+        } else {
+            throw new IllegalStateException("Unexpected result: " + result);
+        }
+    }
+
+    @PostMapping("/{roomId}/bots")
+    public ResponseEntity<?> fillWithBots(@PathVariable String roomId) {
+        final var command = new FillWithBotsUseCase.FillWithBotsCommand(roomId);
+        final var result = fillWithBotsUseCase.fillWithBots(command);
+
+        if (result instanceof FillWithBotsUseCase.FillWithBotsResult.Success success) {
+            final var players = success.players().stream()
+                .map(p -> new PlayerDto(p.playerId(), p.displayName()))
+                .toList();
+            return ResponseEntity.ok(new JoinRoomResponseDto(
+                success.roomId(),
+                players,
+                success.status(),
+                success.gameId(),
+                success.websocketUrl()
+            ));
+        } else if (result instanceof FillWithBotsUseCase.FillWithBotsResult.RoomNotFound) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponseDto("ROOM_NOT_FOUND", "Room not found"));
+        } else if (result instanceof FillWithBotsUseCase.FillWithBotsResult.NotAMember) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponseDto("NOT_A_MEMBER", "You are not in this room"));
+        } else if (result instanceof FillWithBotsUseCase.FillWithBotsResult.RoomNotWaiting notWaiting) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponseDto("ROOM_NOT_WAITING", "Room is not accepting players, status: " + notWaiting.currentStatus()));
         } else {
             throw new IllegalStateException("Unexpected result: " + result);
         }

@@ -40,6 +40,7 @@ class GetRoomServiceTest {
         roomService = new RoomService(
             new InMemoryRoomRepository(),
             GAME_STARTER,
+            new TestBotSeats(),
             Clock.fixed(Instant.parse("2026-01-15T10:00:00Z"), ZoneOffset.UTC)
         );
     }

@@ -73,13 +73,18 @@
         <h2>Lobby</h2>
         <p class="hint">
             Five players are needed. One creates a room, the other four join it from the
-            list; the game starts the moment the fifth player is in. To test on your own,
-            open this page in five tabs — <code>?name=Ada</code> in the URL skips the name
-            box for that tab.
+            list; the game starts the moment the fifth player is in. Short of people, take
+            the empty seats with bots — they play a legal card at random, which is enough
+            to see a hand through.
         </p>
         <div class="row">
-            <button id="create-room" class="primary">Create room</button>
+            <button id="play-bots" class="primary">Play against bots</button>
+            <button id="create-room">Create room</button>
             <button id="refresh-rooms">Refresh</button>
+        </div>
+        <div id="waiting" class="waiting hidden">
+            <span id="waiting-label">Waiting for players…</span>
+            <button id="fill-bots">Fill the empty seats with bots</button>
         </div>
         <ul id="rooms"></ul>
     </section>

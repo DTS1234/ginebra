@@ -3,6 +3,7 @@ package com.ginebra.game.domain.service;
 import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Rank;
 import com.ginebra.game.domain.model.Suit;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -592,4 +593,118 @@ class MoveValidatorTest {
                 .hasMessageContaining("trumpSuit must not be null");
         }
     }
+
+    @Nested
+    @DisplayName("legalCards - the same question, asked of the whole hand")
+    class LegalCards {
+
+        private static final Suit TRUMP = Suit.OROS;
+
+        @Test
+        void shouldAgreeWithValidateOnEveryCardInTheHand() {
+            final var hand = List.of(
+                new Card(Suit.OROS, Rank.REY),
+                new Card(Suit.COPAS, Rank.DOS),
+                new Card(Suit.COPAS, Rank.SIETE),
+                new Card(Suit.ESPADAS, Rank.AS),
+                new Card(Suit.BASTOS, Rank.SOTA)
+            );
+            final var led = Optional.of(new Card(Suit.COPAS, Rank.REY));
+            final var context = MoveValidator.LeadContext.unconstrained();
+
+            final var legal = validator.legalCards(hand, TRUMP, led, context);
+
+            for (final var card : hand) {
+                final var valid = validator.validate(hand, card, TRUMP, led, context)
+                    instanceof MoveValidation.Valid;
+                assertThat(legal.contains(card))
+                    .as("%s", card)
+                    .isEqualTo(valid);
+            }
+        }
+
+        @Test
+        void shouldOfferOnlyTheLedSuitWhenTheHandCanFollow() {
+            final var hand = List.of(
+                new Card(Suit.COPAS, Rank.DOS),
+                new Card(Suit.COPAS, Rank.SIETE),
+                new Card(Suit.BASTOS, Rank.SOTA)
+            );
+
+            final var legal = validator.legalCards(
+                hand,
+                TRUMP,
+                Optional.of(new Card(Suit.COPAS, Rank.REY)),
+                MoveValidator.LeadContext.unconstrained()
+            );
+
+            assertThat(legal).containsExactly(
+                new Card(Suit.COPAS, Rank.DOS),
+                new Card(Suit.COPAS, Rank.SIETE)
+            );
+        }
+
+        @Test
+        void shouldOfferTheWholeHandWhenNothingCanBeFollowed() {
+            // The obligation yields rather than trapping a hand with no way to honour it.
+            final var hand = List.of(
+                new Card(Suit.BASTOS, Rank.SOTA),
+                new Card(Suit.BASTOS, Rank.TRES)
+            );
+
+            final var legal = validator.legalCards(
+                hand,
+                TRUMP,
+                Optional.of(new Card(Suit.COPAS, Rank.REY)),
+                MoveValidator.LeadContext.unconstrained()
+            );
+
+            assertThat(legal).containsExactlyElementsOf(hand);
+        }
+
+        @Test
+        void shouldNeverLeaveAHandWithNothingToPlay() {
+            // Whatever the obligations, a hand always has a legal card - which is what
+            // lets a bot pick one without a special case for being stuck.
+            final var hand = List.of(
+                new Card(Suit.OROS, Rank.REY),
+                new Card(Suit.COPAS, Rank.DOS)
+            );
+
+            for (final var led : List.of(
+                Optional.<Card>empty(),
+                Optional.of(new Card(Suit.OROS, Rank.CINCO)),
+                Optional.of(new Card(Suit.ESPADAS, Rank.AS)),
+                Optional.of(new Card(Suit.BASTOS, Rank.TRES))
+            )) {
+                assertThat(validator.legalCards(hand, TRUMP, led, MoveValidator.LeadContext.unconstrained()))
+                    .as("led %s", led)
+                    .isNotEmpty();
+            }
+        }
+
+        @Test
+        void shouldHonourTheChangeOfSuitWhenLeading() {
+            final var hand = List.of(
+                new Card(Suit.OROS, Rank.CINCO),
+                new Card(Suit.COPAS, Rank.DOS),
+                new Card(Suit.BASTOS, Rank.SOTA)
+            );
+
+            final var legal = validator.legalCards(
+                hand,
+                TRUMP,
+                Optional.empty(),
+                new MoveValidator.LeadContext(Set.of(Suit.COPAS), false)
+            );
+
+            assertThat(legal)
+                .as("Copas has been led already, and two suits are still untouched")
+                .containsExactly(
+                    new Card(Suit.OROS, Rank.CINCO),
+                    new Card(Suit.BASTOS, Rank.SOTA)
+                );
+        }
+    }
+
 }

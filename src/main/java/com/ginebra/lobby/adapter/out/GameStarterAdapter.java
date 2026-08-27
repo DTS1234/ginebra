@@ -1,5 +1,6 @@
 package com.ginebra.lobby.adapter.out;
 
+import com.ginebra.game.application.BotTurnDriver;
 import com.ginebra.game.port.in.StartGameUseCase;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
@@ -13,9 +14,11 @@ import java.util.Objects;
 public class GameStarterAdapter implements GameStarter {
 
     private final StartGameUseCase startGameUseCase;
+    private final BotTurnDriver botTurnDriver;
 
-    public GameStarterAdapter(StartGameUseCase startGameUseCase) {
+    public GameStarterAdapter(StartGameUseCase startGameUseCase, BotTurnDriver botTurnDriver) {
         this.startGameUseCase = Objects.requireNonNull(startGameUseCase);
+        this.botTurnDriver = Objects.requireNonNull(botTurnDriver);
     }
 
     @Override
@@ -26,6 +29,9 @@ public class GameStarterAdapter implements GameStarter {
         );
 
         if (result instanceof StartGameUseCase.StartGameResult.Success success) {
+            // The Soledad window is open from the deal, so any bots at the table have
+            // something to answer before the first human is asked for anything.
+            botTurnDriver.drive(success.gameId());
             return new GameStartResult.Success(success.gameId());
         } else {
             return new GameStartResult.Failure("Game already exists");

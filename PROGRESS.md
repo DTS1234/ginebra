@@ -108,6 +108,52 @@ exposed (they go over `/user/**`), so this is unauthorised spectating, not cheat
 
 ---
 
+## Bots (not a design phase)
+**Status: PLAYABLE, DELIBERATELY STUPID**
+
+Five players is a lot to find. Any empty seat can be taken by a bot, so one person can
+sit down and play a hand.
+
+| Piece | Where |
+|-------|-------|
+| What a seat has to decide | `game/domain/service/BotStrategy` |
+| The one that exists: a legal card at random | `game/domain/service/RandomBotStrategy` |
+| Which seats have nobody behind them | `game/application/BotRoster` |
+| Taking their turns | `game/application/BotTurnDriver` |
+| Every legal card in a hand, at once | `MoveValidator.legalCards` |
+| Seating them | `POST /api/rooms/{id}/bots`, `FillWithBotsUseCase` |
+| Making them up | `lobby/adapter/out/BotSeatsAdapter` (the `BotSeats` port) |
+
+**A bot is an ordinary player.** It has a player id, sits in a room, is dealt a hand, and
+wins and loses coins against the posso like anyone. The only thing that marks it out is
+being in the roster, which is what tells the driver its turn will not take itself. Its
+moves go through the same use cases a person's client does, so it cannot cheat: the same
+`MoveValidator` judges its card, and a bug in a strategy shows up as a *rejected* move
+rather than an illegal one. `BotTurnDriverTest` pins that with a strategy that tries.
+
+**How a turn gets taken.** Nothing in the game moves itself, so every entry point that
+changes a game calls `BotTurnDriver.drive` afterwards - the five WebSocket handlers, and
+`GameStarterAdapter` when the game is dealt, since the Soledad window is open from the
+start. The driver plays out every bot decision standing between there and the next thing
+a person has to do, then stops.
+
+Moves are spaced (`ginebra.bots.move-delay`, 800ms) and run off the caller's thread.
+Instant bots would resolve a whole basa inside the human's own click, so nobody would see
+the cards land.
+
+**What "dumb" means here, exactly.** Among the cards the rules allow it picks uniformly,
+and it names a trump at random. But it declines both *wagers* - Soledad and "fer todo" -
+outright. That is not laziness: a random Soledad would make one hand in two someone going
+alone on nothing, and a play-test would never see a normal round. The split between a
+move and a wager is the shape of `BotStrategy`, and the wagers are the first thing a
+better opponent should take over.
+
+**Not done:** anything that looks at the cards. No count of trumps, no memory of what has
+been played, no notion of a partner - a bot will happily trump its own side's winning
+basa. `BotStrategy` is the seam; `RandomBotStrategy` is one implementation of it.
+
+---
+
 ## Play Client (not a design phase)
 **Status: MINIMAL, PLAYABLE**
 
@@ -119,6 +165,7 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 |-------|-------|
 | Page, styles, icon | `src/main/resources/static/` |
 | Name box before the lobby, remembered in `localStorage` | `#identity-gate`, `enterWithName` |
+| "Play against bots", and filling a half-empty room | `#play-bots`, `#fill-bots` |
 | Card faces drawn as a baraja española | `cardFace` / `spriteMarkup` in `app.js` |
 | Help panel: full card order per trump, plus the rules in one screen | `? Help` in the header |
 | Teams panel: both sides, who goes, basas each, live team totals | appears when the first King reveals them |
