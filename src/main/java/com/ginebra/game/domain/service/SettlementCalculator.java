@@ -4,9 +4,12 @@ import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Round;
 import com.ginebra.game.domain.model.RoundResult;
 import com.ginebra.game.domain.model.Settlement;
+import com.ginebra.game.domain.model.Settlement.Charge;
+import com.ginebra.game.domain.model.Settlement.Charge.Reason;
 import com.ginebra.game.domain.model.Suit;
 import com.ginebra.identity.domain.PlayerId;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,81 +96,94 @@ public class SettlementCalculator {
             () -> new IllegalStateException("Completed round has no result")
         );
 
-        final var deltas = new HashMap<PlayerId, Integer>();
+        final var charges = new HashMap<PlayerId, List<Charge>>();
         for (final var player : round.playerOrder()) {
-            deltas.put(player, 0);
+            charges.put(player, new ArrayList<>());
         }
 
         if (result instanceof RoundResult.GoingSideWon won) {
-            for (final var player : won.goingSide()) {
-                deltas.merge(player, stakeOf(round, dealSnapshot), Integer::sum);
-            }
+            chargeStake(charges, round, dealSnapshot, won.goingSide(), 1);
         } else if (result instanceof RoundResult.GoingSideFailed failed) {
-            for (final var player : failed.goingSide()) {
-                deltas.merge(player, -stakeOf(round, dealSnapshot), Integer::sum);
-            }
+            chargeStake(charges, round, dealSnapshot, failed.goingSide(), -1);
             for (final var player : failed.opposingSide()) {
-                deltas.merge(player, OPPOSING_SIDE_AWARD, Integer::sum);
+                charges.get(player).add(new Charge(Reason.HELD_THEM_OFF, OPPOSING_SIDE_AWARD));
             }
         }
 
         // Stopping costs the one who goes 1, and that is the whole settlement: the hand
         // did not happen, so nothing else in it is worth anything - not even a dengue.
         if (result instanceof RoundResult.KingFell stopped) {
-            deltas.merge(stopped.playerWhoGoes(), -STOPPING_COST, Integer::sum);
-            return new Settlement(deltas);
+            charges.get(stopped.playerWhoGoes()).add(new Charge(Reason.STOPPED, -STOPPING_COST));
+            return new Settlement(charges);
         }
         // RoundResult.FourKings settles on the four-kings award alone.
 
         // The todo stands apart from the stake: it is its own bet.
         for (final var player : round.goingSide()) {
-            deltas.merge(player, goingSideExtras(round), Integer::sum);
+            if (round.madeTodo()) {
+                charges.get(player).add(new Charge(Reason.TODO_MADE, INCREMENT));
+            } else if (round.todoCalled()) {
+                charges.get(player).add(new Charge(Reason.TODO_MISSED, -INCREMENT));
+            }
         }
 
         // "Per tindre es quatre reis, 4" - unconditional, like the dengue. A holder who
         // goes alone keeps it on top of whatever the hand then settles at.
         round.fourKingHolder().ifPresent(
-            player -> deltas.merge(player, FOUR_KINGS_AWARD, Integer::sum)
+            player -> charges.get(player).add(new Charge(Reason.FOUR_KINGS, FOUR_KINGS_AWARD))
         );
 
         // "El dengue sempre es cobra" - whoever was dealt it collects, whatever happened.
         for (final var player : round.playerOrder()) {
             if (hasDengue(dealSnapshot.get(player))) {
-                deltas.merge(player, INCREMENT, Integer::sum);
+                charges.get(player).add(new Charge(Reason.DENGUE, INCREMENT));
             }
         }
 
-        return new Settlement(deltas);
+        return new Settlement(charges);
     }
 
     /**
-     * What one player of the going side collects on a win, or pays on a loss: the base for
-     * how they came to be going, and a coin each for primeres and for the estutxe.
+     * The stake, itemised: the base for how they came to be going, and a coin each for
+     * primeres and for the estutxe.
+     *
+     * @param sign 1 when the going side made its five, -1 when it fell short
      */
-    private int stakeOf(Round round, Map<PlayerId, List<Card>> dealSnapshot) {
-        var stake = baseOf(round);
-
-        if (round.madePrimeres()) {
-            stake += INCREMENT;
-        }
-
+    private void chargeStake(
+        Map<PlayerId, List<Charge>> charges,
+        Round round,
+        Map<PlayerId, List<Card>> dealSnapshot,
+        Set<PlayerId> goingSide,
+        int sign
+    ) {
+        final var base = baseOf(round);
         final var trump = round.trumpSuit().orElse(null);
-        if (trump != null && hasEstutxe(cardsDealtTo(round.goingSide(), dealSnapshot), trump)) {
-            stake += INCREMENT;
-        }
+        final var estutxe = trump != null
+            && hasEstutxe(cardsDealtTo(goingSide, dealSnapshot), trump);
 
-        return stake;
+        for (final var player : goingSide) {
+            final var lines = charges.get(player);
+            if (base > 0) {
+                lines.add(new Charge(baseReason(round), sign * base));
+            }
+            if (round.madePrimeres()) {
+                lines.add(new Charge(Reason.PRIMERES, sign * INCREMENT));
+            }
+            if (estutxe) {
+                lines.add(new Charge(Reason.ESTUTXE, sign * INCREMENT));
+            }
+        }
     }
 
-    /**
-     * The todo, settled on its own: made is worth a coin to each of the going side, called
-     * and missed costs each of them one, whatever the hand then did.
-     */
-    private int goingSideExtras(Round round) {
-        if (round.madeTodo()) {
-            return INCREMENT;
-        }
-        return round.todoCalled() ? -INCREMENT : 0;
+    private Reason baseReason(Round round) {
+        return switch (round.mode().orElseThrow()) {
+            case HELPED -> Reason.HELPED;
+            case SELF_KING -> Reason.SELF_KING;
+            case SOLEDAD -> Reason.SOLEDAD;
+            case FOUR_KINGS, KING_FELL -> throw new IllegalStateException(
+                "No stake is played for " + round.mode().orElseThrow()
+            );
+        };
     }
 
     /** Everything the given players were dealt, pooled. */

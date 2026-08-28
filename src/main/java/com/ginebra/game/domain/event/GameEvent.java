@@ -76,10 +76,15 @@ public sealed interface GameEvent {
         PlayerId currentTurn
     ) implements GameEvent {}
 
+    /**
+     * @param charges what each player was charged or paid and why, so the table can be
+     *                told rather than left to work out where its coins went
+     */
     record RoundEnded(
         int roundNumber,
         RoundResult result,
         Map<PlayerId, Integer> coinChanges,
+        Map<PlayerId, List<Settlement.Charge>> charges,
         Map<PlayerId, Integer> newBalances,
         int posso
     ) implements GameEvent {}

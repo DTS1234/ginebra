@@ -202,6 +202,32 @@ function isSpecial(card) {
     return card.rank === 'AS' && (card.suit === 'ESPADAS' || card.suit === 'BASTOS');
 }
 
+/*
+ * Why a coin moved, in the words the table would use. The server sends the reason, not a
+ * sentence, so this is the one place the wording lives.
+ */
+const CHARGE_LABEL = {
+    HELPED: 'Went, with a king put on them',
+    SELF_KING: 'Carried on alone after their king fell',
+    SOLEDAD: 'Went alone',
+    PRIMERES: 'Primeres \u2014 the first four basas',
+    ESTUTXE: 'Estutxe \u2014 espadilla, manilla and basto',
+    DENGUE: 'Dengue \u2014 espadilla and basto',
+    FOUR_KINGS: 'Dealt all four kings',
+    TODO_MADE: 'Fer todo \u2014 made',
+    TODO_MISSED: 'Fer todo \u2014 called and missed',
+    HELD_THEM_OFF: 'Held the going side under five',
+    STOPPED: 'Stopped when their own king fell'
+};
+
+/** What the round came to, in a sentence. */
+const RESULT_LABEL = {
+    GOING_SIDE_WON: 'The side that goes made its five.',
+    GOING_SIDE_FAILED: 'The side that goes fell short of five.',
+    FOUR_KINGS: 'Four kings in one hand \u2014 the deal is over.',
+    KING_FELL: 'The king fell and the hand was stopped.'
+};
+
 /** How the going side came about, for the sides panel. */
 const MODE_LABEL = {
     HELPED: 'a king was put — two against three',
@@ -730,6 +756,7 @@ function onServerMessage(message) {
             break;
 
         case 'ROUND_ENDED':
+            showSettlement(payload);
             log('Round ' + payload.roundNumber + ' ended: '
                 + payload.result.replace(/_/g, ' ').toLowerCase()
                 + (payload.winners.length ? ' — ' + payload.winners.map(seatOf).join(', ') : '')
@@ -765,6 +792,86 @@ function onServerMessage(message) {
 
 function passSoledad() {
     state.stomp.send('/app/game/' + state.gameId + '/soledad-pass', {});
+}
+
+// === What the round cost ===
+
+/*
+ * A hand can move coins for half a dozen reasons at once - the stake, primeres, the
+ * estutxe, a dengue someone was dealt - and the log only ever showed the total. This
+ * lays out every line, for every player, in the order the settlement worked them out.
+ */
+function showSettlement(payload) {
+    const charges = payload.charges || {};
+    const balances = payload.coinBalances || {};
+
+    el('settlement-title').textContent = 'Round ' + payload.roundNumber + ' settled';
+    el('settlement-result').textContent = RESULT_LABEL[payload.result]
+        || payload.result.replace(/_/g, ' ').toLowerCase();
+
+    const rows = el('settlement-rows');
+    rows.innerHTML = '';
+
+    const netOf = (playerId) =>
+        (charges[playerId] || []).reduce((sum, line) => sum + line.amount, 0);
+
+    // Whoever moved the most first: it is usually the story of the hand.
+    const order = [...state.seats.keys()]
+        .sort((a, b) => Math.abs(netOf(b)) - Math.abs(netOf(a)));
+
+    for (const playerId of order) {
+        rows.appendChild(settlementRow(playerId, charges[playerId] || [], balances));
+    }
+
+    el('settlement-posso').textContent =
+        'The posso now holds ' + payload.posso + '. Everything is paid to and from it, '
+        + 'so the two sides of a hand do not balance.';
+
+    el('settlement').classList.remove('hidden');
+    el('settlement-close').focus();
+}
+
+function settlementRow(playerId, lines, balances) {
+    const net = lines.reduce((sum, line) => sum + line.amount, 0);
+    const isMe = playerId === state.me.playerId;
+
+    const row = document.createElement('div');
+    row.className = 'sheet-row'
+        + (isMe ? ' me' : '')
+        + (lines.length === 0 ? ' nothing' : '');
+
+    const head = document.createElement('div');
+    head.className = 'sheet-head';
+    head.innerHTML = '<span class="sheet-who">' + (isMe ? 'You' : seatOf(playerId)) + '</span>'
+        + '<span class="sheet-net ' + (net > 0 ? 'up' : net < 0 ? 'down' : '') + '">'
+        + signed(net)
+        + '<span class="sheet-after">' + (balances[playerId] ?? '-') + ' coins</span>'
+        + '</span>';
+    row.appendChild(head);
+
+    const detail = document.createElement('div');
+    detail.className = 'sheet-lines';
+    if (lines.length === 0) {
+        detail.innerHTML = '<div class="sheet-line"><span>Nothing this round</span></div>';
+    } else {
+        for (const line of lines) {
+            const item = document.createElement('div');
+            item.className = 'sheet-line';
+            item.innerHTML = '<span>' + (CHARGE_LABEL[line.reason] || line.reason) + '</span>'
+                + '<span>' + signed(line.amount) + '</span>';
+            detail.appendChild(item);
+        }
+    }
+    row.appendChild(detail);
+    return row;
+}
+
+function signed(amount) {
+    return amount > 0 ? '+' + amount : String(amount);
+}
+
+function hideSettlement() {
+    el('settlement').classList.add('hidden');
 }
 
 function decideKingChoice(carryOn) {
@@ -1153,6 +1260,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     el('help-toggle').onclick = toggleHelp;
     el('pass-soledad').onclick = passSoledad;
     el('declare-soledad').onclick = declareSoledad;
+    el('settlement-close').onclick = hideSettlement;
+    el('settlement').onclick = (event) => {
+        if (event.target === el('settlement')) {
+            hideSettlement();   // clicking the darkened table behind it
+        }
+    };
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            hideSettlement();
+        }
+    });
+
     el('carry-on').onclick = () => decideKingChoice(true);
     el('stop-hand').onclick = () => decideKingChoice(false);
     el('call-todo').onclick = () => decideTodo(true);
