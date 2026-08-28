@@ -277,10 +277,21 @@ class GameServiceTest {
 
             playUntilSideDecided(gameId);
 
+            final var pending = eventPublisher.events.stream()
+                .filter(GameEvent.KingFellPending.class::isInstance)
+                .toList();
             final var decided = eventPublisher.events.stream()
                 .filter(GameEvent.SideDecided.class::isInstance)
                 .map(GameEvent.SideDecided.class::cast)
                 .toList();
+
+            if (!pending.isEmpty()) {
+                // The one who goes had their own king dragged out of them, so there is no
+                // side yet - the hand is paused on their answer.
+                assertThat(pending).hasSize(1);
+                assertThat(decided).as("nothing is decided until they answer").isEmpty();
+                return;
+            }
 
             assertThat(decided).as("one king decides the round, and only one").hasSize(1);
             final var event = decided.get(0);
@@ -313,7 +324,9 @@ class GameServiceTest {
         }
 
         @Test
-        void shouldRecordAForcedKingOnlyWhenTheHandLeftNoChoice() {
+        void shouldNotStopTheHandForAHelpersForcedKing() {
+            // Only the one who goes is ever asked about their own king; a helper dragged
+            // in by a forced king just plays on - the players, 2026-08-27.
             final var gameId = startGameAndSelectTrump(Suit.COPAS);
 
             playUntilSideDecided(gameId);
@@ -325,10 +338,8 @@ class GameServiceTest {
             final var round = gameRepository.findById(gameId).orElseThrow()
                 .currentRound().orElseThrow();
 
-            if (event.forced() && event.mode() == RoundMode.HELPED) {
-                assertThat(round.forcedKingPlayer()).contains(event.byPlayer());
-            } else if (event.mode() == RoundMode.HELPED) {
-                assertThat(round.forcedKingPlayer()).isEmpty();
+            if (event.mode() == RoundMode.HELPED) {
+                assertThat(round.isWaitingForKingChoice()).isFalse();
             }
         }
 

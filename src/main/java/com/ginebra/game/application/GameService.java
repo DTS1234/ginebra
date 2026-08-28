@@ -5,6 +5,7 @@ import com.ginebra.game.domain.model.*;
 import com.ginebra.game.domain.service.BasaResolver;
 import com.ginebra.game.domain.service.MoveValidation;
 import com.ginebra.game.domain.service.MoveValidator;
+import com.ginebra.game.port.in.KingChoiceUseCase;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
@@ -28,7 +29,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class GameService
-    implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase, TodoUseCase {
+    implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase, TodoUseCase,
+               KingChoiceUseCase {
 
     private final GameRepository gameRepository;
     private final GameEventPublisher eventPublisher;
@@ -242,8 +244,9 @@ public class GameService
                 return new PlayCardResult.InvalidCard(invalid.code(), invalid.message());
             }
 
-            // "Et cau el rei": a king with no legal alternative is put unintentionally,
-            // and costs its owner 1. Decided against the hand as it stands before the play.
+            // "Et cau el rei": a king with no legal alternative was dragged out rather
+            // than chosen. It only changes anything for the one who goes, who is then
+            // asked whether to carry on. Decided against the hand as it stands.
             final var kingWasForced = card.isKing()
                 && noOtherLegalCard(hand, card, trumpSuit, firstCard, leadContext);
 
@@ -258,12 +261,27 @@ public class GameService
 
             // Publish card played
             final var nextTurn = updatedRound.currentPlayer().orElse(null);
-            eventPublisher.publishToGame(gameId, new GameEvent.CardPlayed(playerId, card, nextTurn));
+            eventPublisher.publishToGame(gameId, new GameEvent.CardPlayed(
+                playerId,
+                card,
+                nextTurn,
+                updatedBasa != null ? updatedBasa.basaNumber() : 0
+            ));
 
-            // A king decides the shape of the round - who goes with whom, or alone.
+            // A king decides the shape of the round - who goes with whom, or alone. The
+            // one exception is the going player's own king being forced out of them,
+            // which asks a question instead of answering one.
             if (card.isKing() && updatedRound.mode().isEmpty()) {
                 game = game.resolveKing(playerId, kingWasForced);
                 final var decided = game.currentRound().orElseThrow();
+
+                if (decided.isWaitingForKingChoice()) {
+                    eventPublisher.publishToGame(gameId, new GameEvent.KingFellPending(
+                        playerId, card
+                    ));
+                    gameRepository.save(game);
+                    return new PlayCardResult.Success();
+                }
 
                 eventPublisher.publishToGame(gameId, new GameEvent.SideDecided(
                     decided.mode().orElseThrow(),
@@ -275,7 +293,6 @@ public class GameService
                 ));
 
                 if (decided.isComplete()) {
-                    // "Si es qui és mà li cau el rei s'acaba sa mà."
                     finishRound(gameId, game, preRoundBalances);
                     return new PlayCardResult.Success();
                 }
@@ -359,6 +376,57 @@ public class GameService
             .filter(c -> !c.equals(card))
             .noneMatch(c -> moveValidator.validate(hand, c, trumpSuit, firstCardInBasa, leadContext)
                 instanceof MoveValidation.Valid);
+    }
+
+    @Override
+    public KingChoiceResult decideKingChoice(KingChoiceCommand command, boolean carryOn) {
+        final var gameId = command.gameId();
+        final var playerId = command.playerId();
+        final var lock = gameLocks.computeIfAbsent(gameId, k -> new Object());
+
+        synchronized (lock) {
+            final var gameOpt = gameRepository.findById(gameId);
+            if (gameOpt.isEmpty()) {
+                return new KingChoiceResult.GameNotFound();
+            }
+
+            final var game = gameOpt.get();
+            final var round = game.currentRound().orElse(null);
+            if (round == null || !round.isWaitingForKingChoice()) {
+                return new KingChoiceResult.InvalidGameState("No king to decide on");
+            }
+            if (!round.playerWhoGoes().equals(playerId)) {
+                return new KingChoiceResult.NotYourCall();
+            }
+
+            final var balancesBefore = game.coinBalances();
+            final var updatedGame = game.decideKingChoice(playerId, carryOn);
+            final var updatedRound = updatedGame.currentRound().orElseThrow();
+
+            eventPublisher.publishToGame(gameId, new GameEvent.KingChoiceMade(
+                playerId,
+                carryOn,
+                updatedRound.currentPlayer().orElse(null)
+            ));
+
+            if (carryOn) {
+                eventPublisher.publishToGame(gameId, new GameEvent.SideDecided(
+                    updatedRound.mode().orElseThrow(),
+                    updatedRound.goingSide(),
+                    updatedRound.opposingSide(),
+                    playerId,
+                    null,
+                    true
+                ));
+            }
+
+            if (updatedRound.isComplete()) {
+                finishRound(gameId, updatedGame, balancesBefore);
+            } else {
+                gameRepository.save(updatedGame);
+            }
+            return new KingChoiceResult.Success();
+        }
     }
 
     @Override

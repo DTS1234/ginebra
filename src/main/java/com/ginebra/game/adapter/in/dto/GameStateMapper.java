@@ -73,7 +73,20 @@ public class GameStateMapper {
             payload.put("playerId", cp.playerId().value().toString());
             payload.put("card", toCardDto(cp.card()));
             payload.put("nextTurn", cp.nextTurn() != null ? cp.nextTurn().value().toString() : null);
+            payload.put("basaNumber", cp.basaNumber());
             return new ServerMessage("CARD_PLAYED", payload);
+        } else if (event instanceof GameEvent.KingFellPending kfp) {
+            return new ServerMessage("KING_FELL_PENDING", Map.of(
+                "playerWhoGoes", kfp.playerWhoGoes().value().toString(),
+                "king", toCardDto(kfp.king())
+            ));
+        } else if (event instanceof GameEvent.KingChoiceMade kcm) {
+            final var payload = new HashMap<String, Object>();
+            payload.put("playerWhoGoes", kcm.playerWhoGoes().value().toString());
+            payload.put("carriedOn", kcm.carriedOn());
+            payload.put("currentTurn", kcm.currentTurn() != null
+                ? kcm.currentTurn().value().toString() : null);
+            return new ServerMessage("KING_CHOICE_MADE", payload);
         } else if (event instanceof GameEvent.BasaWon bw) {
             final var payload = new HashMap<String, Object>();
             payload.put("basaNumber", bw.basaNumber());
@@ -93,7 +106,7 @@ public class GameStateMapper {
             payload.put("goingSide", sd.goingSide().stream().map(p -> p.value().toString()).toList());
             payload.put("opposingSide", sd.opposingSide().stream().map(p -> p.value().toString()).toList());
             payload.put("byPlayer", sd.byPlayer().value().toString());
-            payload.put("king", toCardDto(sd.king()));
+            payload.put("king", sd.king() != null ? toCardDto(sd.king()) : null);
             payload.put("forced", sd.forced());
             return new ServerMessage("SIDE_DECIDED", payload);
         } else if (event instanceof GameEvent.TodoDecided td) {

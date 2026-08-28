@@ -40,6 +40,12 @@ public interface BotStrategy {
     /** Whether to play on for all eight basas rather than bank the five. */
     boolean callsTodo(BotView view);
 
+    /**
+     * Their own king having been forced out of them: whether to carry on alone for 4
+     * either way, or stop and pay 1.
+     */
+    boolean carriesOnAfterKingFell(BotView view);
+
     /** The round as it stands, and which seat is being asked. */
     record BotView(Round round, PlayerId self) {
 

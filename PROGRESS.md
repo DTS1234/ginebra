@@ -108,6 +108,50 @@ exposed (they go over `/user/**`), so this is unauthorised spectating, not cheat
 
 ---
 
+## The settlement, corrected (2026-08-27)
+
+**Status: EVERY PRINTED ROW NOW PRICES EXACTLY**
+
+The players sent a correction, unprompted: *"Lo de cobrar no está bien. Ahora te lo pongo
+como es."* It is recorded verbatim, translated, modelled and checked in
+**`payment-rules.md`**, which is now the authority on what a hand pays.
+
+Three things changed.
+
+**The estutxe is a stake, not a fee.** It was collected *for going* - by both of the going
+pair, win or lose. It is signed by the result: +1 each on a win, -1 each on a loss, exactly
+like primeres. It stays the side's rather than a player's. This is the one that matters:
+the book's *"Si perden i tenen l'estutxe, 3 cadegú"* used to come out at 1, and now comes
+out at 3. `SettlementCalculatorTest.TheBookTables` prices all sixteen reachable rows of
+both of the book's tables, and they all read as printed.
+
+**A hand runs until a side has five.** It used to end the moment the opposing side had
+four, on the reasoning that five was then out of reach. It is out of reach, and the hand is
+played on anyway - so eight basas can finish **4-4**, which is the going side falling short
+like any other failure. `Round.BASAS_TO_BLOCK` is gone.
+
+**Your own king falling is a question.** The engine used to decide between "you put your own
+king" (±4) and "the king fell, hand over" (-1) by asking whether the player had a legal
+alternative. They are two answers to the same question, and the player picks:
+`WAITING_FOR_KING_CHOICE`, `KingChoiceUseCase`, a pair of buttons, and a bot that always
+takes the certain 1. Only a *forced* king asks - putting your own king down when you had
+another card commits you. And a king forced out of anyone else now costs them nothing:
+they are the helper, willing or not.
+
+| Piece | Where |
+|-------|-------|
+| The correction, and what it is checked against | `payment-rules.md` |
+| The model | `SettlementCalculator` |
+| Every row of the book, priced | `SettlementCalculatorTest.TheBookTables` |
+| Five decides it, either way | `Round.checkForRoundEnd` |
+| The king question | `Round.withKingChoice`, `KingChoiceUseCase` |
+
+One thing is left open, and it is the only place the book and the players cannot both be
+right: the book's extra coin for holding the going side under four basas. Implemented as a
+flat 1, with the reasoning in `payment-rules.md` §6.
+
+---
+
 ## Bots (not a design phase)
 **Status: PLAYABLE, DELIBERATELY STUPID**
 
@@ -183,6 +227,22 @@ cards, basa resolution, and an out-of-turn rejection reaching only the offending
 
 `SecurityConfig` now permits `GET /`, `/index.html`, `/app.js`, `/style.css` and the
 favicons. Everything else is unchanged - every API call the page makes still carries a JWT.
+
+**A state snapshot can arrive after the events that overtook it.** `GAME_STATE` is built
+when the server handles the subscription and goes to the player's private queue, while
+play events go to the game topic; nothing orders those two against each other. Applying a
+snapshot that has been overtaken rewinds the table, puts a played card back in the hand,
+and hands the turn back to someone who has already had it - and because the first card on
+the table is what decides which cards the page offers, the page ends up offering a card
+the server refuses (`MUST_PLAY_TRUMP` on a table whose real lead was something else).
+
+Bots made it visible: before them a client only ever re-subscribed at a moment when the
+table was idle, and now there is always something in flight.
+
+The client keeps its own position - round, then basa, then cards on the table - and
+ignores any snapshot behind it. `CardPlayed` now carries its `basaNumber` too, so a table
+left over from an earlier basa is cleared rather than built on, which also covers a
+`BasaWon` that never arrives.
 
 Two things the client works around rather than fixes:
 

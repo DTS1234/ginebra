@@ -72,6 +72,7 @@ class BotTurnDriverTest {
             gameService,
             gameService,
             gameService,
+            gameService,
             Runnable::run,
             Duration.ZERO
         );

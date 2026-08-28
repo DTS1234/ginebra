@@ -185,9 +185,10 @@
 
 **Game Type**: Spanish card trick-taking game for exactly 5 players
 
-**Objective**: The side that "goes" must win **5 basas** (tricks) in the round. The
-opposing side wins by holding them to 4 or fewer, which it does the moment it has taken
-**4** basas of the 8. There is no draw.
+**Objective**: **5 basas** (tricks) of the 8 decides the hand, for whichever side gets
+there first. Four basas already put five beyond the going side, but the hand is played on
+all the same, so eight basas can finish **4-4** — which is the going side falling short of
+its five like any other failure, and it pays accordingly.
 
 **Deck**: Spanish deck (Baraja Española) - 40 cards
 - 4 suits: Copas (Cups), Oros (Coins), Espadas (Swords), Bastos (Clubs)
@@ -244,13 +245,16 @@ things it decides depends on who played it and whether they had a choice.
 |---|---|---|
 | Another player — *posar el rei* | either way | **HELPED**: they aid the one who goes. Two against three |
 | The one who goes — *posar-se el rei* | by choice | **SELF_KING**: they play alone. One against four |
-| The one who goes — *caure el rei* | forced | **KING_FELL**: the hand ends there, no side ever formed |
+| The one who goes — *caure el rei* | forced | **their choice**: carry on alone (SELF_KING), or stop (KING_FELL) |
 
 - A player holding no King cannot form the partnership
 - **Caure el rei**: a King you are forced to play still forms the partnership — *"moltes
-  voltes poses el rei sense voler perquè et cau"* — and **costs its owner 1 coin**
-- When it is the **mà's own** King that is forced out the hand ends there: the mà pays 1,
-  **nobody else pays or collects**, and the cards are dealt again
+  voltes poses el rei sense voler perquè et cau"* — and **costs a helper nothing**
+- When it is the **mà's own** King that is forced out, play pauses and **they choose**:
+  *"puedes elegir si quieres seguir o parar"*. Carrying on is one against four at ±4;
+  stopping costs them 1, **nobody else pays or collects**, and the cards are dealt again.
+  Putting your own King down when you had another legal card is not a choice — you carry
+  on at ±4
 - **Es primer rei aida**: the one who goes, holding a bare King (*rei pelat*) that may be
   forced out, may call for a King to be put on them as early as possible
 
@@ -481,45 +485,50 @@ set of **+1 increments**, and the same figure is collected on a win and paid on 
 | You put your own King (*posar-se el rei*) | 4 |
 | You went alone (*anar a soles*) | 5 |
 
-| Added to the stake | |
+| Added to the stake, for each player of the going side | |
 |---|---|
-| *Primeres* — the first four basas in a row, by the going side | +1 |
+| *Primeres* — the first four basas in a row | +1 |
+| *Estutxe* — Espadilla, Manilla and Basto, **held between the side** | +1 |
 
-Four items sit **outside** the stake — they are collected or charged as they stand, and are
-never negated by the outcome:
+Both increments cut both ways: *"cobran 1 más si hacen 5 o pagan 1 más si no llegan a hacer
+5"*. The estutxe is **held by the side, not by a player** — one partner's Espadilla and
+Basto together with the other's Manilla is an estutxe just the same — and cannot be made up
+across opposing sides. The opponents' own primeres are worth nothing to them.
 
-- **Estutxe — `+1` to every player on the going side.** *"Si tens l'estutxe i vas"* — it pays
-  because you **went**, not because you won, and it pays the **whole side**. It is also
-  **held by the side, not by a player**: one partner's Espadilla and Basto together with the
-  other's Manilla is an estutxe just the same. It cannot be made up across opposing sides.
-- **Dengue — `+1` to whoever was dealt it**, win or lose and on either side: *"El dengue
-  sempre es cobra"*. **Personal to one hand** — never made up between partners.
+Three items sit **outside** the stake and are never negated by the outcome:
+
+- **Dengue — `+1` to whoever was dealt it**, win or lose and on either side: *"siempre cobra
+  una"*. **Personal to one hand** — never made up between partners.
 - **Todo — `+1` to every player on the going side if made, `-1` if called and missed.**
-- **Four kings — `+4`** to whoever was dealt them, whatever they then decide; and a **forced
-  King costs its owner 1** (*caure el rei*).
+- **Four kings — `+4`** to whoever was dealt them, whatever they then decide.
 
-**The opposing side** collects a flat **1** when the going side fails, or **2** if the going
-side was held under four basas. It pays nothing when the going side wins — the source lists
-no charge for losing defenders, and the pot covers the difference.
+Plus, when the one who goes has their own King forced out and **stops**: they pay **1**, and
+that is the whole settlement for the hand.
+
+**The opposing side** collects a flat **1** whenever the going side fails to make five, and
+pays nothing when it succeeds — the source lists no charge for losing defenders, and the pot
+covers the difference. The source's extra coin for holding the going side under four basas
+is **not** applied; see `payment-rules.md` §6.
 
 Sanity check against the source's own maximum: `5 (alone) + 4 (four kings) + 1 (primeres) +
 1 (estutxe) + 1 (dengue) + 1 (todo) = 13`.
 
-These two shapes together explain the source's parenthetical. A side can hold the estutxe
-between them with **nobody** holding the dengue — one partner takes the Espadilla and
-Manilla, the other the Basto — so *"Per guanyar i tindre l'estutxe, 3 cadegú **(si n té el
-dengue, 4)**"* reads exactly as written: the dengue is a separate condition, not something
-the estutxe implies.
+That the estutxe is a stake is what explains the source's parenthetical. A side can hold
+the estutxe between them with **nobody** holding the dengue — one partner takes the
+Espadilla and Manilla, the other the Basto — so *"Per guanyar i tindre l'estutxe, 3 cadegú
+**(si n té el dengue, 4)**"* reads exactly as written: the dengue is a separate condition,
+not something the estutxe implies.
 
 **Worked example.** A goes, B put the king. A holds Espadilla + Basto; B holds the Manilla.
-They win. A collects `2 + 1 (estutxe) + 1 (dengue) = 4`; B collects `2 + 1 (estutxe) = 3`.
+They win: A collects `2 + 1 (estutxe) + 1 (dengue) = 4`, B collects `2 + 1 (estutxe) = 3`.
+Had they lost, A would pay `2 + 1 = 3` less the dengue they still collect, netting `-2`, and
+B would pay `3`.
 
-> **One open discrepancy.** The source's *pay* table has *"Si perden i tenen l'estutxe, 3
-> cadegú"* and *"Si perden primeres i estutxe, 4 cadegú"* — as though the estutxe also
-> raised what a losing side pays. The players say the estutxe is simply collected for going,
-> win or lose, which is what is implemented (a losing pair with the estutxe nets `-2 + 1`).
-> Recorded in `rules-questions.md`; the settlement is otherwise exact against every other
-> printed row.
+**Every printed row of both of the source's tables prices exactly under this model**,
+including the two — *"Si perden i tenen l'estutxe, 3 cadegú"* and *"Si perden primeres i
+estutxe, 4 cadegú"* — that did not before the players corrected the estutxe on 2026-08-27.
+`SettlementCalculatorTest.TheBookTables` asserts them one by one. The correction and its
+consequences are set out in `payment-rules.md`.
 
 ### 2.7 Complete Game Flow
 
@@ -593,8 +602,9 @@ They win. A collects `2 + 1 (estutxe) + 1 (dengue) = 4`; B collects `2 + 1 (estu
 - [ ] Maximum game duration or number of rounds?
 - [ ] Whether a four-king holder who plays on and **loses** still keeps the 4 (implemented
       as yes — it reads as a holding award like the dengue).
-- [ ] Why the source's pay table charges a losing side extra for the estutxe, when the
-      players say it is simply collected for going (`rules-questions.md`).
+- [ ] Whether the source's extra coin for holding the going side under four basas is still
+      played. The 2026-08-27 correction says a flat 1, which is what is implemented
+      (`payment-rules.md` §6).
 
 ---
 

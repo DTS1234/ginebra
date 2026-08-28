@@ -27,6 +27,12 @@ public enum RoundStatus {
     WAITING_FOR_TODO,
 
     /**
+     * The king of the one who goes was forced out of them. Play is paused while they
+     * decide whether to carry on alone or stop and pay 1.
+     */
+    WAITING_FOR_KING_CHOICE,
+
+    /**
      * Round is complete.
      */
     COMPLETE

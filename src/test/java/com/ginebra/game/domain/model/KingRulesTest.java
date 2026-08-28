@@ -60,19 +60,16 @@ class KingRulesTest {
 
         @Test
         void shouldFormThePartnershipEvenWhenTheKingWasForced() {
-            // "Moltes voltes poses el rei sense voler perquè et cau."
+            // "Moltes voltes poses el rei sense voler perquè et cau." The helper is a
+            // helper either way, and it costs them nothing to have been dragged in - the
+            // players, 2026-08-27.
             final var round = inProgress().withKingPlayed(aider(), true);
 
             assertThat(round.mode()).contains(RoundMode.HELPED);
             assertThat(round.goingSide()).containsExactlyInAnyOrder(ma(), aider());
-            assertThat(round.forcedKingPlayer()).contains(aider());
-        }
-
-        @Test
-        void shouldRecordNoPenaltyWhenTheKingWasPlayedByChoice() {
-            final var round = inProgress().withKingPlayed(aider(), false);
-
-            assertThat(round.forcedKingPlayer()).isEmpty();
+            assertThat(round.isInProgress())
+                .as("only the one who goes is ever asked about their own king")
+                .isTrue();
         }
 
         @Test
@@ -112,39 +109,115 @@ class KingRulesTest {
         }
 
         @Test
-        void shouldFailWhenTheOtherFourTakeFour() {
+        void shouldPlayOnWhenTheOtherFourTakeFour() {
+            // Four puts five beyond the one who goes, but the hand runs to five all the
+            // same - the players, 2026-08-27.
             var round = inProgress().withKingPlayed(ma(), false);
-            for (var i = 0; i < Round.BASAS_TO_BLOCK; i++) {
+            for (var i = 0; i < 4; i++) {
+                round = award(round, opponent());
+            }
+
+            assertThat(round.isComplete()).isFalse();
+        }
+
+        @Test
+        void shouldFailWhenTheOtherFourReachFive() {
+            var round = inProgress().withKingPlayed(ma(), false);
+            for (var i = 0; i < Round.BASAS_TO_WIN; i++) {
                 round = award(round, opponent());
             }
 
             assertThat(round.isComplete()).isTrue();
             assertThat(round.result().orElseThrow()).isInstanceOf(RoundResult.GoingSideFailed.class);
         }
+
+        @Test
+        void shouldFailOnAFourAllFinish() {
+            // Eight basas, nobody at five: the one who goes did not make theirs.
+            var round = inProgress().withKingPlayed(ma(), false);
+            for (var i = 0; i < 4; i++) {
+                round = award(round, ma());
+                round = award(round, opponent());
+            }
+
+            assertThat(round.isComplete()).isTrue();
+            final var result = round.result().orElseThrow();
+            assertThat(result).isInstanceOf(RoundResult.GoingSideFailed.class);
+            assertThat(((RoundResult.GoingSideFailed) result).goingSideBasas()).isEqualTo(4);
+        }
     }
 
     @Nested
-    @DisplayName("Caure el rei: the ma's king is forced out")
+    @DisplayName("Caure el rei: the ma's own king is forced out, and they choose")
     class KingFell {
 
         @Test
-        void shouldEndTheHandOnTheSpot() {
-            // "Si es qui és mà li cau el rei s'acaba sa mà."
+        void shouldPausePlayOnTheirDecision() {
+            // "Si te cae el rey cuando vas, puedes elegir si quieres seguir o parar."
             final var round = inProgress().withKingPlayed(ma(), true);
+
+            assertThat(round.isWaitingForKingChoice()).isTrue();
+            assertThat(round.isComplete()).isFalse();
+            assertThat(round.mode()).as("no side until they answer").isEmpty();
+        }
+
+        @Test
+        void shouldEndTheHandWhenTheyStop() {
+            final var round = inProgress()
+                .withKingPlayed(ma(), true)
+                .withKingChoice(ma(), false);
 
             assertThat(round.isComplete()).isTrue();
             assertThat(round.mode()).contains(RoundMode.KING_FELL);
             assertThat(round.result()).contains(new RoundResult.KingFell(ma()));
+            assertThat(round.result().orElseThrow().winners()).isEmpty();
+            assertThat(round.goingSide()).isEmpty();
             assertThat(round.currentBasa()).isEmpty();
         }
 
         @Test
-        void shouldLeaveNobodyWinningAndChargeTheMa() {
+        void shouldPlayOnAloneWhenTheyCarryOn() {
+            final var round = inProgress()
+                .withKingPlayed(ma(), true)
+                .withKingChoice(ma(), true);
+
+            assertThat(round.isInProgress()).isTrue();
+            assertThat(round.mode()).contains(RoundMode.SELF_KING);
+            assertThat(round.goingSide()).containsExactly(ma());
+            assertThat(round.opposingSide()).hasSize(4);
+        }
+
+        @Test
+        void shouldKeepTheBasaTheKingFellIn() {
+            // Cards are already committed to that basa; carrying on resumes it rather
+            // than throwing them away.
+            var before = inProgress();
+            before = before
+                .withCardPlayed(ma(), before.getHand(ma()).get(0), NOW)
+                .withKingPlayed(ma(), true);
+            assertThat(before.currentBasa().orElseThrow().cardCount()).isEqualTo(1);
+
+            final var after = before.withKingChoice(ma(), true);
+
+            assertThat(after.currentBasa().orElseThrow().cardCount()).isEqualTo(1);
+        }
+
+        @Test
+        void shouldOnlyLetTheOneWhoGoesAnswer() {
             final var round = inProgress().withKingPlayed(ma(), true);
 
-            assertThat(round.result().orElseThrow().winners()).isEmpty();
-            assertThat(round.forcedKingPlayer()).contains(ma());
-            assertThat(round.goingSide()).isEmpty();
+            assertThatThrownBy(() -> round.withKingChoice(opponent(), true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("who goes");
+        }
+
+        @Test
+        void shouldRefuseAChoiceWhenNoKingHasFallen() {
+            final var round = inProgress();
+
+            assertThatThrownBy(() -> round.withKingChoice(ma(), true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No king to decide on");
         }
     }
 

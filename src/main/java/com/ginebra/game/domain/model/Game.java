@@ -237,6 +237,19 @@ public final class Game {
      *
      * @param call true to play on for all eight basas, false to bank the win
      */
+    /**
+     * The one who goes answering for their own forced king: carry on alone, or stop.
+     */
+    public Game decideKingChoice(PlayerId playerId, boolean carryOn) {
+        requireInProgress();
+        requireCurrentRound();
+
+        final var updatedRound = currentRound.withKingChoice(playerId, carryOn);
+        final var updated = withCurrentRound(updatedRound);
+
+        return updatedRound.isComplete() ? updated.settleCurrentRound() : updated;
+    }
+
     public Game decideTodo(PlayerId playerId, boolean call) {
         requireInProgress();
         requireCurrentRound();

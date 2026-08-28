@@ -205,10 +205,10 @@ function isSpecial(card) {
 /** How the going side came about, for the sides panel. */
 const MODE_LABEL = {
     HELPED: 'a king was put — two against three',
-    SELF_KING: 'put their own king — one against four',
+    SELF_KING: 'their own king — one against four',
     SOLEDAD: 'went alone — one against four',
     FOUR_KINGS: 'four kings dealt — hand over',
-    KING_FELL: 'the king fell — hand over'
+    KING_FELL: 'their king fell and they stopped — hand over'
 };
 
 // === Application state ===
@@ -223,6 +223,9 @@ const state = {
     currentTurn: null,
     trump: null,
     basa: [],           // { playerId, card } played so far in the current basa
+    basaNumber: 0,      // which basa that table belongs to, so a stray card is spotted
+    position: [0, 0, 0],// how far this client has seen the game get: round, basa, cards
+    staleDrops: 0,      // snapshots ignored in a row, so a persistent one cannot wedge us
     seats: new Map(),   // playerId -> seat label
     coins: {},
     posso: null         // what is in the middle of the table
@@ -524,11 +527,67 @@ function refreshState() {
     setTimeout(() => state.stomp.unsubscribe(id), 500);
 }
 
+/*
+ * How far the game has got, as this client has seen it: round, then basa, then cards on
+ * the table. It only ever moves forward, and comparing it is how a snapshot that has been
+ * overtaken is recognised.
+ *
+ * It is tracked rather than derived, because "the round that just ended" has no basa to
+ * point at and still has to count as further on than anything in that round.
+ */
+function position(round, basaNumber, cardsOnTable) {
+    return [round || 0, basaNumber || 0, cardsOnTable || 0];
+}
+
+function isBehind(incoming, current) {
+    for (let i = 0; i < incoming.length; i++) {
+        if (incoming[i] !== current[i]) {
+            return incoming[i] < current[i];
+        }
+    }
+    return false;
+}
+
+function reachedPosition(round, basaNumber, cardsOnTable) {
+    state.position = position(round, basaNumber, cardsOnTable);
+}
+
+/*
+ * GAME_STATE is a snapshot of the moment the server handled the subscription, and it
+ * arrives on the player's private queue while the play events arrive on the game topic.
+ * Nothing orders those two against each other, so a snapshot can land after the events
+ * that overtook it - and applying it then would rewind the table, put a played card back
+ * in the hand, and hand the turn back to someone who has already had it.
+ *
+ * A rewound table is not a cosmetic problem: the first card on it is what the client uses
+ * to decide which cards it may offer, so the page ends up offering a card the server will
+ * refuse.
+ */
 function onGameState(message) {
     if (message.type !== 'GAME_STATE') {
         return;
     }
     const payload = message.payload;
+
+    const round = payload.currentRound;
+    if (round && state.round) {
+        const snapshot = position(
+            round.roundNumber,
+            round.currentBasa && round.currentBasa.basaNumber,
+            round.currentBasa ? (round.currentBasa.cardsPlayed || []).length : 0
+        );
+        if (isBehind(snapshot, state.position)) {
+            log('Ignored a state snapshot that arrived out of order', 'muted');
+            // If they keep coming, something is wrong with the tracking rather than the
+            // ordering, and being stuck on a stale hand is worse than a rewound one.
+            state.staleDrops += 1;
+            if (state.staleDrops < 3) {
+                setTimeout(refreshState, 400);
+            }
+            return;
+        }
+        state.staleDrops = 0;
+    }
     state.coins = payload.coinBalances || {};
     state.posso = payload.posso ?? null;
     payload.players.forEach((player) => {
@@ -537,7 +596,6 @@ function onGameState(message) {
         }
     });
 
-    const round = payload.currentRound;
     if (!round) {
         return;
     }
@@ -545,10 +603,12 @@ function onGameState(message) {
     state.hand = round.yourHand || [];
     state.trump = round.trumpSuit;
     state.currentTurn = round.currentTurn;
+    state.basaNumber = (round.currentBasa && round.currentBasa.basaNumber) || 0;
     state.basa = (round.currentBasa?.cardsPlayed || []).map((played) => ({
         playerId: played.playerId,
         card: played.card
     }));
+    reachedPosition(round.roundNumber, state.basaNumber, state.basa.length);
     render();
 }
 
@@ -600,7 +660,17 @@ function onServerMessage(message) {
             break;
 
         case 'CARD_PLAYED':
+            // The card names its own basa, so a table left over from an earlier one -
+            // a BasaWon that never arrived, or arrived out of order - is cleared rather
+            // than built on.
+            if (payload.basaNumber && payload.basaNumber !== state.basaNumber) {
+                state.basa = [];
+                state.basaNumber = payload.basaNumber;
+            }
             state.basa.push({ playerId: payload.playerId, card: payload.card });
+            reachedPosition(
+                state.round && state.round.roundNumber, state.basaNumber, state.basa.length
+            );
             state.currentTurn = payload.nextTurn;
             if (payload.playerId === state.me.playerId) {
                 state.hand = state.hand.filter((card) => cardKey(card) !== cardKey(payload.card));
@@ -611,13 +681,33 @@ function onServerMessage(message) {
         case 'BASA_WON':
             log('Basa ' + payload.basaNumber + ' won by ' + seatOf(payload.winner), 'good');
             state.basa = [];
+            state.basaNumber = payload.nextBasaNumber || 0;
+            reachedPosition(state.round && state.round.roundNumber, state.basaNumber, 0);
             state.currentTurn = payload.nextStarter;
             state.round = Object.assign({}, state.round, { basasWon: payload.basasWon });
             break;
 
+        case 'KING_FELL_PENDING':
+            log(seatOf(payload.playerWhoGoes) + ' had ' + cardName(payload.king)
+                + ' dragged out of them \u2014 carry on alone, or stop?', 'good');
+            state.round = Object.assign({}, state.round, {
+                status: 'WAITING_FOR_KING_CHOICE'
+            });
+            break;
+
+        case 'KING_CHOICE_MADE':
+            log(seatOf(payload.playerWhoGoes) + (payload.carriedOn
+                ? ' carries on alone'
+                : ' stops \u2014 pays 1, and the hand is over'), 'good');
+            state.currentTurn = payload.currentTurn;
+            state.round = Object.assign({}, state.round, {
+                status: payload.carriedOn ? 'IN_PROGRESS' : 'COMPLETE'
+            });
+            break;
+
         case 'SIDE_DECIDED':
-            log(seatOf(payload.byPlayer) + ' played ' + cardName(payload.king)
-                + (payload.forced ? ' (forced — pays 1)' : '')
+            log(seatOf(payload.byPlayer)
+                + (payload.king ? ' played ' + cardName(payload.king) : ' goes on')
                 + ': ' + (MODE_LABEL[payload.mode] || payload.mode)
                 + ' — [' + payload.goingSide.map(seatOf).join(', ') + '] vs ['
                 + payload.opposingSide.map(seatOf).join(', ') + ']', 'good');
@@ -634,6 +724,8 @@ function onServerMessage(message) {
                 : ' banks the win'), 'good');
             state.currentTurn = payload.currentTurn;
             state.basa = [];
+            state.basaNumber = 0;
+            reachedPosition(state.round && state.round.roundNumber, 0, 0);
             setTimeout(refreshState, 250);
             break;
 
@@ -645,6 +737,11 @@ function onServerMessage(message) {
             state.coins = payload.coinBalances;
             state.posso = payload.posso;
             state.basa = [];
+            state.basaNumber = 0;
+            // Past the end of the round that just ended, without guessing anything about
+            // the next one - a fresh deal has no basa to point at yet, and a snapshot of
+            // it must still count as newer than anything from the round that finished.
+            reachedPosition(payload.roundNumber, Infinity, Infinity);
             // The next round is dealt server-side; ask for the new hand.
             setTimeout(refreshState, 250);
             break;
@@ -668,6 +765,10 @@ function onServerMessage(message) {
 
 function passSoledad() {
     state.stomp.send('/app/game/' + state.gameId + '/soledad-pass', {});
+}
+
+function decideKingChoice(carryOn) {
+    state.stomp.send('/app/game/' + state.gameId + '/king-choice', { carryOn: carryOn });
 }
 
 function decideTodo(call) {
@@ -715,6 +816,18 @@ function render() {
             : 'Waiting for ' + seatOf(round.todoCaller) + ' to decide on todo';
         el('call-todo').disabled = !myTodoCall;
         el('decline-todo').disabled = !myTodoCall;
+    }
+
+    const kingChoiceOpen = round.status === 'WAITING_FOR_KING_CHOICE';
+    const myKingChoice = kingChoiceOpen && round.playerWhoGoes === state.me.playerId;
+    el('king-actions').classList.toggle('hidden', !kingChoiceOpen);
+    if (kingChoiceOpen) {
+        el('king-label').innerHTML = myKingChoice
+            ? 'Your own king was dragged out of you \u2014 carry on alone for 4 either way, '
+                + 'or stop and pay 1:'
+            : 'Waiting for ' + seatOf(round.playerWhoGoes) + ' to decide on their king';
+        el('carry-on').disabled = !myKingChoice;
+        el('stop-hand').disabled = !myKingChoice;
     }
 
     const soledadOpen = round.status === 'WAITING_FOR_SOLEDAD';
@@ -975,7 +1088,7 @@ function renderTeams(round) {
     el('teams-score').textContent =
         'Basas: goes ' + total(going) + ' - ' + total(opposing) + ' against'
         + ' · you are on ' + mine
-        + ' · the side that goes needs 5, the other side blocks with 4';
+        + ' · five basas decides it, either way — 4-4 and the side that goes falls short';
 }
 
 function fillTeam(list, memberIds, round) {
@@ -1040,6 +1153,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     el('help-toggle').onclick = toggleHelp;
     el('pass-soledad').onclick = passSoledad;
     el('declare-soledad').onclick = declareSoledad;
+    el('carry-on').onclick = () => decideKingChoice(true);
+    el('stop-hand').onclick = () => decideKingChoice(false);
     el('call-todo').onclick = () => decideTodo(true);
     el('decline-todo').onclick = () => decideTodo(false);
     for (const suit of Object.keys(SUIT_LABEL)) {

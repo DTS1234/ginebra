@@ -130,7 +130,7 @@ class GameTest {
         game = game.setTeams(Teams.of(playerWhoGoes, teammate, new HashSet<>(players)));
 
         final var opponent = opponentOf(game, players);
-        for (var i = 0; i < 4; i++) {
+        for (var i = 0; i < Round.BASAS_TO_WIN; i++) {
             game = playAndCompleteBasa(game, opponent);
         }
         return game;
@@ -514,14 +514,16 @@ class GameTest {
         }
 
         @Test
-        void shouldEndRoundWhenTheOpposingSideBlocksWithFourBasas() {
+        void shouldEndRoundWhenTheOpposingSideReachesFiveBasas() {
             final var players = createPlayers();
             var game = playGoingSideFailure(createGameWithTrump(players, Suit.COPAS), players);
 
             assertThat(game.isRoundComplete()).isTrue();
             assertThat(game.currentRound().get().result().get())
                 .isInstanceOf(RoundResult.GoingSideFailed.class);
-            assertThat(game.currentRound().get().completedBasas()).hasSize(4);
+            assertThat(game.currentRound().get().completedBasas())
+                .as("the hand runs until a side has five")
+                .hasSize(Round.BASAS_TO_WIN);
         }
 
         @Test
@@ -1053,8 +1055,8 @@ class GameTest {
             final var teams = Teams.of(playerWhoGoes, teammate, new HashSet<>(players));
             game = game.setTeams(teams);
 
-            // The opposing side blocks with four basas; the going pair pays.
-            for (var i = 0; i < 4; i++) {
+            // The opposing side takes five; the going pair pays.
+            for (var i = 0; i < Round.BASAS_TO_WIN; i++) {
                 game = playAndCompleteBasa(game, loser);
             }
         }

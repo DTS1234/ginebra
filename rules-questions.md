@@ -141,7 +141,15 @@ motor, así que no hubo que tocar código — solo fijarlo con un test.
 
 ---
 
-## Q3 — Primeras y estuche al perder · ✅ RESPONDIDA (2026-08-26)
+## Q3 — Primeras y estuche al perder · ✅ RESPONDIDA (2026-08-26), ⚠️ CORREGIDA (2026-08-27)
+
+> **Corrección del día siguiente.** *"Lo de cobrar no está bien. Ahora te lo pongo como
+> es."* El estuche **no** se cobra por ir: **sube la apuesta en los dos sentidos** — se
+> cobra 1 más al hacer 5, y se paga 1 más al no llegar. Lo demás de esta respuesta sigue
+> en pie: es del bando y puede formarse entre los dos.
+>
+> Con eso salen exactas las dos líneas del libro que no cuadraban, así que **la duda que
+> quedaba abierta más abajo queda resuelta**. Todo está en `payment-rules.md`.
 
 > **Las primeras: las del que va.** Si el bando que va hace primeras y gana, cobra 1 más;
 > si hace primeras y aun así pierde, paga 1 más. **Las primeras de los contrarios no les dan
@@ -164,50 +172,21 @@ motor, así que no hubo que tocar código — solo fijarlo con un test.
 
 ---
 
-## La única duda que queda
+## La duda que quedaba · ✅ RESUELTA (2026-08-27)
 
-### El estuche en la tabla de lo que **se paga**
+Era ésta: el libro cobra 3 al bando que pierde llevando el estuche, cuando lo normal por
+perder son 2 — y con el estuche cobrado *por ir* salía −1, no −3.
 
-**Lo que no cuadra.** En la tabla de pagos del libro hay dos líneas que parecen decir que el
-estuche también sube lo que paga el que pierde:
+La respuesta llegó sin preguntarla. El estuche **sube la apuesta**, no se cobra aparte: se
+paga 1 más al perder, así que salen los 3 exactos. Con eso **todas** las líneas de las dos
+tablas del libro salen sin forzar nada. Ver `payment-rules.md`.
 
-- *«Si perden i tenen l'estutxe, 3 cadegú»* — cuando lo normal por perder son 2.
-- *«Si perden primeres i estutxe, 4 cadegú»*
+---
 
-Pero si el estuche **se cobra por ir**, gane o pierda, entonces al que pierde llevándolo le
-saldría **−2 de la mano +1 del estuche = −1**, no −3.
+## Lo que queda por preguntar
 
-#### Versión corta
-
-> Una última duda de la ginebra.
->
-> Ya nos habéis dicho que **el estuche se cobra por ir**, se gane o se pierda, y que lo
-> cobran los dos del bando que va.
->
-> Pero en el libro, en la lista de lo que **se paga**, pone *«si pierden y tienen el
-> estuche, 3 cada uno»*, cuando lo normal por perder son 2.
->
-> **¿Es que el estuche sube también lo que se paga al perder — o esa línea del libro está
-> mal / se entiende de otra manera?**
-
-#### Versión larga, con ejemplo
-
-> **A** va y **B** le ha puesto el rey. **C, D y E** son los contrarios. **A** lleva
-> espadilla, manilla y basto — el estuche. La mano acaba con A y B perdiendo.
->
-> Por perder les tocaría pagar **2 cada uno**. Y por el estuche cobran **1 cada uno**, según
-> nos habéis dicho, porque se cobra por ir.
->
-> **¿Cuánto acaban pagando A y B?**
->
-> 1. **1 cada uno** (los 2 de perder menos el 1 del estuche).
-> 2. **2 cada uno** (el estuche se cobra aparte y no se descuenta de lo que se paga).
-> 3. **3 cada uno**, como pone el libro — es decir, el estuche sube el pago *y además* se
->    cobra, o directamente no se cobra cuando se pierde.
->
-> Y lo mismo con la línea *«si pierden primeras y estuche, 4 cada uno»*.
-
-*Lo que hace el programa ahora:* la **opción 1** — pagan 2 de la mano y cobran 1 del
-estuche, así que les queda −1 a cada uno. Es lo que se sigue de lo que nos dijisteis. Lo
-preguntamos porque **todas las demás líneas del libro salen exactas** con las reglas que nos
-habéis dado, y esta es la única que no cuadra.
+- **El cobro de más del libro por dejarles en menos de 4 basas.** El libro dice que los contrarios
+  cobran 2 en vez de 1 si el bando que va se queda por debajo de cuatro basas. La
+  corrección del 27 dice 1 a secas para el caso en que los contrarios hacen 5 — que es
+  justamente cuando el que va se ha quedado en tres o menos. Está implementado como **1
+  fijo**. ¿Se juega todavía lo de los 2?

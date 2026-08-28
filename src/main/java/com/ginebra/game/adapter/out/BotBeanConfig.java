@@ -5,6 +5,7 @@ import com.ginebra.game.application.BotTurnDriver;
 import com.ginebra.game.domain.service.BotStrategy;
 import com.ginebra.game.domain.service.MoveValidator;
 import com.ginebra.game.domain.service.RandomBotStrategy;
+import com.ginebra.game.port.in.KingChoiceUseCase;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
@@ -63,6 +64,7 @@ public class BotBeanConfig {
         SelectTrumpUseCase selectTrumpUseCase,
         PlayCardUseCase playCardUseCase,
         TodoUseCase todoUseCase,
+        KingChoiceUseCase kingChoiceUseCase,
         ExecutorService botExecutor,
         @Value("${ginebra.bots.move-delay:800ms}") Duration moveDelay
     ) {
@@ -75,6 +77,7 @@ public class BotBeanConfig {
             selectTrumpUseCase,
             playCardUseCase,
             todoUseCase,
+            kingChoiceUseCase,
             botExecutor,
             moveDelay
         );

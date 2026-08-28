@@ -437,6 +437,7 @@ button.primary {
 
 .log-good { color: var(--good); }
 .log-bad { color: var(--bad); }
+.log-muted { color: var(--muted); opacity: 0.6; font-style: italic; }
 
 /* === Help panel === */
 

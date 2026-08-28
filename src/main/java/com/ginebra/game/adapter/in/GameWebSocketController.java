@@ -1,6 +1,7 @@
 package com.ginebra.game.adapter.in;
 
 import com.ginebra.game.adapter.in.dto.GameStateMapper;
+import com.ginebra.game.adapter.in.dto.KingChoiceRequest;
 import com.ginebra.game.adapter.in.dto.PlayCardRequest;
 import com.ginebra.game.adapter.in.dto.SelectTrumpRequest;
 import com.ginebra.game.adapter.in.dto.ServerMessage;
@@ -9,6 +10,7 @@ import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Rank;
 import com.ginebra.game.domain.model.Suit;
 import com.ginebra.game.application.BotTurnDriver;
+import com.ginebra.game.port.in.KingChoiceUseCase;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
@@ -33,6 +35,7 @@ public class GameWebSocketController {
     private final SelectTrumpUseCase selectTrumpUseCase;
     private final SoledadUseCase soledadUseCase;
     private final TodoUseCase todoUseCase;
+    private final KingChoiceUseCase kingChoiceUseCase;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameStateMapper gameStateMapper;
     private final BotTurnDriver botTurnDriver;
@@ -42,6 +45,7 @@ public class GameWebSocketController {
         SelectTrumpUseCase selectTrumpUseCase,
         SoledadUseCase soledadUseCase,
         TodoUseCase todoUseCase,
+        KingChoiceUseCase kingChoiceUseCase,
         SimpMessagingTemplate messagingTemplate,
         GameStateMapper gameStateMapper,
         BotTurnDriver botTurnDriver
@@ -50,6 +54,7 @@ public class GameWebSocketController {
         this.selectTrumpUseCase = Objects.requireNonNull(selectTrumpUseCase);
         this.soledadUseCase = Objects.requireNonNull(soledadUseCase);
         this.todoUseCase = Objects.requireNonNull(todoUseCase);
+        this.kingChoiceUseCase = Objects.requireNonNull(kingChoiceUseCase);
         this.messagingTemplate = Objects.requireNonNull(messagingTemplate);
         this.gameStateMapper = Objects.requireNonNull(gameStateMapper);
         this.botTurnDriver = Objects.requireNonNull(botTurnDriver);
@@ -111,6 +116,31 @@ public class GameWebSocketController {
         } else if (result instanceof SelectTrumpUseCase.SelectTrumpResult.InvalidGameState invalid) {
             sendError(playerId, "INVALID_GAME_STATE", invalid.message());
         } else if (result instanceof SelectTrumpUseCase.SelectTrumpResult.GameNotFound) {
+            sendError(playerId, "GAME_NOT_FOUND", "Game not found");
+        }
+
+        handOverToBots(parsedGameId);
+    }
+
+    @MessageMapping("/game/{gameId}/king-choice")
+    public void kingChoice(
+        @DestinationVariable String gameId,
+        @Payload KingChoiceRequest request,
+        Principal principal
+    ) {
+        final var playerId = extractPlayerId(principal);
+        final var parsedGameId = new GameId(UUID.fromString(gameId));
+
+        final var result = kingChoiceUseCase.decideKingChoice(
+            new KingChoiceUseCase.KingChoiceCommand(parsedGameId, playerId),
+            request != null && request.carryOn()
+        );
+
+        if (result instanceof KingChoiceUseCase.KingChoiceResult.NotYourCall) {
+            sendError(playerId, "NOT_YOUR_CALL", "Only the one who goes decides on their own king");
+        } else if (result instanceof KingChoiceUseCase.KingChoiceResult.InvalidGameState invalid) {
+            sendError(playerId, "INVALID_GAME_STATE", invalid.message());
+        } else if (result instanceof KingChoiceUseCase.KingChoiceResult.GameNotFound) {
             sendError(playerId, "GAME_NOT_FOUND", "Game not found");
         }
 

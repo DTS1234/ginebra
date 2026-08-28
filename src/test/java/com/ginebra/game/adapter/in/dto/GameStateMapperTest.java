@@ -107,13 +107,26 @@ class GameStateMapperTest {
         // Arrange
         final var playerId = PlayerId.generate();
         final var card = Card.espadilla();
-        final var event = new GameEvent.CardPlayed(playerId, card, PlayerId.generate());
+        final var event = new GameEvent.CardPlayed(playerId, card, PlayerId.generate(), 3);
 
         // Act
         final var message = mapper.toServerMessage(event);
 
         // Assert
         assertThat(message.type()).isEqualTo("CARD_PLAYED");
+    }
+
+    @Test
+    void shouldTellTheClientWhichBasaTheCardWentInto() {
+        // Without it a client cannot tell a card that belongs on the table it is showing
+        // from one that belongs to the next basa.
+        final var event = new GameEvent.CardPlayed(
+            PlayerId.generate(), Card.espadilla(), PlayerId.generate(), 4
+        );
+
+        final var message = mapper.toServerMessage(event);
+
+        assertThat(message.payload()).extracting("basaNumber").isEqualTo(4);
     }
 
     @Test
