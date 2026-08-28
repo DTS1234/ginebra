@@ -805,9 +805,9 @@ class RoundTest {
                 .hasSize(6);
         }
 
-        @ParameterizedTest(name = "opposing side blocks with 4 basas split {0}-{1}-{2}")
-        @CsvSource({"4,0,0", "2,1,1", "1,2,1", "1,1,2", "0,0,4"})
-        void shouldEndWhenTheOpposingSidesBasasAddUpToFour(int first, int second, int third) {
+        @ParameterizedTest(name = "opposing side wins with 5 basas split {0}-{1}-{2}")
+        @CsvSource({"5,0,0", "2,2,1", "1,3,1", "1,1,3", "0,0,5"})
+        void shouldEndWhenTheOpposingSidesBasasAddUpToFive(int first, int second, int third) {
             // Arrange
             final var players = createPlayers();
             var round = createRoundInProgress(players);
@@ -823,7 +823,7 @@ class RoundTest {
 
             // Assert
             assertThat(round.isComplete())
-                .as("four basas already put five out of the going side's reach")
+                .as("five basas decides it, whichever side gets there")
                 .isTrue();
             assertThat(round.result()).contains(new RoundResult.GoingSideFailed(
                 Set.of(players.get(0), players.get(1)),
@@ -833,7 +833,7 @@ class RoundTest {
         }
 
         @Test
-        void shouldEndWhenTheOpposingSideReachesFourBasas() {
+        void shouldPlayOnWhenTheOpposingSideReachesFourBasas() {
             final var players = createPlayers();
             var round = createRoundInProgress(players);
             final var teams = Teams.of(
@@ -850,12 +850,18 @@ class RoundTest {
                 round = round.completeBasa(winner);
             }
 
-            assertThat(round.isComplete()).isTrue();
-            assertThat(round.result()).isPresent();
-            assertThat(round.result().get()).isInstanceOf(RoundResult.GoingSideFailed.class);
-            final var failed = (RoundResult.GoingSideFailed) round.result().get();
-            assertThat(failed.winners()).containsExactlyInAnyOrder(players.get(2), players.get(3), players.get(4));
+            assertThat(round.isComplete())
+                .as("four puts five beyond the going side, but the hand runs to five")
+                .isFalse();
             assertThat(round.completedBasas()).hasSize(4);
+
+            // The fifth settles it.
+            round = playFullBasa(round, players);
+            round = round.completeBasa(players.get(2));
+            assertThat(round.isComplete()).isTrue();
+            final var failed = (RoundResult.GoingSideFailed) round.result().orElseThrow();
+            assertThat(failed.winners())
+                .containsExactlyInAnyOrder(players.get(2), players.get(3), players.get(4));
         }
 
         @Test

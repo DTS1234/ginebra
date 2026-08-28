@@ -4,6 +4,7 @@ import com.ginebra.game.domain.model.Card;
 import com.ginebra.game.domain.model.Round;
 import com.ginebra.game.domain.service.BotStrategy;
 import com.ginebra.game.domain.service.MoveValidator;
+import com.ginebra.game.port.in.KingChoiceUseCase;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
 import com.ginebra.game.port.in.SoledadUseCase;
@@ -54,6 +55,7 @@ public class BotTurnDriver {
     private final SelectTrumpUseCase selectTrumpUseCase;
     private final PlayCardUseCase playCardUseCase;
     private final TodoUseCase todoUseCase;
+    private final KingChoiceUseCase kingChoiceUseCase;
     private final Executor executor;
     private final Duration moveDelay;
 
@@ -69,6 +71,7 @@ public class BotTurnDriver {
         SelectTrumpUseCase selectTrumpUseCase,
         PlayCardUseCase playCardUseCase,
         TodoUseCase todoUseCase,
+        KingChoiceUseCase kingChoiceUseCase,
         Executor botExecutor,
         Duration botMoveDelay
     ) {
@@ -80,6 +83,7 @@ public class BotTurnDriver {
         this.selectTrumpUseCase = Objects.requireNonNull(selectTrumpUseCase, "selectTrumpUseCase must not be null");
         this.playCardUseCase = Objects.requireNonNull(playCardUseCase, "playCardUseCase must not be null");
         this.todoUseCase = Objects.requireNonNull(todoUseCase, "todoUseCase must not be null");
+        this.kingChoiceUseCase = Objects.requireNonNull(kingChoiceUseCase, "kingChoiceUseCase must not be null");
         this.executor = Objects.requireNonNull(botExecutor, "botExecutor must not be null");
         this.moveDelay = Objects.requireNonNull(botMoveDelay, "botMoveDelay must not be null");
     }
@@ -147,6 +151,9 @@ public class BotTurnDriver {
         if (round.isWaitingForTodo()) {
             return answerTodo(gameId, round);
         }
+        if (round.isWaitingForKingChoice()) {
+            return answerKingChoice(gameId, round);
+        }
         if (round.isInProgress()) {
             return playCard(gameId, round);
         }
@@ -209,6 +216,20 @@ public class BotTurnDriver {
         return todoUseCase.decideTodo(
             new TodoUseCase.TodoCommand(gameId, caller), call
         ) instanceof TodoUseCase.TodoResult.Success;
+    }
+
+    private boolean answerKingChoice(GameId gameId, Round round) {
+        final var player = round.playerWhoGoes();
+        if (!roster.isBot(player)) {
+            return false;
+        }
+
+        pause();
+        final var carryOn = strategy.carriesOnAfterKingFell(view(round, player));
+
+        return kingChoiceUseCase.decideKingChoice(
+            new KingChoiceUseCase.KingChoiceCommand(gameId, player), carryOn
+        ) instanceof KingChoiceUseCase.KingChoiceResult.Success;
     }
 
     private boolean playCard(GameId gameId, Round round) {

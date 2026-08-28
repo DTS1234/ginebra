@@ -14,43 +14,45 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Prices a completed round against the posso (rules-source.md §5 and §6).
+ * Prices a completed round against the posso (`payment-rules.md`, the players 2026-08-27).
  *
- * The published tables are one <b>base</b> plus a set of <b>+1 increments</b>:
+ * A hand is a <b>stake</b> the going side wins or loses, plus a few things paid whatever
+ * happens. The stake is one <b>base</b> plus <b>+1 increments</b>:
  *
  * <pre>
- *   base       helped (a king was put on you)   2 each
- *              you put your own king            4
- *              you went alone                   5
- *              you were dealt the four kings    4
+ *   base       helped (a king was put on you)         2 each
+ *              carried on after your own king fell    4
+ *              you went alone                         5
  *
- *   +1         primeres   the first four basas in a row, by the going side
+ *   +1         primeres   the first four basas in a row
+ *   +1         estutxe    espadilla, manilla and basto, held between the side
  * </pre>
  *
- * That figure is collected on a win and paid on a loss, so making primeres raises the
- * going side's stake in both directions - and the opponents' own primeres are worth
- * nothing to them (confirmed by the players 2026-08-26).
+ * Both increments cut both ways - <i>"cobran 1 más si hacen 5 o pagan 1 más si no llegan a
+ * hacer 5"</i>. Treating the estutxe as a fee collected for going, which is what this did
+ * before, left the book's <i>"Si perden i tenen l'estutxe, 3 cadegú"</i> paying 1; as a
+ * stake it comes out at exactly 3.
  *
- * Four items sit outside the stake and are only ever collected or charged, never negated
- * by the outcome:
+ * <p>The estutxe belongs to the <b>side, not a player</b>: one partner's espadilla and
+ * basto with the other's manilla is an estutxe just the same. The opponents' own primeres
+ * are worth nothing to them.
+ *
+ * <p>Outside the stake, never negated by the outcome:
  *
  * <ul>
- *   <li><b>Estutxe, +1 to every player on the going side.</b> <i>"Si tens l'estutxe i
- *       vas"</i> - it pays because you went, not because you won, and it pays the whole
- *       side. It is also <b>held by the side, not by a player</b>: one partner's espadilla
- *       and basto with the other's manilla is an estutxe just the same.</li>
  *   <li><b>Dengue, +1 to whoever was dealt it</b>, win or lose and on either side -
- *       <i>"El dengue sempre es cobra"</i>. Personal to one hand, unlike the estutxe.</li>
+ *       <i>"siempre cobra una"</i>. Personal to one hand, unlike the estutxe.</li>
  *   <li><b>Todo, +1 to every player on the going side if made, -1 if called and missed.</b></li>
- *   <li><b>Four kings, +4</b> to whoever was dealt them, whatever they then decide, and a
- *       <b>forced king costs its owner 1</b>.</li>
+ *   <li><b>Four kings, +4</b> to whoever was dealt them, whatever they then decide.</li>
+ *   <li><b>Stopping when your own king falls, -1</b> to the one who goes, and nobody else
+ *       pays or collects.</li>
  * </ul>
  *
- * The opposing side collects a flat 1 when the going side fails, or 2 if the going side
- * was held under four basas. It pays nothing when the going side wins: the source lists no
- * charge for losing defenders, and the pot covers the difference.
+ * <p>Each opponent collects a flat <b>1</b> whenever the going side fails to make five,
+ * and pays nothing when it succeeds - the pot covers the difference. The book's extra coin
+ * for holding the going side under four basas is not applied: see `payment-rules.md` §6.
  *
- * <p>Those two shapes together are what make the source's <i>"Per guanyar i tindre
+ * <p>That the estutxe is a stake is also what keeps the source's <i>"Per guanyar i tindre
  * l'estutxe, 3 cadegú <b>(si n té el dengue, 4)</b>"</i> read as written. A side can hold
  * the estutxe between them with <b>nobody</b> holding the dengue - one partner takes the
  * espadilla and manilla, the other the basto - so the dengue really is a separate
@@ -66,13 +68,11 @@ public class SettlementCalculator {
     /** Every named extra is worth the same one coin. */
     public static final int INCREMENT = 1;
 
+    /** What each opponent collects when the going side falls short of five. */
     public static final int OPPOSING_SIDE_AWARD = 1;
-    public static final int OPPOSING_SIDE_AWARD_HELD_LOW = 2;
 
-    /** Holding the going side under this many basas doubles what the opponents collect. */
-    public static final int HELD_LOW_THRESHOLD = 4;
-
-    public static final int FORCED_KING_PENALTY = 1;
+    /** What it costs the one who goes to stop the hand when their own king falls. */
+    public static final int STOPPING_COST = 1;
 
     /**
      * Prices a completed round.
@@ -100,35 +100,34 @@ public class SettlementCalculator {
 
         if (result instanceof RoundResult.GoingSideWon won) {
             for (final var player : won.goingSide()) {
-                deltas.merge(player, stakeOf(round), Integer::sum);
+                deltas.merge(player, stakeOf(round, dealSnapshot), Integer::sum);
             }
         } else if (result instanceof RoundResult.GoingSideFailed failed) {
             for (final var player : failed.goingSide()) {
-                deltas.merge(player, -stakeOf(round), Integer::sum);
+                deltas.merge(player, -stakeOf(round, dealSnapshot), Integer::sum);
             }
-            final var award = failed.goingSideBasas() < HELD_LOW_THRESHOLD
-                ? OPPOSING_SIDE_AWARD_HELD_LOW
-                : OPPOSING_SIDE_AWARD;
             for (final var player : failed.opposingSide()) {
-                deltas.merge(player, award, Integer::sum);
+                deltas.merge(player, OPPOSING_SIDE_AWARD, Integer::sum);
             }
         }
-        // RoundResult.FourKings settles on the four-kings award alone, and
-        // RoundResult.KingFell on the forced-king penalty alone.
 
-        // Items the going side collects for what it held or did, not for winning.
+        // Stopping costs the one who goes 1, and that is the whole settlement: the hand
+        // did not happen, so nothing else in it is worth anything - not even a dengue.
+        if (result instanceof RoundResult.KingFell stopped) {
+            deltas.merge(stopped.playerWhoGoes(), -STOPPING_COST, Integer::sum);
+            return new Settlement(deltas);
+        }
+        // RoundResult.FourKings settles on the four-kings award alone.
+
+        // The todo stands apart from the stake: it is its own bet.
         for (final var player : round.goingSide()) {
-            deltas.merge(player, goingSideExtras(round, dealSnapshot), Integer::sum);
+            deltas.merge(player, goingSideExtras(round), Integer::sum);
         }
 
         // "Per tindre es quatre reis, 4" - unconditional, like the dengue. A holder who
         // goes alone keeps it on top of whatever the hand then settles at.
         round.fourKingHolder().ifPresent(
             player -> deltas.merge(player, FOUR_KINGS_AWARD, Integer::sum)
-        );
-
-        round.forcedKingPlayer().ifPresent(
-            player -> deltas.merge(player, -FORCED_KING_PENALTY, Integer::sum)
         );
 
         // "El dengue sempre es cobra" - whoever was dealt it collects, whatever happened.
@@ -142,31 +141,33 @@ public class SettlementCalculator {
     }
 
     /**
-     * What one player of the going side collects on a win, or pays on a loss.
+     * What one player of the going side collects on a win, or pays on a loss: the base for
+     * how they came to be going, and a coin each for primeres and for the estutxe.
      */
-    private int stakeOf(Round round) {
-        return round.madePrimeres() ? baseOf(round) + INCREMENT : baseOf(round);
-    }
+    private int stakeOf(Round round, Map<PlayerId, List<Card>> dealSnapshot) {
+        var stake = baseOf(round);
 
-    /**
-     * What every player on the going side collects regardless of the outcome: the estutxe
-     * because they went, and the todo they made - or owes, if they called it and missed.
-     */
-    private int goingSideExtras(Round round, Map<PlayerId, List<Card>> dealSnapshot) {
-        var extras = 0;
+        if (round.madePrimeres()) {
+            stake += INCREMENT;
+        }
 
         final var trump = round.trumpSuit().orElse(null);
         if (trump != null && hasEstutxe(cardsDealtTo(round.goingSide(), dealSnapshot), trump)) {
-            extras += INCREMENT;
+            stake += INCREMENT;
         }
 
+        return stake;
+    }
+
+    /**
+     * The todo, settled on its own: made is worth a coin to each of the going side, called
+     * and missed costs each of them one, whatever the hand then did.
+     */
+    private int goingSideExtras(Round round) {
         if (round.madeTodo()) {
-            extras += INCREMENT;
-        } else if (round.todoCalled()) {
-            extras -= INCREMENT;
+            return INCREMENT;
         }
-
-        return extras;
+        return round.todoCalled() ? -INCREMENT : 0;
     }
 
     /** Everything the given players were dealt, pooled. */
@@ -187,7 +188,7 @@ public class SettlementCalculator {
         );
         return switch (mode) {
             case HELPED -> BASE_HELPED;
-            case SELF_KING -> BASE_SELF_KING;
+            case SELF_KING -> BASE_SELF_KING;   // includes carrying on after it fell
             case SOLEDAD -> BASE_SOLEDAD;
             case FOUR_KINGS -> 0;  // awarded separately, see settle()
             case KING_FELL -> 0;

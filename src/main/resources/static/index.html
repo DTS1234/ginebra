@@ -49,8 +49,12 @@
                 <li>The winner of a basa leads the next one.</li>
                 <li>Until a King comes out, whoever leads must open a suit that has
                     <b>not been led yet</b> this hand.</li>
-                <li>The side that <b>goes</b> needs <b>five</b> basas. The other side blocks
-                    the moment it has <b>four</b>. There is no draw.</li>
+                <li><b>Five basas</b> decides the hand, for whichever side gets there first,
+                    so eight basas can finish <b>4-4</b> — which is the side that goes
+                    falling short like any other failure.</li>
+                <li>If your own <b>king</b> is dragged out of you while you are the one
+                    going, you choose: carry on alone for <b>4</b> either way, or stop and
+                    pay <b>1</b>.</li>
             </ul>
         </div>
     </section>
@@ -109,6 +113,12 @@
             <span id="todo-label" class="actions-label">Fer todo?</span>
             <button id="call-todo" class="primary">Go for todo</button>
             <button id="decline-todo">Bank the win</button>
+        </div>
+
+        <div id="king-actions" class="actions hidden">
+            <span id="king-label" class="actions-label">Your king fell:</span>
+            <button id="carry-on" class="primary">Carry on alone</button>
+            <button id="stop-hand">Stop — pay 1</button>
         </div>
 
         <div id="trump-actions" class="actions hidden">

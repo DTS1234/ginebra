@@ -52,4 +52,9 @@ public class RandomBotStrategy implements BotStrategy {
     public boolean callsTodo(BotView view) {
         return false;
     }
+
+    @Override
+    public boolean carriesOnAfterKingFell(BotView view) {
+        return false;   // 1 for certain beats 4 either way, to something that cannot count
+    }
 }

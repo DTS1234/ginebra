@@ -32,6 +32,19 @@ public sealed interface GameEvent {
         int basaNumber
     ) implements GameEvent {}
 
+    /**
+     * The king of the one who goes was forced out of them, and the hand is paused while
+     * they decide whether to carry on alone or stop.
+     */
+    record KingFellPending(PlayerId playerWhoGoes, Card king) implements GameEvent {}
+
+    /** What they decided. */
+    record KingChoiceMade(
+        PlayerId playerWhoGoes,
+        boolean carriedOn,
+        PlayerId currentTurn
+    ) implements GameEvent {}
+
     record BasaWon(
         int basaNumber,
         PlayerId winner,

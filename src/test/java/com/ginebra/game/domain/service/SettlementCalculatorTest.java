@@ -174,7 +174,7 @@ class SettlementCalculatorTest {
             assertThat(round.madePrimeres()).isFalse();
             for (final var player : round.opposingSide()) {
                 assertThat(deltas.get(player))
-                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
+                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD);
             }
         }
 
@@ -221,16 +221,23 @@ class SettlementCalculatorTest {
         }
 
         @Test
-        void estutxeShouldStillBePaidWhenTheGoingSideLoses() {
-            // "does not matter if you win or lose" - it pays because you went.
+        void estutxeShouldRaiseWhatTheGoingSidePaysWhenItLoses() {
+            // The 2026-08-27 correction: "pagan 1 más si no llegan a hacer 5". The
+            // estutxe is a stake, not a fee for going - which is what makes the book's
+            // "Si perden i tenen l'estutxe, 3 cadegú" come out at 3.
             final var deal = dealWithEstutxe(ma());
             final var round = helped().opposingSideBlocks().round();
 
             final var deltas = calculator.settle(round, deal).playerDeltas();
 
             assertThat(deltas.get(aider()))
-                .as("-2 for the loss, +1 for the estutxe")
-                .isEqualTo(SettlementCalculator.INCREMENT - SettlementCalculator.BASE_HELPED);
+                .as("-2 for the loss and -1 more for the estutxe, which is the side's")
+                .isEqualTo(-SettlementCalculator.BASE_HELPED - SettlementCalculator.INCREMENT);
+            assertThat(deltas.get(ma()))
+                .as("the same, less the dengue they hold, which is collected either way")
+                .isEqualTo(-SettlementCalculator.BASE_HELPED
+                    - SettlementCalculator.INCREMENT
+                    + SettlementCalculator.INCREMENT);
         }
 
         @Test
@@ -347,28 +354,32 @@ class SettlementCalculatorTest {
         }
 
         @Test
-        void opponentsShouldCollectTwoWhenTheGoingSideIsHeldUnderFour() {
-            final var round = helped().opposingSideBlocks().round();
+        void opponentsShouldCollectOneWhateverTheGoingSideManaged() {
+            // "Si los 3 que no van hacen 5 cobran 1." A flat coin each: the book's extra
+            // for holding them under four is not played - payment-rules.md §6.
+            final var swept = helped().opposingSideBlocks().round();
+            final var close = helped().fourAllThenBlocked().round();
 
-            final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
-
-            for (final var player : List.of(players.get(2), players.get(3), players.get(4))) {
-                assertThat(deltas.get(player))
-                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
+            for (final var round : List.of(swept, close)) {
+                final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
+                for (final var player : List.of(players.get(2), players.get(3), players.get(4))) {
+                    assertThat(deltas.get(player))
+                        .as("going side made %d", round.goingSideBasas())
+                        .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD);
+                }
             }
         }
 
         @Test
-        void opponentsShouldCollectOneWhenTheGoingSideGotFourBasas() {
+        void aFourAllFinishShouldStillCostTheGoingSideItsStake() {
+            // Nobody reached five. "Sino hacen más de 4 pagan 2."
             final var round = helped().fourAllThenBlocked().round();
 
-            final var settlement = calculator.settle(round, plainDeal());
+            final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
 
             assertThat(round.goingSideBasas()).isEqualTo(4);
-            for (final var player : List.of(players.get(2), players.get(3), players.get(4))) {
-                assertThat(settlement.playerDeltas().get(player))
-                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD);
-            }
+            assertThat(deltas.get(ma())).isEqualTo(-SettlementCalculator.BASE_HELPED);
+            assertThat(deltas.get(aider())).isEqualTo(-SettlementCalculator.BASE_HELPED);
         }
 
         @Test
@@ -397,39 +408,64 @@ class SettlementCalculatorTest {
     }
 
     @Nested
-    @DisplayName("The forced king")
+    @DisplayName("The king dragged out of you")
     class ForcedKing {
 
         @Test
-        void shouldChargeOneToWhoeverHadTheirKingDraggedOut() {
+        void shouldCostAForcedHelperNothing() {
+            // "A king forced out of anyone else costs nothing" - the players, 2026-08-27.
+            // They are the helper now, whether they meant to be or not.
             final var round = helpedByAForcedKing().goingSideWinsFive().round();
 
             final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
 
-            assertThat(deltas.get(aider()))
-                .isEqualTo(SettlementCalculator.BASE_HELPED - SettlementCalculator.FORCED_KING_PENALTY);
-            assertThat(deltas.get(ma()))
-                .as("the penalty is personal to the king's owner")
-                .isEqualTo(SettlementCalculator.BASE_HELPED);
+            assertThat(deltas.get(aider())).isEqualTo(SettlementCalculator.BASE_HELPED);
+            assertThat(deltas.get(ma())).isEqualTo(SettlementCalculator.BASE_HELPED);
         }
 
         @Test
-        void shouldChargeTheMaAloneWhenTheirOwnKingEndsTheHand() {
-            // Confirmed by the players 2026-08-26: "A pays 1 and we redeal, no other
-            // players charged." Nobody collects either - the hand simply did not happen.
-            final var round = inProgress().withKingPlayed(ma(), true);
+        void shouldChargeTheMaAloneWhenTheyStop() {
+            // "En la segunda, solo pagas 1." Nobody else pays, and nobody collects - the
+            // hand simply did not happen.
+            final var round = inProgress()
+                .withKingPlayed(ma(), true)
+                .withKingChoice(ma(), false);
 
             final var settlement = calculator.settle(round, plainDeal());
             final var deltas = settlement.playerDeltas();
 
             assertThat(round.isComplete()).isTrue();
-            assertThat(deltas.get(ma())).isEqualTo(-SettlementCalculator.FORCED_KING_PENALTY);
+            assertThat(deltas.get(ma())).isEqualTo(-SettlementCalculator.STOPPING_COST);
             for (final var player : players.subList(1, 5)) {
                 assertThat(deltas.get(player)).isZero();
             }
             assertThat(settlement.totalCollected())
                 .as("the pot pays nothing out on a fallen king")
                 .isZero();
+        }
+
+        @Test
+        void shouldPayNothingElseOnAHandThatDidNotHappen() {
+            // Not even a dengue: "a los demás no se les cobra nada", and nobody collects
+            // either - the cards are simply dealt again.
+            final var round = inProgress()
+                .withKingPlayed(ma(), true)
+                .withKingChoice(ma(), false);
+
+            final var deltas = calculator.settle(round, dealWithDengue(opponent())).playerDeltas();
+
+            assertThat(deltas.get(opponent())).isZero();
+            assertThat(deltas.get(ma())).isEqualTo(-SettlementCalculator.STOPPING_COST);
+        }
+
+        @Test
+        void shouldStakeFourWhenTheyCarryOn() {
+            // "En la primera opción, cobras 4 si haces 5 o pagas 4 si no haces más que 4."
+            final var round = maCarriesOnAfterTheirKingFell().goingSideWinsFive().round();
+
+            final var deltas = calculator.settle(round, plainDeal()).playerDeltas();
+
+            assertThat(deltas.get(ma())).isEqualTo(SettlementCalculator.BASE_SELF_KING);
         }
     }
 
@@ -438,14 +474,14 @@ class SettlementCalculatorTest {
     class PotBalance {
 
         @Test
-        void shouldPayOutMoreThanItTakesWhenTheGoingSideFails() {
+        void shouldTakeInMoreThanItPaysOutWhenTheGoingSideFails() {
             final var settlement = calculator.settle(
                 helped().opposingSideBlocks().round(), plainDeal()
             );
 
-            // 4 in from the pair, 6 out to the three opponents.
-            assertThat(settlement.possoDelta()).isEqualTo(4 - 6);
-            assertThat(settlement.totalCollected()).isEqualTo(6);
+            // 4 in from the pair, 3 out to the three opponents: the pot keeps the coin.
+            assertThat(settlement.possoDelta()).isEqualTo(4 - 3);
+            assertThat(settlement.totalCollected()).isEqualTo(3);
         }
 
         @Test
@@ -455,6 +491,142 @@ class SettlementCalculatorTest {
             );
 
             assertThat(settlement.possoDelta()).isEqualTo(-2 * SettlementCalculator.BASE_HELPED);
+        }
+    }
+
+    /**
+     * The book prints two tables of figures. This prices every row of both that the
+     * engine can reach, and they all come out as written - which is the evidence that the
+     * 2026-08-27 correction is right, since two of them did not before it.
+     *
+     * @see <a href="file:payment-rules.md">payment-rules.md §4</a>
+     */
+    @Nested
+    @DisplayName("Every row of the book, priced")
+    class TheBookTables {
+
+        // --- §5, what you collect ---------------------------------------------------
+
+        @Test
+        void siEtPosenElReiIGuanyes_2() {
+            assertGoingSideGets(helped().goingSideWinsFive(), plainDeal(), 2, 2);
+        }
+
+        @Test
+        void perGuanyarIFerPrimeres_3() {
+            assertGoingSideGets(helped().goingSideWinsFiveWithPrimeres(), plainDeal(), 3, 3);
+        }
+
+        @Test
+        void perGuanyarITindreLEstutxe_3_or_4WithTheDengue() {
+            assertGoingSideGets(helped().goingSideWinsFive(), dealWithEstutxe(ma()), 4, 3);
+        }
+
+        @Test
+        void perGuanyarEstutxeIPrimeres_4_or_5WithTheDengue() {
+            assertGoingSideGets(
+                helped().goingSideWinsFiveWithPrimeres(), dealWithEstutxe(ma()), 5, 4
+            );
+        }
+
+        @Test
+        void siEtPosesElReiIGuanyes_4() {
+            assertGoingSideGets(selfKing().goingSideWinsFive(), plainDeal(), 4, null);
+        }
+
+        @Test
+        void siEtPosesElReiIGuanyesIPrimeres_5() {
+            assertGoingSideGets(selfKing().goingSideWinsFiveWithPrimeres(), plainDeal(), 5, null);
+        }
+
+        @Test
+        void siVasASolesIGuanyes_5() {
+            final var deltas = settle(soledad().goingSideWinsFive(), plainDeal());
+            assertThat(deltas.get(ma())).isEqualTo(5);
+        }
+
+        @Test
+        void siVasASolesGuanyesIPrimeres_6() {
+            final var deltas = settle(soledad().goingSideWinsFiveWithPrimeres(), plainDeal());
+            assertThat(deltas.get(ma())).isEqualTo(6);
+        }
+
+        @Test
+        void siTensElDengue_1() {
+            final var deltas = settle(helped().goingSideWinsFive(), dealWithDengue(opponent()));
+            assertThat(deltas.get(opponent()))
+                .as("collected by an opponent of the winning side, and still collected")
+                .isEqualTo(1);
+        }
+
+        // --- §6, what you pay -------------------------------------------------------
+
+        @Test
+        void siTAidenIPerds_2() {
+            assertGoingSideGets(helped().opposingSideBlocks(), plainDeal(), -2, -2);
+        }
+
+        @Test
+        void siPerdenIPrimeres_3() {
+            assertGoingSideGets(
+                helped().goingSideMakesPrimeresThenLosesFourAll(), plainDeal(), -3, -3
+            );
+        }
+
+        @Test
+        void siPerdenITenenLEstutxe_3() {
+            // The row that did not come out before the correction: the estutxe used to be
+            // collected for going, which left this at 1.
+            assertGoingSideGets(helped().opposingSideBlocks(), dealWithEstutxe(ma()), -2, -3);
+        }
+
+        @Test
+        void siPerdenPrimeresIEstutxe_4() {
+            // The other one.
+            assertGoingSideGets(
+                helped().goingSideMakesPrimeresThenLosesFourAll(), dealWithEstutxe(ma()), -3, -4
+            );
+        }
+
+        @Test
+        void siEtPosesElReiPerds_4() {
+            assertGoingSideGets(selfKing().opposingSideBlocks(), plainDeal(), -4, null);
+        }
+
+        @Test
+        void siVasASolesIPerds_5() {
+            final var deltas = settle(soledad().opposingSideBlocks(), plainDeal());
+            assertThat(deltas.get(ma())).isEqualTo(-5);
+        }
+
+        @Test
+        void siEtCauElRei_1() {
+            final var round = inProgress().withKingPlayed(ma(), true).withKingChoice(ma(), false);
+
+            assertThat(calculator.settle(round, plainDeal()).playerDeltas().get(ma()))
+                .isEqualTo(-1);
+        }
+
+        private Map<PlayerId, Integer> settle(Scenario scenario, Map<PlayerId, List<Card>> deal) {
+            return calculator.settle(scenario.round(), deal).playerDeltas();
+        }
+
+        /**
+         * @param forMa what the ma nets - which includes their dengue, where the deal
+         *              gives them one, since the book prints that as a variant
+         * @param forAider what the other of the pair nets, or null when there is no pair
+         */
+        private void assertGoingSideGets(
+            Scenario scenario,
+            Map<PlayerId, List<Card>> deal,
+            int forMa,
+            Integer forAider
+        ) {
+            final var deltas = settle(scenario, deal);
+            assertThat(deltas.get(ma())).as("the one who goes").isEqualTo(forMa);
+            if (forAider != null) {
+                assertThat(deltas.get(aider())).as("the one who put the king").isEqualTo(forAider);
+            }
         }
     }
 
@@ -522,6 +694,13 @@ class SettlementCalculatorTest {
         return new Scenario(inProgress().withKingPlayed(ma(), false));
     }
 
+    /** The ma's own king was dragged out of them and they chose to play it out alone. */
+    private Scenario maCarriesOnAfterTheirKingFell() {
+        return new Scenario(
+            inProgress().withKingPlayed(ma(), true).withKingChoice(ma(), true)
+        );
+    }
+
     private Scenario soledad() {
         var round = Round.start(1, ma(), players, plainDeal(), DEADLINE)
             .withSoledadDeclared(ma())
@@ -578,22 +757,39 @@ class SettlementCalculatorTest {
             return this;
         }
 
-        /** The opponents take the first four, which both blocks and is their primeres. */
+        /** The opponents take the first five, the first four of them their primeres. */
         private Scenario opposingSideTakesPrimeresAndBlocks() {
-            for (var i = 0; i < Round.BASAS_TO_BLOCK; i++) {
+            for (var i = 0; i < Round.BASAS_TO_WIN; i++) {
                 award(opposingPlayer());
             }
             return this;
         }
 
         private Scenario opposingSideBlocks() {
-            for (var i = 0; i < Round.BASAS_TO_BLOCK; i++) {
+            for (var i = 0; i < Round.BASAS_TO_WIN; i++) {
                 award(opposingPlayer());
             }
             return this;
         }
 
         /** Four each: the going side never reaches five, so it fails on the last basa. */
+        /**
+         * The going side takes the first four - their primeres - and the opponents take
+         * the last four. Nobody reaches five, and the going side pays.
+         *
+         * It is the only way primeres and a loss can happen together: four for the going
+         * side leaves only four for the opponents, so they can never reach five.
+         */
+        private Scenario goingSideMakesPrimeresThenLosesFourAll() {
+            for (var i = 0; i < 4; i++) {
+                award(goingPlayer());
+            }
+            for (var i = 0; i < 4; i++) {
+                award(opposingPlayer());
+            }
+            return this;
+        }
+
         private Scenario fourAllThenBlocked() {
             for (var i = 0; i < 4; i++) {
                 award(goingPlayer());

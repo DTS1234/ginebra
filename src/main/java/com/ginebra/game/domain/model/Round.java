@@ -21,13 +21,12 @@ import java.util.stream.Collectors;
 public final class Round {
 
     public static final int MAX_BASAS = 8;
-    public static final int BASAS_TO_WIN = 5;
-
     /**
-     * Basas the opposing side needs to put 5 out of the going side's reach. With 8 basas
-     * between two sides, that is 4.
+     * Five basas wins the hand - for <b>either</b> side. The opposing side could put five
+     * out of the going side's reach with four, but the hand is played on to five all the
+     * same (the players, 2026-08-27), which is why eight basas can finish 4-4.
      */
-    public static final int BASAS_TO_BLOCK = MAX_BASAS - BASAS_TO_WIN + 1;
+    public static final int BASAS_TO_WIN = 5;
 
     /** "Fer primeres": the first four basas, in a row. */
     public static final int PRIMERES_BASAS = 4;
@@ -52,7 +51,6 @@ public final class Round {
     private final Instant soledadDeadline;
     private final RoundMode mode;
     private final PlayerId soloPlayer;
-    private final PlayerId forcedKingPlayer;
     private final boolean firstKingCalled;
     private final PlayerId fourKingHolder;
     private final boolean todoCalled;
@@ -73,7 +71,6 @@ public final class Round {
         Instant soledadDeadline,
         RoundMode mode,
         PlayerId soloPlayer,
-        PlayerId forcedKingPlayer,
         boolean firstKingCalled,
         PlayerId fourKingHolder,
         boolean todoCalled
@@ -125,7 +122,6 @@ public final class Round {
         this.soledadDeadline = soledadDeadline;
         this.mode = mode;
         this.soloPlayer = soloPlayer;
-        this.forcedKingPlayer = forcedKingPlayer;
         this.firstKingCalled = firstKingCalled;
         this.fourKingHolder = fourKingHolder;
         this.todoCalled = todoCalled;
@@ -200,12 +196,11 @@ public final class Round {
             Set.of(),
             null,
             soledadDeadline,
-            null,
-            null,
-            null,
-            false,
+            null,          // mode
+            null,          // soloPlayer
+            false,         // firstKingCalled
             fourKingHolder,
-            false
+            false          // todoCalled
         );
     }
 
@@ -291,13 +286,6 @@ public final class Round {
     }
 
     /**
-     * The player whose king was dragged out of them: "et cau el rei". They pay 1.
-     */
-    public Optional<PlayerId> forcedKingPlayer() {
-        return Optional.ofNullable(forcedKingPlayer);
-    }
-
-    /**
      * The player dealt all four kings, if there was one. They collect 4 whatever they then
      * decide, and they are the only player who may declare Soledad in this round.
      */
@@ -333,6 +321,14 @@ public final class Round {
      */
     public boolean isWaitingForTodo() {
         return status == RoundStatus.WAITING_FOR_TODO;
+    }
+
+    /**
+     * Whether play is paused on the one who goes deciding what to do about their own king
+     * having been forced out of them.
+     */
+    public boolean isWaitingForKingChoice() {
+        return status == RoundStatus.WAITING_FOR_KING_CHOICE;
     }
 
     /**
@@ -687,17 +683,51 @@ public final class Round {
             throw new IllegalArgumentException("Player not in round: " + playerId);
         }
 
-        final var withPenalty = copy().forcedKingPlayer(forced ? playerId : forcedKingPlayer);
-
+        // A king forced out of anyone else costs them nothing: they are the helper now,
+        // whether they meant to be or not, and play the hand for the helper's stake.
         if (!playerId.equals(playerWhoGoes)) {
-            return withPenalty
+            return copy()
                 .mode(RoundMode.HELPED)
                 .teams(Teams.of(playerWhoGoes, playerId, new HashSet<>(playerOrder)))
                 .build();
         }
 
+        // The one who goes putting their own king down deliberately has already chosen to
+        // play it out alone. Having it dragged out of them has not: they are asked.
         if (forced) {
-            return withPenalty
+            return copy()
+                .status(RoundStatus.WAITING_FOR_KING_CHOICE)
+                .build();
+        }
+
+        return copy()
+            .mode(RoundMode.SELF_KING)
+            .soloPlayer(playerWhoGoes)
+            .build();
+    }
+
+    /**
+     * Answers the question a forced king asks the one who goes: carry on alone, or stop.
+     *
+     * <i>"Si te cae el rey cuando vas, puedes elegir si quieres seguir (si tienes cartas
+     * buenas para hacer 5) o parar si no lo tienes bueno"</i> (the players, 2026-08-27).
+     * Carrying on is one against four for 4 either way; stopping costs 1 and ends the
+     * hand there, with nobody else paying or collecting.
+     */
+    public Round withKingChoice(PlayerId playerId, boolean carryOn) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+
+        if (status != RoundStatus.WAITING_FOR_KING_CHOICE) {
+            throw new IllegalStateException("No king to decide on: " + status);
+        }
+        if (!playerId.equals(playerWhoGoes)) {
+            throw new IllegalArgumentException(
+                "Only the one who goes decides on their own king: " + playerWhoGoes
+            );
+        }
+
+        if (!carryOn) {
+            return copy()
                 .mode(RoundMode.KING_FELL)
                 .status(RoundStatus.COMPLETE)
                 .currentBasa(null)
@@ -705,9 +735,12 @@ public final class Round {
                 .build();
         }
 
-        return withPenalty
+        // The basa the king fell in carries on from where it stopped - the cards already
+        // committed to it stay on the table.
+        return copy()
             .mode(RoundMode.SELF_KING)
             .soloPlayer(playerWhoGoes)
+            .status(RoundStatus.IN_PROGRESS)
             .build();
     }
 
@@ -873,8 +906,10 @@ public final class Round {
     /**
      * Decides the round, or returns empty to play on.
      *
-     * The going side needs 5. The opposing side needs only {@link #BASAS_TO_BLOCK} to put
-     * that out of reach, and the round is over the moment they have them.
+     * Five basas decides it, for whichever side gets there first. The opposing side's
+     * fourth already puts five beyond the going side, but the hand is played on - so a
+     * round can run all eight basas and finish 4-4, which is the going side falling short
+     * of its five like any other failure.
      *
      * A going side that reaches 5 having won <i>every</i> basa so far plays on: "fer todo"
      * is still live and worth another coin. Dropping one settles it immediately, because
@@ -904,7 +939,7 @@ public final class Round {
             return Optional.of(new RoundResult.GoingSideWon(going, opposing, goingBasas));
         }
 
-        if (opposingBasas >= BASAS_TO_BLOCK || basas.size() >= MAX_BASAS) {
+        if (opposingBasas >= BASAS_TO_WIN || basas.size() >= MAX_BASAS) {
             return Optional.of(new RoundResult.GoingSideFailed(going, opposing, goingBasas));
         }
 
@@ -963,7 +998,6 @@ public final class Round {
         private Instant soledadDeadline;
         private RoundMode mode;
         private PlayerId soloPlayer;
-        private PlayerId forcedKingPlayer;
         private boolean firstKingCalled;
         private PlayerId fourKingHolder;
         private boolean todoCalled;
@@ -984,7 +1018,6 @@ public final class Round {
             this.soledadDeadline = from.soledadDeadline;
             this.mode = from.mode;
             this.soloPlayer = from.soloPlayer;
-            this.forcedKingPlayer = from.forcedKingPlayer;
             this.firstKingCalled = from.firstKingCalled;
             this.fourKingHolder = from.fourKingHolder;
             this.todoCalled = from.todoCalled;
@@ -1002,7 +1035,6 @@ public final class Round {
         private Builder soledadDeadline(Instant v) { this.soledadDeadline = v; return this; }
         private Builder mode(RoundMode v) { this.mode = v; return this; }
         private Builder soloPlayer(PlayerId v) { this.soloPlayer = v; return this; }
-        private Builder forcedKingPlayer(PlayerId v) { this.forcedKingPlayer = v; return this; }
         private Builder firstKingCalled(boolean v) { this.firstKingCalled = v; return this; }
         private Builder todoCalled(boolean v) { this.todoCalled = v; return this; }
 
@@ -1010,7 +1042,7 @@ public final class Round {
             return new Round(
                 roundNumber, trumpSuit, playerWhoGoes, playerOrder, completedBasas, currentBasa,
                 hands, teams, status, result, soledadPasses, soledadPlayer, soledadDeadline,
-                mode, soloPlayer, forcedKingPlayer, firstKingCalled, fourKingHolder, todoCalled
+                mode, soloPlayer, firstKingCalled, fourKingHolder, todoCalled
             );
         }
     }

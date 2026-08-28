@@ -271,8 +271,8 @@ class SoledadRoundRulesTest {
                 Set.of(declarer()), Set.copyOf(opponents()), 0
             ));
             assertThat(round.completedBasas())
-                .as("four basas already put five out of reach")
-                .hasSize(4);
+                .as("the hand runs until a side has five")
+                .hasSize(5);
         }
     }
 
@@ -316,8 +316,8 @@ class SoledadRoundRulesTest {
             assertThat(settlement.playerDeltas().get(declarer())).isEqualTo(-SOLEDAD_STAKE);
             for (final var opponent : opponents()) {
                 assertThat(settlement.playerDeltas().get(opponent))
-                    .as("held under four basas, so each opponent collects 2")
-                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
+                    .as("\"pagas 5 i todos los otros cobran 1\"")
+                    .isEqualTo(SettlementCalculator.OPPOSING_SIDE_AWARD);
             }
         }
 
@@ -329,10 +329,10 @@ class SoledadRoundRulesTest {
             // Act
             final var settlement = calculator.settle(round, dealtHands());
 
-            // Assert: 5 in from the declarer, 8 out to the four opponents
+            // Assert: 5 in from the declarer, 4 out to the four opponents
             assertThat(settlement.possoDelta())
-                .as("the pot pays out more than it takes, which is what it is for")
-                .isEqualTo(SOLEDAD_STAKE - 4 * SettlementCalculator.OPPOSING_SIDE_AWARD_HELD_LOW);
+                .as("the pot takes the difference, which is what it is for")
+                .isEqualTo(SOLEDAD_STAKE - 4 * SettlementCalculator.OPPOSING_SIDE_AWARD);
         }
     }
 
@@ -407,7 +407,8 @@ class SoledadRoundRulesTest {
     private Round completedSoledadRoundWonByOpponents() {
         final var round = newRound().withSoledadDeclared(declarer()).withTrump(TRUMP);
         return playBasasWonBy(round, List.of(
-            opponents().get(0), opponents().get(1), opponents().get(2), opponents().get(3)
+            opponents().get(0), opponents().get(1), opponents().get(2), opponents().get(3),
+            opponents().get(0)
         ));
     }
 
