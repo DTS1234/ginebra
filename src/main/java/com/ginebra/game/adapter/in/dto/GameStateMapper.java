@@ -124,6 +124,13 @@ public class GameStateMapper {
                 .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue)));
             payload.put("coinBalances", re.newBalances().entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey().value().toString(), Map.Entry::getValue)));
+            payload.put("charges", re.charges().entrySet().stream()
+                .collect(Collectors.toMap(
+                    e -> e.getKey().value().toString(),
+                    e -> e.getValue().stream()
+                        .map(c -> Map.of("reason", c.reason().name(), "amount", c.amount()))
+                        .toList()
+                )));
             payload.put("posso", re.posso());
             return new ServerMessage("ROUND_ENDED", payload);
         } else if (event instanceof GameEvent.GameEnded ge) {

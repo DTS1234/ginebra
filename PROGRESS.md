@@ -150,6 +150,13 @@ One thing is left open, and it is the only place the book and the players cannot
 right: the book's extra coin for holding the going side under four basas. Implemented as a
 flat 1, with the reasoning in `payment-rules.md` §6.
 
+**The settlement says what it charged.** `Settlement` is a list of lines per player rather
+than a net figure - the base, primeres, the estutxe, a dengue, whatever moved - and
+`playerDeltas()` is their sum, so the itemisation cannot drift from the total. The lines
+ride along on `RoundEnded` and the client lays them out when a round settles. Half a dozen
+things can move a player's coins in one hand, and before this the table only ever saw the
+total.
+
 ---
 
 ## Bots (not a design phase)
@@ -209,6 +216,7 @@ native WebSocket directly, because `/ws/game` is registered without SockJS.
 |-------|-------|
 | Page, styles, icon | `src/main/resources/static/` |
 | Name box before the lobby, remembered in `localStorage` | `#identity-gate`, `enterWithName` |
+| What the round cost, line by line, when it settles | `#settlement`, `showSettlement` |
 | "Play against bots", and filling a half-empty room | `#play-bots`, `#fill-bots` |
 | Card faces drawn as a baraja española | `cardFace` / `spriteMarkup` in `app.js` |
 | Help panel: full card order per trump, plus the rules in one screen | `? Help` in the header |
@@ -330,10 +338,13 @@ The engine now implements the source's rules:
 
 - Settlement runs through the **posso**, not player-to-player transfers, as one base plus
   +1 increments (`SettlementCalculator`)
-- **No draw**: the going side needs 5 basas, the opposing side blocks with 4
-- The first King decides the round's shape - **helped**, **posar-se el rei**, or the mà's
-  king forced out ending the hand - and a forced king costs its owner 1 (`RoundMode`,
-  `Round.withKingPlayed`). `TeamResolver` is gone; its job moved into the aggregate
+- **Five basas decides it, for either side**, so eight can finish 4-4 with the going side
+  falling short (corrected by the players 2026-08-27 - see the section above)
+- The first King decides the round's shape - **helped**, **posar-se el rei**, or, when the
+  one who goes has their own king forced out, **their choice** of carrying on alone or
+  stopping for 1 (`RoundMode`, `Round.withKingPlayed`, `Round.withKingChoice`). A king
+  forced out of anyone else costs them nothing. `TeamResolver` is gone; its job moved into
+  the aggregate
 - **Primeres**, **todo**, and the **four-king deal** are implemented
 - A trump lead compels a trump unless a higher special card can be withheld
   (`MoveValidator`); the Espadilla and Basto no longer bypass following a plain suit

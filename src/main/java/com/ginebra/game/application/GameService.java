@@ -344,6 +344,7 @@ public class GameService
             round.roundNumber(),
             round.result().orElseThrow(),
             computeCoinDeltas(preRoundBalances, game.coinBalances()),
+            game.settlementOf(round, settled.currentDealSnapshot()).charges(),
             game.coinBalances(),
             game.posso()
         ));
