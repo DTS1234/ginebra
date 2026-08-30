@@ -154,6 +154,18 @@ public class GameService
             final var updatedRound = updatedGame.currentRound().orElseThrow();
 
             eventPublisher.publishToGame(gameId, new GameEvent.SoledadDeclared(playerId));
+
+            // Going alone settles the sides as surely as a king does, and the table is
+            // told the same way - one against four, before a card is played.
+            eventPublisher.publishToGame(gameId, new GameEvent.SideDecided(
+                updatedRound.mode().orElseThrow(),
+                updatedRound.goingSide(),
+                updatedRound.opposingSide(),
+                playerId,
+                null,
+                false
+            ));
+
             eventPublisher.publishToGame(gameId, new GameEvent.SoledadWindowClosed(
                 true,
                 updatedRound.trumpChooser()
