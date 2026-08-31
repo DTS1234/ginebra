@@ -668,11 +668,18 @@ function onServerMessage(message) {
             break;
 
         case 'SOLEDAD_WINDOW_CLOSED':
+            // Whoever goes alone names the trump, mà or not - "qui vaja a soles, encara
+            // que no siga mà" - so this is the chooser, and the mà is unchanged: they
+            // still lead the first basa.
             state.round = Object.assign({}, state.round, {
                 status: 'WAITING_FOR_TRUMP',
-                playerWhoGoes: payload.awaitingTrumpFrom
+                trumpChooser: payload.awaitingTrumpFrom
             });
-            log('Soledad window closed - ' + seatOf(payload.awaitingTrumpFrom) + ' picks trump');
+            log('Soledad window closed - '
+                + (payload.awaitingTrumpFrom === state.me.playerId
+                    ? 'you pick'
+                    : seatOf(payload.awaitingTrumpFrom) + ' picks')
+                + ' trump');
             break;
 
         case 'TRUMP_SELECTED':
@@ -733,7 +740,7 @@ function onServerMessage(message) {
 
         case 'SIDE_DECIDED':
             log(seatOf(payload.byPlayer)
-                + (payload.king ? ' played ' + cardName(payload.king) : ' goes on')
+                + (payload.king ? ' played ' + cardName(payload.king) : '')
                 + ': ' + (MODE_LABEL[payload.mode] || payload.mode)
                 + ' — [' + payload.goingSide.map(seatOf).join(', ') + '] vs ['
                 + payload.opposingSide.map(seatOf).join(', ') + ']', 'good');
@@ -1205,12 +1212,13 @@ function fillTeam(list, memberIds, round) {
         const isMe = playerId === state.me.playerId;
         item.className = isMe ? 'me' : '';
 
+        // When somebody goes alone the ma is not the one going - they only still lead -
+        // so calling them "goes" from the other side of the table is a lie.
         const labels = [];
-        if (playerId === round.playerWhoGoes) {
-            labels.push('goes');
-        }
         if (round.soledadPlayer === playerId) {
-            labels.push('soledad');
+            labels.push('goes alone');
+        } else if (playerId === round.playerWhoGoes) {
+            labels.push(round.soledadPlayer ? 'mà, leads' : 'goes');
         }
         const basas = (round.basasWon || {})[playerId] || 0;
         item.textContent = (isMe ? 'you' : seatOf(playerId))
