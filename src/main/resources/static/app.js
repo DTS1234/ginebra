@@ -720,6 +720,15 @@ function onServerMessage(message) {
             state.round = Object.assign({}, state.round, { basasWon: payload.basasWon });
             break;
 
+        case 'TODO_PENDING':
+            log(seatOf(payload.caller) + ' has five and every basa \u2014 fer todo?', 'good');
+            state.round = Object.assign({}, state.round, {
+                status: 'WAITING_FOR_TODO',
+                todoCaller: payload.caller
+            });
+            state.currentTurn = null;
+            break;
+
         case 'KING_FELL_PENDING':
             log(seatOf(payload.playerWhoGoes) + ' had ' + cardName(payload.king)
                 + ' dragged out of them \u2014 carry on alone, or stop?', 'good');

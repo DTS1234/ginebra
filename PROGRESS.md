@@ -252,6 +252,13 @@ ignores any snapshot behind it. `CardPlayed` now carries its `basaNumber` too, s
 left over from an earlier basa is cleared rather than built on, which also covers a
 `BasaWon` that never arrives.
 
+**Every pause announces itself.** A round that stops and says nothing is a round nobody
+can play on: the table sees a hand in progress, no turn, and no way to answer. Two bugs
+have had that shape - going alone opened a window the client was never shown, and a clean
+sweep to five paused the hand in silence, reported twice from a real table as *"cuando yo
+hago la quinta basa, el juego para i no puedo seguir"*. `GameServiceTest.PausesAreAnnounced`
+now pins it for every waiting status at once rather than one at a time.
+
 Two things the client works around rather than fixes:
 
 - **No state-refresh message.** The server only pushes `GAME_STATE` on SUBSCRIBE, so after

@@ -33,6 +33,15 @@ public sealed interface GameEvent {
     ) implements GameEvent {}
 
     /**
+     * The going side has swept its way to five, so "fer todo" is still reachable and play
+     * is paused on their call.
+     *
+     * Without this the pause is invisible: the round stops, nobody is on turn, and the
+     * client goes on showing a hand in progress that cannot be played.
+     */
+    record TodoPending(PlayerId caller) implements GameEvent {}
+
+    /**
      * The king of the one who goes was forced out of them, and the hand is paused while
      * they decide whether to carry on alone or stop.
      */

@@ -331,6 +331,15 @@ public class GameService
                     finishRound(gameId, game, preRoundBalances);
                     return new PlayCardResult.Success();
                 }
+
+                // A clean sweep to five pauses the hand on the going side's todo call.
+                // Every other pause announces itself; this one has to as well, or the
+                // table is left looking at a round in progress with nobody on turn.
+                if (afterBasa.isWaitingForTodo()) {
+                    afterBasa.todoCaller().ifPresent(caller -> eventPublisher.publishToGame(
+                        gameId, new GameEvent.TodoPending(caller)
+                    ));
+                }
             }
 
             gameRepository.save(game);

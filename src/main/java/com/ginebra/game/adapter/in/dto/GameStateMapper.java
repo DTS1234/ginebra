@@ -75,6 +75,10 @@ public class GameStateMapper {
             payload.put("nextTurn", cp.nextTurn() != null ? cp.nextTurn().value().toString() : null);
             payload.put("basaNumber", cp.basaNumber());
             return new ServerMessage("CARD_PLAYED", payload);
+        } else if (event instanceof GameEvent.TodoPending tp) {
+            return new ServerMessage("TODO_PENDING", Map.of(
+                "caller", tp.caller().value().toString()
+            ));
         } else if (event instanceof GameEvent.KingFellPending kfp) {
             return new ServerMessage("KING_FELL_PENDING", Map.of(
                 "playerWhoGoes", kfp.playerWhoGoes().value().toString(),
