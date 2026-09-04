@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -111,5 +112,34 @@ class RoomServiceTest {
         final var response = roomService.createRoom(command);
 
         assertThat(response.status()).isEqualTo("WAITING");
+    }
+
+    @Test
+    void shouldClearOutRoomsNobodyCameBackTo() {
+        final var response = roomService.createRoom(new CreateRoomUseCase.CreateRoomCommand());
+        final var madeAt = Instant.parse("2026-01-15T10:00:00Z");
+
+        final var expired = roomService.expireStaleRooms(
+            Duration.ofMinutes(30), madeAt.plus(Duration.ofMinutes(30))
+        );
+
+        assertThat(expired).extracting(id -> id.value().toString())
+            .containsExactly(response.roomId());
+        assertThat(roomRepository.size())
+            .as("a room nobody filled should not go on being offered")
+            .isZero();
+    }
+
+    @Test
+    void shouldLeaveRoomsThatAreStillYoungEnoughToFill() {
+        roomService.createRoom(new CreateRoomUseCase.CreateRoomCommand());
+        final var madeAt = Instant.parse("2026-01-15T10:00:00Z");
+
+        final var expired = roomService.expireStaleRooms(
+            Duration.ofMinutes(30), madeAt.plus(Duration.ofMinutes(29))
+        );
+
+        assertThat(expired).isEmpty();
+        assertThat(roomRepository.size()).isEqualTo(1);
     }
 }

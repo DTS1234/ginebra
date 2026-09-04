@@ -2,6 +2,7 @@ package com.ginebra.lobby.domain;
 
 import com.ginebra.identity.domain.PlayerId;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -105,6 +106,36 @@ public class Room {
 
         this.gameId = gameId;
         this.status = RoomStatus.CONVERTED;
+    }
+
+    /**
+     * When something last happened here: it was made, or somebody joined it.
+     *
+     * Leaving does not count, because the only room a leave can leave behind is one with
+     * people still in it, and their joining is already the later moment.
+     */
+    public Instant lastActivityAt() {
+        return players.stream()
+            .map(RoomPlayer::joinedAt)
+            .max(Instant::compareTo)
+            .filter(joined -> joined.isAfter(createdAt))
+            .orElse(createdAt);
+    }
+
+    /**
+     * Nobody has come near this room for long enough that nobody is going to.
+     *
+     * A room that became a game is never abandoned, whatever its age - it is the game's
+     * address now, and the players look it up to find their table.
+     */
+    public boolean isAbandoned(Duration idleFor, Instant now) {
+        Objects.requireNonNull(idleFor, "idleFor must not be null");
+        Objects.requireNonNull(now, "now must not be null");
+
+        if (status == RoomStatus.CONVERTED) {
+            return false;
+        }
+        return !lastActivityAt().plus(idleFor).isAfter(now);
     }
 
     // Query methods

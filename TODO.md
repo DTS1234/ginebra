@@ -6,31 +6,36 @@ code on 2026-08-28, not read off an older note — `PROGRESS.md` described the p
 
 **Where things stand.** Phases 1–4 are complete: identity, lobby, the game engine and the
 WebSocket layer. The rules are reconciled against the book and against the players, and
-every printed row of both pay tables prices exactly. 847 tests pass. Bots fill the empty
-seats. Phases 5 and 6 have not been started at all.
+every printed row of both pay tables prices exactly. 881 tests pass. Bots fill the empty
+seats. Phase 5 has not been started. Phase 6 has its timeouts (1.1) and nothing else.
 
 ---
 
 ## 1. Before the next play-test
 
-### 1.1 Timeouts — nothing anywhere ever fires
-**Size:** a day. **Where:** new scheduler; `Round.soledadDeadline`, `ConnectionTracker`.
+### 1.1 Timeouts — done
+**Where:** `SchedulingConfig`; `SoledadTimeoutScheduler`, `AbandonedSeatScheduler`,
+`RoomExpiryScheduler`; `GameService.expireSoledadWindows`, `SeatTakeover`,
+`RoomService.expireStaleRooms`.
 
-There is no `@EnableScheduling` or `@Scheduled` in the codebase, so every timeout in
-design §8 is missing. One person closing a tab mid-hand stalls that table **permanently**:
-nothing auto-passes, nothing substitutes, nothing cleans up. This is the single most likely
-way a real session ends badly.
+Three of the four resolved timeouts in design §8 now fire, swept for every fifteen seconds
+rather than scheduled per round:
 
-- **Soledad auto-pass after 2 minutes.** `soledadDeadline` is already computed and stored
-  on the round; nothing reads it. Needs a `SoledadAutoPassed` event so the table can see
-  why the window closed.
-- **Disconnect handling.** Disconnects *are* detected — `WebSocketEventListener` publishes
-  `PlayerDisconnected` — but nothing acts on it beyond a line in the log. Design calls for
-  a 5-minute pause, then something decisive.
-- **Room expiry after 30 minutes**, so abandoned rooms stop cluttering the lobby.
+- **Soledad auto-passes after two minutes**, announcing each pass with `SoledadAutoPassed`.
+- **A seat nobody comes back to is played by a bot after five minutes**, and handed back on
+  reconnect. The other four can finish the hand instead of losing it.
+- **Rooms nobody filled are cleared after thirty minutes.**
 
-**Done when:** a table with a player who has walked away resolves itself, and the others
-can finish or abandon the hand without restarting the server.
+Still open: the **24-hour anonymous identity cleanup**, which needs somewhere to sweep -
+`InMemorySessionStore` grows for the life of the process.
+
+Two things the takeover does not do yet, both cosmetic and both wanting the server to say
+which seats are being played rather than the client to guess:
+
+- The seat list does not mark a taken-over seat, so only the log line says so.
+- "Fill the empty seats with bots" names every player in the room, humans included
+  (`Bots took the empty seats: Ben, Neus (bot), …`), which was visible in the play-test
+  for this change.
 
 ### 1.2 A client smoke suite
 **Size:** an hour or two. **Where:** new `e2e/`, Playwright, already installed.

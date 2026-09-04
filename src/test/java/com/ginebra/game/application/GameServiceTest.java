@@ -8,6 +8,7 @@ import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidator;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
+import com.ginebra.game.port.in.SoledadUseCase;
 import com.ginebra.game.port.in.StartGameUseCase;
 import com.ginebra.game.port.out.GameEventPublisher;
 import com.ginebra.identity.domain.PlayerId;
@@ -397,6 +398,183 @@ class GameServiceTest {
             PlayerId.generate(), PlayerId.generate(), PlayerId.generate(),
             PlayerId.generate(), PlayerId.generate()
         );
+    }
+
+    @Nested
+    @DisplayName("A soledad window nobody answers")
+    class SoledadTimeouts {
+
+        private static final Instant DEADLINE = Instant.parse("2026-01-15T10:02:00Z");
+
+        @Test
+        void shouldLeaveAWindowAloneUntilItsDeadline() {
+            final var gameId = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE.minusSeconds(1));
+
+            assertThat(moved).isEmpty();
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.isWaitingForSoledad()).isTrue();
+            assertThat(round.soledadPasses())
+                .as("a second early is still early; nobody has been passed for")
+                .isEmpty();
+        }
+
+        @Test
+        void shouldPassForEveryoneStillSilentWhenTheDeadlineArrives() {
+            final var gameId = GameId.generate();
+            final var players = generatePlayers();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+
+            final var answered = players.get(0);
+            gameService.passSoledad(new SoledadUseCase.PassSoledadCommand(gameId, answered));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE);
+
+            assertThat(moved).containsExactly(gameId);
+
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.isWaitingForTrump())
+                .as("with all five accounted for the hand moves on to naming trumps")
+                .isTrue();
+
+            assertThat(autoPassedPlayers())
+                .as("the four who said nothing, and only them")
+                .containsExactlyInAnyOrderElementsOf(
+                    players.stream().filter(p -> !p.equals(answered)).toList()
+                );
+        }
+
+        @Test
+        void shouldTellTheTableWhoWasPassedForAndWhoIsLeft() {
+            final var gameId = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+            gameService.expireSoledadWindows(DEADLINE);
+
+            final var autoPassed = eventPublisher.events.stream()
+                .filter(GameEvent.SoledadAutoPassed.class::isInstance)
+                .map(GameEvent.SoledadAutoPassed.class::cast)
+                .toList();
+
+            assertThat(autoPassed).hasSize(5);
+            for (var i = 0; i < autoPassed.size(); i++) {
+                assertThat(autoPassed.get(i).remainingPlayers())
+                    .as("each pass leaves one fewer to hear from")
+                    .hasSize(4 - i);
+            }
+        }
+
+        @Test
+        void shouldCloseTheWindowOnceAndSayItWasNotDeclared() {
+            final var gameId = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+            gameService.expireSoledadWindows(DEADLINE);
+
+            final var closed = eventPublisher.events.stream()
+                .filter(GameEvent.SoledadWindowClosed.class::isInstance)
+                .map(GameEvent.SoledadWindowClosed.class::cast)
+                .toList();
+
+            assertThat(closed).hasSize(1);
+            assertThat(closed.get(0).declared())
+                .as("silence is a pass, never a declaration")
+                .isFalse();
+            assertThat(closed.get(0).awaitingTrumpFrom()).isEqualTo(
+                gameRepository.findById(gameId).orElseThrow()
+                    .currentRound().orElseThrow().trumpChooser()
+            );
+        }
+
+        @Test
+        void shouldLeaveAWindowThatHasAlreadyClosedAlone() {
+            final var gameId = GameId.generate();
+            final var players = generatePlayers();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+            players.forEach(player -> gameService.passSoledad(
+                new SoledadUseCase.PassSoledadCommand(gameId, player)
+            ));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE.plusSeconds(600));
+
+            assertThat(moved)
+                .as("the window is long shut; the deadline it was carrying went with it")
+                .isEmpty();
+            assertThat(autoPassedPlayers()).isEmpty();
+        }
+
+        @Test
+        void shouldSweepEveryTableNotJustTheFirst() {
+            final var first = GameId.generate();
+            final var second = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(first, generatePlayers()));
+            gameService.startGame(new StartGameUseCase.StartGameCommand(second, generatePlayers()));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE);
+
+            assertThat(moved).containsExactlyInAnyOrder(first, second);
+        }
+
+        @Test
+        void shouldEndTheHandWhenTheOneHoldingFourKingsSaysNothing() {
+            // Silence is a pass, and a four-king holder's pass takes the 4 and ends the
+            // deal there. The sweep has to settle that round, not save a half-passed one.
+            final var gameId = dealWhereSomebodyHoldsFourKings();
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE);
+
+            assertThat(moved).containsExactly(gameId);
+            assertThat(eventPublisher.events)
+                .as("a round that ended in the window still owes the table its settlement")
+                .anyMatch(GameEvent.RoundEnded.class::isInstance);
+
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.roundNumber())
+                .as("and the next hand is dealt, as after any other round")
+                .isEqualTo(2);
+        }
+
+        private List<PlayerId> autoPassedPlayers() {
+            return eventPublisher.events.stream()
+                .filter(GameEvent.SoledadAutoPassed.class::isInstance)
+                .map(GameEvent.SoledadAutoPassed.class::cast)
+                .map(GameEvent.SoledadAutoPassed::playerId)
+                .toList();
+        }
+
+        /**
+         * Deals until somebody is holding all four kings, which happens about once in a
+         * hundred deals - cheap to look for, and the alternative is reaching inside the
+         * aggregate to plant a hand the dealer would never have dealt.
+         */
+        private GameId dealWhereSomebodyHoldsFourKings() {
+            for (var seed = 0; seed < 5_000; seed++) {
+                final var gameId = GameId.generate();
+                final var service = new GameService(
+                    gameRepository,
+                    eventPublisher,
+                    new MoveValidator(new CardRankingService()),
+                    new BasaResolver(new CardRankingService()),
+                    FIXED_CLOCK,
+                    new Random(seed)
+                );
+                service.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+                final var round = gameRepository.findById(gameId).orElseThrow()
+                    .currentRound().orElseThrow();
+                if (round.fourKingHolder().isPresent()) {
+                    eventPublisher.events.clear();
+                    return gameId;
+                }
+                gameRepository.delete(gameId);
+            }
+            throw new AssertionError("no deal in 5000 gave one player all four kings");
+        }
     }
 
     // Test double - captures published events

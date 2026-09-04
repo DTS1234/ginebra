@@ -57,6 +57,13 @@ public class GameStateMapper {
             return new ServerMessage("SOLEDAD_DECLARED", Map.of(
                 "byPlayer", sd.byPlayer().value().toString()
             ));
+        } else if (event instanceof GameEvent.SoledadAutoPassed sap) {
+            final var payload = new HashMap<String, Object>();
+            payload.put("playerId", sap.playerId().value().toString());
+            payload.put("reason", "TIMEOUT");
+            payload.put("remainingPlayers", sap.remainingPlayers().stream()
+                .map(p -> p.value().toString()).toList());
+            return new ServerMessage("SOLEDAD_AUTO_PASSED", payload);
         } else if (event instanceof GameEvent.SoledadWindowClosed swc) {
             return new ServerMessage("SOLEDAD_WINDOW_CLOSED", Map.of(
                 "declared", swc.declared(),
@@ -150,6 +157,14 @@ public class GameStateMapper {
         } else if (event instanceof GameEvent.PlayerDisconnected pd) {
             return new ServerMessage("PLAYER_DISCONNECTED", Map.of(
                 "playerId", pd.playerId().value().toString()
+            ));
+        } else if (event instanceof GameEvent.SeatTakenOver sto) {
+            return new ServerMessage("SEAT_TAKEN_OVER", Map.of(
+                "playerId", sto.playerId().value().toString()
+            ));
+        } else if (event instanceof GameEvent.SeatReturned sr) {
+            return new ServerMessage("SEAT_RETURNED", Map.of(
+                "playerId", sr.playerId().value().toString()
             ));
         } else if (event instanceof GameEvent.GameError ge) {
             return new ServerMessage("ERROR", Map.of(

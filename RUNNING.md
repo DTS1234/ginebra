@@ -224,10 +224,20 @@ A tunnel (section 3) is the better choice while you are only testing with people
 
 - **Everything is in memory.** Restarting the server loses every room and game. Persistence
   is Phase 5 and has not been started.
-- **No reconnection UI.** Closing a tab mid-game drops that player, and the round cannot
-  continue without them.
-- **No timeouts anywhere.** Nothing auto-passes the Soledad window or cleans up abandoned
-  rooms, so a player who walks away stalls the table.
+- **No reconnection UI**, but a walk-out no longer ends the table. Close a tab mid-game and
+  after five minutes a bot takes that seat so the other four can finish the hand; open the
+  page again and the seat is yours back, mid-basa if need be.
+- **The table unsticks itself.** A Soledad window nobody answers is passed for after two
+  minutes, and rooms nobody filled are cleared after thirty. Both are swept for every
+  fifteen seconds, so they fire a few seconds late rather than on the dot.
+
+  ```sh
+  # the two policy durations, if a play-test wants them shorter
+  ./gradlew bootRun --args='--ginebra.timeouts.disconnect=30s --ginebra.timeouts.room-expiry=5m'
+  ```
+
+  `ginebra.timeouts.enabled=false` turns the lot off. The Soledad window's two minutes are
+  not configurable: the deadline is stamped onto the round when it is dealt.
 - **The `? Help` panel** in the header shows the full card order for the current trump plus
   the rules, generated from the same tables the engine uses.
 - The page only offers cards you are allowed to play — it mirrors `MoveValidator` — but the

@@ -115,9 +115,32 @@ public sealed interface GameEvent {
         PlayerId awaitingTrumpFrom
     ) implements GameEvent {}
 
+    /**
+     * Nobody answered in time, so the window was closed for them.
+     *
+     * A pass and an auto-pass leave the round in the same place, but not the table: one
+     * player decided, the other four are owed an explanation for why the hand moved on
+     * without them being asked again.
+     */
+    record SoledadAutoPassed(
+        PlayerId playerId,
+        List<PlayerId> remainingPlayers
+    ) implements GameEvent {}
+
     record PlayerConnected(PlayerId playerId) implements GameEvent {}
 
     record PlayerDisconnected(PlayerId playerId) implements GameEvent {}
+
+    /**
+     * Somebody has been gone long enough that the table was going to sit there forever, so
+     * a bot took their seat and the hand can be finished.
+     *
+     * Their coins are still their coins - it is their hand being played, not a new one.
+     */
+    record SeatTakenOver(PlayerId playerId) implements GameEvent {}
+
+    /** They came back, and the seat is theirs again. */
+    record SeatReturned(PlayerId playerId) implements GameEvent {}
 
     record GameError(String code, String message) implements GameEvent {}
 }

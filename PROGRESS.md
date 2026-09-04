@@ -327,8 +327,8 @@ migration tool or Testcontainers dependency.
 |------|-------------|--------|
 | - | Rate limiting | Pending |
 | - | Graceful error responses | Pending |
-| - | Timeout handling | Pending |
-| - | Game abandonment detection | Pending |
+| - | Timeout handling | Done - soledad auto-pass, disconnect, room expiry |
+| - | Game abandonment detection | Partial - an abandoned seat is played by a bot |
 
 ---
 
@@ -378,16 +378,26 @@ printed rows come out exactly. One printed row is still unexplained and is writt
 Not wired to the client: the *"es primer rei aida"* call exists in the domain and the state
 payload but has no control or message.
 
-### 2. No scheduled work exists (all phases)
+### 2. Timeouts — three of the four now fire
 
-There is no `@EnableScheduling` or `@Scheduled` anywhere, so every resolved timeout in
-design §8 is unimplemented:
+Every timeout is a **deadline written down and noticed later**, rather than a timer per
+round: `SchedulingConfig` turns on one sweep, and each context has a small scheduled
+adapter that asks its own use case what has expired. It costs a pass over a map every
+fifteen seconds and saves cancelling, rescheduling and leaking a timer per hand - and it
+is the shape that survives Phase 5, where deadlines come back off a database after a
+restart with no timers to rebuild.
 
-- 2-minute Soledad auto-pass — `soledadDeadline` is computed and stored but nothing ever
-  fires on it, and there is no `SoledadAutoPassed` event.
-- 5-minute disconnect pause.
-- 30-minute room expiry.
-- 24-hour anonymous identity cleanup.
+- **2-minute Soledad auto-pass** — done. `GameService.expireSoledadWindows` passes for
+  everyone still silent, one at a time through the aggregate, and announces each with
+  `SoledadAutoPassed`. Silence is a pass, never a declaration: going alone is a thing you
+  do on purpose. A four-king holder's silence ends the deal, exactly as their click would.
+- **5-minute disconnect** — done, and decided: a bot takes the seat
+  (`SeatTakeover`, `SeatTakenOver`) so the other four can finish the hand, and the seat
+  goes back the moment its player reconnects (`SeatReturned`). It is their hand throughout
+  - their coins, their result. Nothing in the engine knows the difference.
+- **30-minute room expiry** — done. `Room.isAbandoned` decides; a room that became a game
+  is never abandoned, whatever its age.
+- **24-hour anonymous identity cleanup** — still nothing.
 
 Design §5.3 also names a `SoledadValidator`; that logic currently sits inline in
 `GameService` and `Round`.

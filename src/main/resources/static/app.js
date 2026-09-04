@@ -266,6 +266,11 @@ function log(message, kind) {
     el('log').prepend(line);
 }
 
+// "your seat" / "Ada's seat", so a sentence about somebody's seat reads either way.
+function possessive(playerId) {
+    return playerId === state.me?.playerId ? 'your' : seatOf(playerId) + "'s";
+}
+
 function seatOf(playerId) {
     if (playerId === state.me?.playerId) {
         return 'you';
@@ -660,6 +665,29 @@ function onServerMessage(message) {
             // must not drag it back.
             log(seatOf(payload.playerId) + ' passed Soledad (' +
                 payload.remainingPlayers.length + ' still to answer)');
+            break;
+
+        case 'SOLEDAD_AUTO_PASSED':
+            // Same effect as a pass; the difference is that nobody chose it, and the four
+            // who did answer are owed the reason the hand moved on without a fifth voice.
+            log(payload.playerId === state.me.playerId
+                    ? 'You did not answer in time - passed for you'
+                    : seatOf(payload.playerId) + ' did not answer in time - passed',
+                'bad');
+            break;
+
+        case 'SEAT_TAKEN_OVER':
+            log(payload.playerId === state.me.playerId
+                    ? 'You were away too long - a bot played your seat. It is yours again now.'
+                    : 'A bot is playing ' + possessive(payload.playerId) + ' seat - they have been away too long',
+                'bad');
+            break;
+
+        case 'SEAT_RETURNED':
+            log(payload.playerId === state.me.playerId
+                    ? 'You have your seat back'
+                    : seatOf(payload.playerId) + ' is back and has their seat again',
+                'good');
             break;
 
         case 'SOLEDAD_DECLARED':

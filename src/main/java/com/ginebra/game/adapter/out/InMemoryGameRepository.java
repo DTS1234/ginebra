@@ -5,6 +5,7 @@ import com.ginebra.game.port.out.GameRepository;
 import com.ginebra.lobby.domain.GameId;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,6 +22,11 @@ public class InMemoryGameRepository implements GameRepository {
     @Override
     public Optional<Game> findById(GameId gameId) {
         return Optional.ofNullable(games.get(gameId));
+    }
+
+    @Override
+    public List<Game> findAll() {
+        return List.copyOf(games.values());
     }
 
     @Override

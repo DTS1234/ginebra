@@ -5,6 +5,7 @@ import com.ginebra.game.domain.model.*;
 import com.ginebra.game.domain.service.BasaResolver;
 import com.ginebra.game.domain.service.MoveValidation;
 import com.ginebra.game.domain.service.MoveValidator;
+import com.ginebra.game.port.in.ExpireSoledadUseCase;
 import com.ginebra.game.port.in.KingChoiceUseCase;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
@@ -18,6 +19,7 @@ import com.ginebra.lobby.domain.GameId;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class GameService
     implements StartGameUseCase, SelectTrumpUseCase, PlayCardUseCase, SoledadUseCase, TodoUseCase,
-               KingChoiceUseCase {
+               KingChoiceUseCase, ExpireSoledadUseCase {
 
     private final GameRepository gameRepository;
     private final GameEventPublisher eventPublisher;
@@ -125,6 +127,82 @@ public class GameService
 
             gameRepository.save(updatedGame);
             return new PassSoledadResult.Success();
+        }
+    }
+
+    @Override
+    public List<GameId> expireSoledadWindows(Instant sweptAt) {
+        Objects.requireNonNull(sweptAt, "sweptAt must not be null");
+
+        final var moved = new ArrayList<GameId>();
+        for (final var game : gameRepository.findAll()) {
+            if (expireSoledadWindow(game.gameId(), sweptAt)) {
+                moved.add(game.gameId());
+            }
+        }
+        return List.copyOf(moved);
+    }
+
+    /**
+     * One window, closed on behalf of everyone who never answered.
+     *
+     * Passing is done one player at a time through the aggregate, exactly as five clicks
+     * would have done it, so a deal that ends on a pass - the four kings - ends here the
+     * same way it ends anywhere else.
+     */
+    private boolean expireSoledadWindow(GameId gameId, Instant sweptAt) {
+        final var lock = gameLocks.computeIfAbsent(gameId, k -> new Object());
+
+        synchronized (lock) {
+            final var game = gameRepository.findById(gameId).orElse(null);
+            if (game == null) {
+                return false;
+            }
+
+            final var round = game.currentRound().orElse(null);
+            if (round == null || !round.isWaitingForSoledad()) {
+                return false;
+            }
+
+            final var expired = round.soledadDeadline()
+                .map(deadline -> !sweptAt.isBefore(deadline))
+                .orElse(false);
+            if (!expired) {
+                return false;
+            }
+
+            final var balancesBefore = game.coinBalances();
+            final var silent = round.playerOrder().stream()
+                .filter(player -> !round.soledadPasses().contains(player))
+                .toList();
+
+            var updatedGame = game;
+            for (final var player : silent) {
+                updatedGame = updatedGame.passSoledad(player);
+                final var updatedRound = updatedGame.currentRound().orElseThrow();
+
+                eventPublisher.publishToGame(gameId, new GameEvent.SoledadAutoPassed(
+                    player,
+                    updatedRound.playerOrder().stream()
+                        .filter(p -> !updatedRound.soledadPasses().contains(p))
+                        .toList()
+                ));
+
+                if (updatedRound.isComplete()) {
+                    finishRound(gameId, updatedGame, balancesBefore);
+                    return true;
+                }
+
+                if (updatedRound.isWaitingForTrump()) {
+                    eventPublisher.publishToGame(gameId, new GameEvent.SoledadWindowClosed(
+                        false,
+                        updatedRound.trumpChooser()
+                    ));
+                }
+            }
+
+            gameRepository.save(updatedGame);
+            return true;
         }
     }
 
