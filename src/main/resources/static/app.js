@@ -266,6 +266,11 @@ function log(message, kind) {
     el('log').prepend(line);
 }
 
+// "your seat" / "Ada's seat", so a sentence about somebody's seat reads either way.
+function possessive(playerId) {
+    return playerId === state.me?.playerId ? 'your' : seatOf(playerId) + "'s";
+}
+
 function seatOf(playerId) {
     if (playerId === state.me?.playerId) {
         return 'you';
@@ -662,6 +667,29 @@ function onServerMessage(message) {
                 payload.remainingPlayers.length + ' still to answer)');
             break;
 
+        case 'SOLEDAD_AUTO_PASSED':
+            // Same effect as a pass; the difference is that nobody chose it, and the four
+            // who did answer are owed the reason the hand moved on without a fifth voice.
+            log(payload.playerId === state.me.playerId
+                    ? 'You did not answer in time - passed for you'
+                    : seatOf(payload.playerId) + ' did not answer in time - passed',
+                'bad');
+            break;
+
+        case 'SEAT_TAKEN_OVER':
+            log(payload.playerId === state.me.playerId
+                    ? 'You were away too long - a bot played your seat. It is yours again now.'
+                    : 'A bot is playing ' + possessive(payload.playerId) + ' seat - they have been away too long',
+                'bad');
+            break;
+
+        case 'SEAT_RETURNED':
+            log(payload.playerId === state.me.playerId
+                    ? 'You have your seat back'
+                    : seatOf(payload.playerId) + ' is back and has their seat again',
+                'good');
+            break;
+
         case 'SOLEDAD_DECLARED':
             log(seatOf(payload.byPlayer) + ' declared SOLEDAD', 'good');
             state.round = Object.assign({}, state.round, { soledadPlayer: payload.byPlayer });
@@ -718,6 +746,15 @@ function onServerMessage(message) {
             reachedPosition(state.round && state.round.roundNumber, state.basaNumber, 0);
             state.currentTurn = payload.nextStarter;
             state.round = Object.assign({}, state.round, { basasWon: payload.basasWon });
+            break;
+
+        case 'TODO_PENDING':
+            log(seatOf(payload.caller) + ' has five and every basa \u2014 fer todo?', 'good');
+            state.round = Object.assign({}, state.round, {
+                status: 'WAITING_FOR_TODO',
+                todoCaller: payload.caller
+            });
+            state.currentTurn = null;
             break;
 
         case 'KING_FELL_PENDING':

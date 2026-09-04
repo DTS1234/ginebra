@@ -7,6 +7,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import java.time.Clock;
 import java.util.Objects;
 
 /**
@@ -17,19 +18,22 @@ public class WebSocketEventListener {
 
     private final ConnectionTracker connectionTracker;
     private final GameEventPublisher gameEventPublisher;
+    private final Clock clock;
 
     public WebSocketEventListener(
         ConnectionTracker connectionTracker,
-        GameEventPublisher gameEventPublisher
+        GameEventPublisher gameEventPublisher,
+        Clock clock
     ) {
         this.connectionTracker = Objects.requireNonNull(connectionTracker);
         this.gameEventPublisher = Objects.requireNonNull(gameEventPublisher);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     @EventListener
     public void handleSessionDisconnect(SessionDisconnectEvent event) {
         final var sessionId = event.getSessionId();
-        final var connectionOpt = connectionTracker.playerDisconnected(sessionId);
+        final var connectionOpt = connectionTracker.playerDisconnected(sessionId, clock.instant());
 
         connectionOpt.ifPresent(connection -> {
             gameEventPublisher.publishToGame(

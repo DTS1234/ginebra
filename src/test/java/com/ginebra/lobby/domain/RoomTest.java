@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -401,6 +402,66 @@ class RoomTest {
             final var playersCopy = room.players();
             assertThatThrownBy(() -> playersCopy.add(RoomPlayer.create(PlayerId.generate(), "Hacker", Instant.now())))
                 .isInstanceOf(UnsupportedOperationException.class);
+        }
+    }
+
+    @Nested
+    class GoingStale {
+
+        private static final Duration HALF_AN_HOUR = Duration.ofMinutes(30);
+
+        @Test
+        void shouldCountFromWhenItWasMadeWhileNobodyElseHasJoined() {
+            final var room = Room.create(roomId, createdAt);
+
+            assertThat(room.lastActivityAt()).isEqualTo(createdAt);
+        }
+
+        @Test
+        void shouldCountFromTheLastPersonThroughTheDoor() {
+            final var room = Room.create(roomId, createdAt);
+            room.addPlayer(PlayerId.generate(), "Ada", createdAt.plusSeconds(600));
+            room.addPlayer(PlayerId.generate(), "Ben", createdAt.plusSeconds(1200));
+
+            assertThat(room.lastActivityAt()).isEqualTo(createdAt.plusSeconds(1200));
+        }
+
+        @Test
+        void shouldNotBeAbandonedWhileItsHalfHourIsRunning() {
+            final var room = Room.create(roomId, createdAt);
+
+            assertThat(room.isAbandoned(HALF_AN_HOUR, createdAt.plus(HALF_AN_HOUR).minusSeconds(1)))
+                .isFalse();
+        }
+
+        @Test
+        void shouldBeAbandonedOnceNobodyHasComeNearItForHalfAnHour() {
+            final var room = Room.create(roomId, createdAt);
+
+            assertThat(room.isAbandoned(HALF_AN_HOUR, createdAt.plus(HALF_AN_HOUR))).isTrue();
+        }
+
+        @Test
+        void shouldHaveItsHalfHourStartedAgainByEachPersonWhoJoins() {
+            final var room = Room.create(roomId, createdAt);
+            room.addPlayer(PlayerId.generate(), "Ada", createdAt.plusSeconds(1500));
+
+            assertThat(room.isAbandoned(HALF_AN_HOUR, createdAt.plus(HALF_AN_HOUR)))
+                .as("somebody was here five minutes ago")
+                .isFalse();
+        }
+
+        @Test
+        void shouldNeverBeAbandonedOnceItHasBecomeAGame() {
+            final var room = Room.create(roomId, createdAt);
+            for (var i = 0; i < Room.MAX_PLAYERS; i++) {
+                room.addPlayer(PlayerId.generate(), "P" + i, createdAt);
+            }
+            room.convertToGame(GameId.generate());
+
+            assertThat(room.isAbandoned(HALF_AN_HOUR, createdAt.plusSeconds(86_400)))
+                .as("it is the game's address now, and a game can run for hours")
+                .isFalse();
         }
     }
 }

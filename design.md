@@ -675,13 +675,26 @@ Each phase is independently deployable and testable.
 
 | Decision | Resolution |
 |----------|------------|
-| Disconnect timeout | 5 minutes - game pauses, waits for reconnect |
+| Disconnect timeout | 5 minutes - then a bot plays the seat so the table can finish; the seat goes back on reconnect |
 | Soledad pass timeout | 2 minutes - auto-pass if player doesn't respond |
 | Room expiry | 30 minutes - empty/partial rooms auto-deleted |
 | Anonymous identity cleanup | 24 hours of inactivity |
 | Game state size | Keep full round history in snapshot |
 | Event replay capability | Not needed - snapshot sufficient for recovery |
 | Concurrent games per player | No - one active game per player |
+
+**How the timeouts run.** Every deadline above is written down when it is set and noticed
+by a sweep, not scheduled as a timer. One `@EnableScheduling` (`shared/config/SchedulingConfig`)
+and a small scheduled adapter per context - `SoledadTimeoutScheduler`,
+`AbandonedSeatScheduler`, `RoomExpiryScheduler` - each asking its own use case what has
+expired. The sweep interval and the two policy durations are configuration
+(`ginebra.timeouts.*`); the Soledad window's two minutes stay in the domain, because the
+deadline is stamped onto the round as it is dealt.
+
+Nothing is precise to the second, and nothing needs to be: the interval is the worst case
+by which a stuck table gets moving again. The gain is that no timer has to be cancelled,
+rescheduled or rebuilt - which is what makes this survive Phase 5, where the deadlines
+come back off a database after a restart.
 
 ---
 

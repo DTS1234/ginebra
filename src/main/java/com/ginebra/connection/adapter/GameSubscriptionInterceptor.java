@@ -5,6 +5,7 @@ import com.ginebra.game.adapter.in.dto.GameStateMapper;
 import com.ginebra.game.adapter.in.dto.ServerMessage;
 import com.ginebra.game.application.GameService;
 import com.ginebra.game.domain.event.GameEvent;
+import com.ginebra.game.port.in.SeatTakeoverUseCase;
 import com.ginebra.game.port.out.GameEventPublisher;
 import com.ginebra.identity.adapter.in.PlayerAuthentication;
 import com.ginebra.identity.domain.PlayerId;
@@ -22,7 +23,8 @@ import java.util.regex.Pattern;
 /**
  * Intercepts SUBSCRIBE events to /topic/game/{gameId}.
  * When a player subscribes, validates they belong to the game,
- * registers the connection, sends personalized game state, and broadcasts PLAYER_CONNECTED.
+ * registers the connection, takes their seat back off any bot that was playing it, sends
+ * personalized game state, and broadcasts PLAYER_CONNECTED.
  */
 @Component
 public class GameSubscriptionInterceptor {
@@ -34,6 +36,7 @@ public class GameSubscriptionInterceptor {
     private final GameEventPublisher gameEventPublisher;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameStateMapper gameStateMapper;
+    private final SeatTakeoverUseCase seatTakeover;
     private final Clock clock;
 
     public GameSubscriptionInterceptor(
@@ -42,6 +45,7 @@ public class GameSubscriptionInterceptor {
         GameEventPublisher gameEventPublisher,
         SimpMessagingTemplate messagingTemplate,
         GameStateMapper gameStateMapper,
+        SeatTakeoverUseCase seatTakeover,
         Clock clock
     ) {
         this.connectionTracker = Objects.requireNonNull(connectionTracker);
@@ -49,6 +53,7 @@ public class GameSubscriptionInterceptor {
         this.gameEventPublisher = Objects.requireNonNull(gameEventPublisher);
         this.messagingTemplate = Objects.requireNonNull(messagingTemplate);
         this.gameStateMapper = Objects.requireNonNull(gameStateMapper);
+        this.seatTakeover = Objects.requireNonNull(seatTakeover);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -85,6 +90,9 @@ public class GameSubscriptionInterceptor {
 
         // Register connection
         connectionTracker.playerConnected(playerId, gameId, sessionId, clock.instant());
+
+        // If they were away long enough for a bot to take the seat, it is theirs again.
+        seatTakeover.returnSeat(gameId, playerId);
 
         // Send personalized game state to this player
         final var game = gameOpt.get();

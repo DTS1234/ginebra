@@ -15,9 +15,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * thing that marks it out is being in here, which is what tells {@link BotTurnDriver}
  * that its turn will not take itself.
  *
- * In memory, like everything else until persistence lands. Entries are a UUID each and
- * are never removed, which is fine for a play-test and wants revisiting alongside
- * Phase 5.
+ * In memory, like everything else until persistence lands. A seat dealt as a bot stays
+ * one for the life of the process; a human's seat is only in here for as long as they
+ * are away from it.
  */
 @Component
 public class BotRoster {
@@ -26,6 +26,16 @@ public class BotRoster {
 
     public void register(PlayerId playerId) {
         bots.add(Objects.requireNonNull(playerId, "playerId must not be null"));
+    }
+
+    /**
+     * Gives a seat back to the person who was in it.
+     *
+     * Only ever called for a human whose seat was taken over while they were gone - a bot
+     * that was dealt in as a bot has nobody to hand back to.
+     */
+    public void release(PlayerId playerId) {
+        bots.remove(Objects.requireNonNull(playerId, "playerId must not be null"));
     }
 
     public boolean isBot(PlayerId playerId) {

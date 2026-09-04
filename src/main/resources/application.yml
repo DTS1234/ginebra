@@ -13,6 +13,18 @@ spring:
     name: ginebra-online
 
 ginebra:
+  timeouts:
+    # How often the sweeps run. Everything below is a deadline written down and noticed
+    # later, so this is the worst case by which a table gets unstuck - not a precision
+    # any of it needs.
+    sweep-interval-seconds: 15
+    # How long somebody can be gone before a bot plays their seat so the other four can
+    # finish the hand. They get it back the moment they reconnect.
+    disconnect: 5m
+    # How long a room can sit unfilled before it stops cluttering the lobby.
+    room-expiry: 30m
+    # The soledad window's two minutes are not here: the deadline is written onto the
+    # round when it is dealt, so it lives with the rules, in Game.SOLEDAD_TIMEOUT.
   bots:
     # How long a bot waits before each move. Not for the bot's benefit - it decides
     # instantly - but so a person can watch the cards land one at a time. Zero makes a

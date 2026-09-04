@@ -8,11 +8,13 @@ import com.ginebra.game.domain.service.CardRankingService;
 import com.ginebra.game.domain.service.MoveValidator;
 import com.ginebra.game.port.in.PlayCardUseCase;
 import com.ginebra.game.port.in.SelectTrumpUseCase;
+import com.ginebra.game.port.in.SoledadUseCase;
 import com.ginebra.game.port.in.StartGameUseCase;
 import com.ginebra.game.port.out.GameEventPublisher;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -33,10 +35,16 @@ class GameServiceTest {
         Instant.parse("2026-01-15T10:00:00Z"),
         ZoneId.of("UTC")
     );
-    private static final Random FIXED_RANDOM = new Random(42);
+    /**
+     * Fresh per test, not shared. One static Random made every deal depend on how many
+     * tests had drawn from it already, so adding a test elsewhere silently re-dealt this
+     * one - which is exactly how it broke once.
+     */
+    private Random random;
 
     @BeforeEach
     void setUp() {
+        random = new Random(42);
         gameRepository = new InMemoryGameRepository();
         eventPublisher = new CapturingEventPublisher();
 
@@ -47,7 +55,7 @@ class GameServiceTest {
             new MoveValidator(cardRankingService),
             new BasaResolver(cardRankingService),
             FIXED_CLOCK,
-            FIXED_RANDOM
+            random
         );
     }
 
@@ -331,14 +339,14 @@ class GameServiceTest {
 
             playUntilSideDecided(gameId);
 
-            final var event = eventPublisher.events.stream()
+            final var decided = eventPublisher.events.stream()
                 .filter(GameEvent.SideDecided.class::isInstance)
                 .map(GameEvent.SideDecided.class::cast)
-                .findFirst().orElseThrow();
+                .findFirst();
             final var round = gameRepository.findById(gameId).orElseThrow()
                 .currentRound().orElseThrow();
 
-            if (event.mode() == RoundMode.HELPED) {
+            if (decided.map(e -> e.mode() == RoundMode.HELPED).orElse(false)) {
                 assertThat(round.isWaitingForKingChoice()).isFalse();
             }
         }
@@ -392,7 +400,320 @@ class GameServiceTest {
         );
     }
 
+    @Nested
+    @DisplayName("A soledad window nobody answers")
+    class SoledadTimeouts {
+
+        private static final Instant DEADLINE = Instant.parse("2026-01-15T10:02:00Z");
+
+        @Test
+        void shouldLeaveAWindowAloneUntilItsDeadline() {
+            final var gameId = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE.minusSeconds(1));
+
+            assertThat(moved).isEmpty();
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.isWaitingForSoledad()).isTrue();
+            assertThat(round.soledadPasses())
+                .as("a second early is still early; nobody has been passed for")
+                .isEmpty();
+        }
+
+        @Test
+        void shouldPassForEveryoneStillSilentWhenTheDeadlineArrives() {
+            final var gameId = GameId.generate();
+            final var players = generatePlayers();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+
+            final var answered = players.get(0);
+            gameService.passSoledad(new SoledadUseCase.PassSoledadCommand(gameId, answered));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE);
+
+            assertThat(moved).containsExactly(gameId);
+
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.isWaitingForTrump())
+                .as("with all five accounted for the hand moves on to naming trumps")
+                .isTrue();
+
+            assertThat(autoPassedPlayers())
+                .as("the four who said nothing, and only them")
+                .containsExactlyInAnyOrderElementsOf(
+                    players.stream().filter(p -> !p.equals(answered)).toList()
+                );
+        }
+
+        @Test
+        void shouldTellTheTableWhoWasPassedForAndWhoIsLeft() {
+            final var gameId = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+            gameService.expireSoledadWindows(DEADLINE);
+
+            final var autoPassed = eventPublisher.events.stream()
+                .filter(GameEvent.SoledadAutoPassed.class::isInstance)
+                .map(GameEvent.SoledadAutoPassed.class::cast)
+                .toList();
+
+            assertThat(autoPassed).hasSize(5);
+            for (var i = 0; i < autoPassed.size(); i++) {
+                assertThat(autoPassed.get(i).remainingPlayers())
+                    .as("each pass leaves one fewer to hear from")
+                    .hasSize(4 - i);
+            }
+        }
+
+        @Test
+        void shouldCloseTheWindowOnceAndSayItWasNotDeclared() {
+            final var gameId = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+            gameService.expireSoledadWindows(DEADLINE);
+
+            final var closed = eventPublisher.events.stream()
+                .filter(GameEvent.SoledadWindowClosed.class::isInstance)
+                .map(GameEvent.SoledadWindowClosed.class::cast)
+                .toList();
+
+            assertThat(closed).hasSize(1);
+            assertThat(closed.get(0).declared())
+                .as("silence is a pass, never a declaration")
+                .isFalse();
+            assertThat(closed.get(0).awaitingTrumpFrom()).isEqualTo(
+                gameRepository.findById(gameId).orElseThrow()
+                    .currentRound().orElseThrow().trumpChooser()
+            );
+        }
+
+        @Test
+        void shouldLeaveAWindowThatHasAlreadyClosedAlone() {
+            final var gameId = GameId.generate();
+            final var players = generatePlayers();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(gameId, players));
+            players.forEach(player -> gameService.passSoledad(
+                new SoledadUseCase.PassSoledadCommand(gameId, player)
+            ));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE.plusSeconds(600));
+
+            assertThat(moved)
+                .as("the window is long shut; the deadline it was carrying went with it")
+                .isEmpty();
+            assertThat(autoPassedPlayers()).isEmpty();
+        }
+
+        @Test
+        void shouldSweepEveryTableNotJustTheFirst() {
+            final var first = GameId.generate();
+            final var second = GameId.generate();
+            gameService.startGame(new StartGameUseCase.StartGameCommand(first, generatePlayers()));
+            gameService.startGame(new StartGameUseCase.StartGameCommand(second, generatePlayers()));
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE);
+
+            assertThat(moved).containsExactlyInAnyOrder(first, second);
+        }
+
+        @Test
+        void shouldEndTheHandWhenTheOneHoldingFourKingsSaysNothing() {
+            // Silence is a pass, and a four-king holder's pass takes the 4 and ends the
+            // deal there. The sweep has to settle that round, not save a half-passed one.
+            final var gameId = dealWhereSomebodyHoldsFourKings();
+
+            final var moved = gameService.expireSoledadWindows(DEADLINE);
+
+            assertThat(moved).containsExactly(gameId);
+            assertThat(eventPublisher.events)
+                .as("a round that ended in the window still owes the table its settlement")
+                .anyMatch(GameEvent.RoundEnded.class::isInstance);
+
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.roundNumber())
+                .as("and the next hand is dealt, as after any other round")
+                .isEqualTo(2);
+        }
+
+        private List<PlayerId> autoPassedPlayers() {
+            return eventPublisher.events.stream()
+                .filter(GameEvent.SoledadAutoPassed.class::isInstance)
+                .map(GameEvent.SoledadAutoPassed.class::cast)
+                .map(GameEvent.SoledadAutoPassed::playerId)
+                .toList();
+        }
+
+        /**
+         * Deals until somebody is holding all four kings, which happens about once in a
+         * hundred deals - cheap to look for, and the alternative is reaching inside the
+         * aggregate to plant a hand the dealer would never have dealt.
+         */
+        private GameId dealWhereSomebodyHoldsFourKings() {
+            for (var seed = 0; seed < 5_000; seed++) {
+                final var gameId = GameId.generate();
+                final var service = new GameService(
+                    gameRepository,
+                    eventPublisher,
+                    new MoveValidator(new CardRankingService()),
+                    new BasaResolver(new CardRankingService()),
+                    FIXED_CLOCK,
+                    new Random(seed)
+                );
+                service.startGame(new StartGameUseCase.StartGameCommand(gameId, generatePlayers()));
+
+                final var round = gameRepository.findById(gameId).orElseThrow()
+                    .currentRound().orElseThrow();
+                if (round.fourKingHolder().isPresent()) {
+                    eventPublisher.events.clear();
+                    return gameId;
+                }
+                gameRepository.delete(gameId);
+            }
+            throw new AssertionError("no deal in 5000 gave one player all four kings");
+        }
+    }
+
     // Test double - captures published events
+    /**
+     * A round that stops and says nothing is a round nobody can play on: the table sees a
+     * hand in progress, no turn, and no way to answer. Every pause has to announce itself.
+     *
+     * This is the shape of two bugs already - going alone opened a window the client was
+     * never shown, and a clean sweep to five paused the hand in silence - so it is pinned
+     * here for all of them at once rather than one at a time.
+     */
+    @Nested
+    @DisplayName("Every pause announces itself")
+    class PausesAreAnnounced {
+
+        @Test
+        void everyWaitingStatusShouldHaveAnEventThatCarriesIt() {
+            final var announced = java.util.Map.of(
+                RoundStatus.WAITING_FOR_TODO, GameEvent.TodoPending.class,
+                RoundStatus.WAITING_FOR_KING_CHOICE, GameEvent.KingFellPending.class,
+                RoundStatus.WAITING_FOR_TRUMP, GameEvent.SoledadWindowClosed.class,
+                RoundStatus.COMPLETE, GameEvent.RoundEnded.class
+            );
+
+            // WAITING_FOR_SOLEDAD is the status a round is dealt into, so it arrives with
+            // the state itself rather than as a transition.
+            final var pauses = java.util.Arrays.stream(RoundStatus.values())
+                .filter(status -> status != RoundStatus.IN_PROGRESS)
+                .filter(status -> status != RoundStatus.WAITING_FOR_SOLEDAD)
+                .toList();
+
+            assertThat(announced.keySet())
+                .as("a status the client is never told about strands whoever is waiting")
+                .containsExactlyInAnyOrderElementsOf(pauses);
+        }
+
+        @Test
+        void shouldAnnounceTheTodoCallWhenTheGoingSideSweepsToFive() {
+            // Reported twice from a real table: "cuando yo hago la quinta basa, el juego
+            // para i no puedo seguir". The round paused on the todo call and said nothing,
+            // so the page went on showing a hand in progress with nobody on turn.
+            final var gameId = startGameAndSelectTrump(Suit.COPAS);
+            final var goingPlayer = sweepFourBasas(gameId);
+
+            playTheFifthBasaThroughTheService(gameId, goingPlayer);
+
+            final var round = gameRepository.findById(gameId).orElseThrow()
+                .currentRound().orElseThrow();
+            assertThat(round.isWaitingForTodo())
+                .as("five basas and every one of them is what opens the todo call")
+                .isTrue();
+
+            final var pending = eventPublisher.events.stream()
+                .filter(GameEvent.TodoPending.class::isInstance)
+                .map(GameEvent.TodoPending.class::cast)
+                .toList();
+            assertThat(pending)
+                .as("the pause has to reach the table, or nobody can answer it")
+                .hasSize(1);
+            assertThat(pending.get(0).caller()).isEqualTo(round.todoCaller().orElseThrow());
+        }
+
+        /**
+         * Hands the first four basas to the side that goes and returns the player who will
+         * take the fifth. Done on the aggregate, because a basa's winner is decided by the
+         * cards and this test is about what happens after five, not about how they fall.
+         *
+         * @return the going-side player holding the Espadilla, which wins any basa it is
+         *         played into and so settles the fifth without arranging the deal
+         */
+        private PlayerId sweepFourBasas(GameId gameId) {
+            var game = gameRepository.findById(gameId).orElseThrow();
+            final var round = game.currentRound().orElseThrow();
+
+            final var espadillaHolder = round.playerOrder().stream()
+                .filter(p -> round.getHand(p).stream().anyMatch(Card::isEspadilla))
+                .findFirst().orElseThrow();
+            final var partner = round.playerOrder().stream()
+                .filter(p -> !p.equals(espadillaHolder))
+                .findFirst().orElseThrow();
+
+            game = game.setTeams(Teams.of(espadillaHolder, partner, new HashSet<>(round.playerOrder())));
+
+            for (var basa = 0; basa < 4; basa++) {
+                game = playFullBasaHoldingBackTheEspadilla(game);
+                game = game.completeBasa(espadillaHolder);
+            }
+
+            gameRepository.save(game);
+            return espadillaHolder;
+        }
+
+        /** Five legal cards, none of them the Espadilla - it is wanted for the fifth. */
+        private Game playFullBasaHoldingBackTheEspadilla(Game game) {
+            for (var seat = 0; seat < Round.PLAYER_COUNT; seat++) {
+                final var round = game.currentRound().orElseThrow();
+                final var player = round.currentPlayer().orElseThrow();
+                final var legal = legalCardsFor(round, player);
+                final var card = legal.stream()
+                    .filter(c -> !c.isEspadilla())
+                    .findFirst()
+                    .orElse(legal.get(0));
+                game = game.playCard(player, card, FIXED_CLOCK.instant());
+            }
+            return game;
+        }
+
+        /**
+         * The fifth basa, played through the service so the real publishing path runs.
+         * The Espadilla takes it, which puts the going side on five having won every one.
+         */
+        private void playTheFifthBasaThroughTheService(GameId gameId, PlayerId espadillaHolder) {
+            for (var seat = 0; seat < Round.PLAYER_COUNT; seat++) {
+                final var round = gameRepository.findById(gameId).orElseThrow()
+                    .currentRound().orElseThrow();
+                final var player = round.currentPlayer().orElseThrow();
+                final var legal = legalCardsFor(round, player);
+                final var card = player.equals(espadillaHolder)
+                    ? legal.stream().filter(Card::isEspadilla).findFirst().orElseThrow()
+                    : legal.get(0);
+
+                assertThat(gameService.playCard(
+                    new PlayCardUseCase.PlayCardCommand(gameId, player, card)
+                )).isInstanceOf(PlayCardUseCase.PlayCardResult.Success.class);
+            }
+        }
+
+        private List<Card> legalCardsFor(Round round, PlayerId player) {
+            return new MoveValidator(new CardRankingService()).legalCards(
+                round.getHand(player),
+                round.trumpSuit().orElseThrow(),
+                round.currentBasa()
+                    .filter(basa -> !basa.cardsPlayed().isEmpty())
+                    .map(basa -> basa.cardsPlayed().get(0).card()),
+                new MoveValidator.LeadContext(round.ledSuits(), round.sideDecided())
+            );
+        }
+    }
+
     private static class CapturingEventPublisher implements GameEventPublisher {
 
         final List<GameEvent> events = new ArrayList<>();

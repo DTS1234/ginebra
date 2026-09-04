@@ -6,6 +6,7 @@ import com.ginebra.lobby.domain.RemovePlayerResult;
 import com.ginebra.lobby.domain.Room;
 import com.ginebra.lobby.domain.RoomId;
 import com.ginebra.lobby.port.in.CreateRoomUseCase;
+import com.ginebra.lobby.port.in.ExpireRoomsUseCase;
 import com.ginebra.lobby.port.in.FillWithBotsUseCase;
 import com.ginebra.lobby.port.in.GetRoomUseCase;
 import com.ginebra.lobby.port.in.JoinRoomUseCase;
@@ -17,12 +18,15 @@ import com.ginebra.lobby.port.out.RoomRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase, GetRoomUseCase, FillWithBotsUseCase {
+public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoomUseCase, LeaveRoomUseCase, GetRoomUseCase, FillWithBotsUseCase, ExpireRoomsUseCase {
 
     private final RoomRepository roomRepository;
     private final GameStarter gameStarter;
@@ -95,6 +99,20 @@ public class RoomService implements CreateRoomUseCase, ListRoomsUseCase, JoinRoo
             .toList();
 
         return new ListRoomsResponse(joinableRooms);
+    }
+
+    @Override
+    public List<RoomId> expireStaleRooms(Duration idleFor, Instant sweptAt) {
+        Objects.requireNonNull(idleFor, "idleFor must not be null");
+        Objects.requireNonNull(sweptAt, "sweptAt must not be null");
+
+        final var stale = roomRepository.findAll().stream()
+            .filter(room -> room.isAbandoned(idleFor, sweptAt))
+            .map(Room::id)
+            .toList();
+
+        stale.forEach(roomRepository::delete);
+        return stale;
     }
 
     @Override

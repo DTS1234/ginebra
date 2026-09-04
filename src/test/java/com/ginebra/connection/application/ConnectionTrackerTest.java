@@ -3,8 +3,11 @@ package com.ginebra.connection.application;
 import com.ginebra.identity.domain.PlayerId;
 import com.ginebra.lobby.domain.GameId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,7 +68,7 @@ class ConnectionTrackerTest {
         tracker.playerConnected(playerId, gameId, sessionId, Instant.now());
 
         // Act
-        final var disconnected = tracker.playerDisconnected(sessionId);
+        final var disconnected = tracker.playerDisconnected(sessionId, Instant.now());
 
         // Assert
         assertThat(disconnected).isPresent();
@@ -76,7 +79,7 @@ class ConnectionTrackerTest {
 
     @Test
     void shouldReturnEmptyForUnknownDisconnection() {
-        final var disconnected = tracker.playerDisconnected("unknown-session");
+        final var disconnected = tracker.playerDisconnected("unknown-session", Instant.now());
         assertThat(disconnected).isEmpty();
     }
 
@@ -99,6 +102,80 @@ class ConnectionTrackerTest {
         // Assert
         assertThat(tracker.isConnected(playerId)).isTrue();
         assertThat(tracker.getConnection(playerId).get().sessionId()).isEqualTo("session-new");
+    }
+
+    @Nested
+    @DisplayName("Somebody who has gone")
+    class Absences {
+
+        private static final Instant LEFT_AT = Instant.parse("2026-01-15T10:00:00Z");
+        private static final Duration FIVE_MINUTES = Duration.ofMinutes(5);
+
+        @Test
+        void shouldBeCountedFromWhenTheirConnectionDied() {
+            final var playerId = PlayerId.generate();
+            final var gameId = GameId.generate();
+            tracker.playerConnected(playerId, gameId, "s1", LEFT_AT.minusSeconds(60));
+
+            tracker.playerDisconnected("s1", LEFT_AT);
+
+            assertThat(tracker.absencesLongerThan(FIVE_MINUTES, LEFT_AT.plus(FIVE_MINUTES)))
+                .extracting(ConnectionTracker.Absence::playerId, ConnectionTracker.Absence::gameId)
+                .containsExactly(org.assertj.core.api.Assertions.tuple(playerId, gameId));
+        }
+
+        @Test
+        void shouldNotCountUntilTheirTimeIsUp() {
+            tracker.playerConnected(PlayerId.generate(), GameId.generate(), "s1", LEFT_AT);
+            tracker.playerDisconnected("s1", LEFT_AT);
+
+            assertThat(tracker.absencesLongerThan(FIVE_MINUTES, LEFT_AT.plus(FIVE_MINUTES).minusSeconds(1)))
+                .as("a second short of five minutes is not five minutes")
+                .isEmpty();
+        }
+
+        @Test
+        void shouldStopCountingTheMomentTheyComeBack() {
+            final var playerId = PlayerId.generate();
+            final var gameId = GameId.generate();
+            tracker.playerConnected(playerId, gameId, "s1", LEFT_AT);
+            tracker.playerDisconnected("s1", LEFT_AT);
+
+            tracker.playerConnected(playerId, gameId, "s2", LEFT_AT.plusSeconds(30));
+
+            assertThat(tracker.absencesLongerThan(FIVE_MINUTES, LEFT_AT.plusSeconds(3600)))
+                .as("they are sitting there; nobody is taking their seat")
+                .isEmpty();
+        }
+
+        @Test
+        void shouldNotBeStartedByAnOldSessionDyingAfterTheyReconnected() {
+            // The old session's DISCONNECT can arrive after the new one's CONNECT. Taken
+            // at face value it would mark a player absent while they are looking at the
+            // table.
+            final var playerId = PlayerId.generate();
+            final var gameId = GameId.generate();
+            tracker.playerConnected(playerId, gameId, "s-old", LEFT_AT);
+            tracker.playerConnected(playerId, gameId, "s-new", LEFT_AT.plusSeconds(1));
+
+            tracker.playerDisconnected("s-old", LEFT_AT.plusSeconds(2));
+
+            assertThat(tracker.isConnected(playerId)).isTrue();
+            assertThat(tracker.absencesLongerThan(FIVE_MINUTES, LEFT_AT.plusSeconds(3600))).isEmpty();
+        }
+
+        @Test
+        void shouldBeForgettableOnceItHasBeenDealtWith() {
+            final var playerId = PlayerId.generate();
+            tracker.playerConnected(playerId, GameId.generate(), "s1", LEFT_AT);
+            tracker.playerDisconnected("s1", LEFT_AT);
+
+            tracker.forgetAbsence(playerId);
+
+            assertThat(tracker.absencesLongerThan(FIVE_MINUTES, LEFT_AT.plusSeconds(3600)))
+                .as("their seat has been handed over; there is nothing left to notice")
+                .isEmpty();
+        }
     }
 
     @Test
